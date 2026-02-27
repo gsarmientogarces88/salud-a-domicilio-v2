@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: salud
+      POSTGRES_PASSWORD: salud123
+      POSTGRES_DB: salud_domicilio
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - '4000:4000'
+    environment:
+      DATABASE_URL: postgresql://salud:salud123@postgres:5432/salud_domicilio
+      JWT_SECRET: cambiar-en-produccion
+      JWT_EXPIRES_IN: 7d
+      PORT: '4000'
+      FRONTEND_URL: http://localhost:3000
+      NODE_ENV: development
+    depends_on:
+      - postgres
+
+volumes:
+  pgdata:

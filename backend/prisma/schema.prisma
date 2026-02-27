@@ -1,0 +1,167 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ========== ENUMS ==========
+
+enum Role {
+  PATIENT
+  DOCTOR
+  ADMIN
+}
+
+enum ServiceStatus {
+  PENDING
+  ACCEPTED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  REFUNDED
+}
+
+enum ServiceType {
+  URGENT
+  SCHEDULED
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+// ========== USERS ==========
+
+model User {
+  id                String          @id @default(cuid())
+  email             String          @unique
+  password          String
+  role              Role
+  firstName         String
+  lastName          String
+  phone             String?
+  isBanned          Boolean         @default(false)
+  banReason         String?
+  cancellationCount Int             @default(0)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  doctorProfile     DoctorProfile?
+  patientProfile    PatientProfile?
+
+  @@map("users")
+}
+
+// ========== DOCTOR PROFILES ==========
+
+model DoctorProfile {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  specialty     String
+  licenseNumber String   @unique
+  baseFee       Int      // CLP
+  isVerified    Boolean  @default(false)
+  isAvailable   Boolean  @default(false)
+  documentsUrl  String?
+  verifiedAt    DateTime?
+  verifiedBy    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  services      ServiceRequest[]
+
+  @@map("doctor_profiles")
+}
+
+// ========== PATIENT PROFILES ==========
+
+model PatientProfile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rut       String?  @unique
+  address   String?
+  commune   String?
+  city      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  services  ServiceRequest[]
+
+  @@map("patient_profiles")
+}
+
+// ========== SERVICE REQUESTS ==========
+
+model ServiceRequest {
+  id               String        @id @default(cuid())
+  patientId        String
+  patient          PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctorId         String?
+  doctor           DoctorProfile? @relation(fields: [doctorId], references: [id])
+  type             ServiceType
+  status           ServiceStatus @default(PENDING)
+  description      String
+  address          String
+  commune          String?
+  city             String?
+  totalAmount      Int           // CLP - monto total cobrado
+  commissionAmount Int           @default(0) // CLP - comisión plataforma
+  doctorNetAmount  Int           @default(0) // CLP - neto médico
+  urgentFixedPrice Int?          // CLP - solo si type=URGENT
+  scheduledAt      DateTime?     // solo si type=SCHEDULED
+  expiresAt        DateTime?     // PENDING + 240s
+  startedAt        DateTime?
+  completedAt      DateTime?
+  cancelledAt      DateTime?
+  cancelReason     String?
+  notes            String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  transactions     Transaction[]
+
+  @@index([status])
+  @@index([type, status])
+  @@index([patientId])
+  @@index([doctorId])
+  @@map("service_requests")
+}
+
+// ========== TRANSACTIONS ==========
+
+model Transaction {
+  id               String            @id @default(cuid())
+  serviceRequestId String
+  serviceRequest   ServiceRequest    @relation(fields: [serviceRequestId], references: [id], onDelete: Cascade)
+  provider         String            // "stripe" | "mercadopago"
+  providerRef      String?           // ID externo del proveedor
+  amount           Int               // CLP
+  status           TransactionStatus @default(PENDING)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([serviceRequestId])
+  @@map("transactions")
+}
+
+// ========== COMMISSION SETTINGS ==========
+
+model CommissionSetting {
+  id              String   @id @default(cuid())
+  percentage      Int      @default(20) // 20 = 20%
+  urgentFixedFee  Int      @default(35000) // CLP tarifa fija urgencia
+  maxCancellations Int     @default(3)
+  pendingTimeoutSec Int    @default(240)
+  createdAt       DateTime @default(now())
+  updatedBy       String?
+
+  @@map("commission_settings")
+}
