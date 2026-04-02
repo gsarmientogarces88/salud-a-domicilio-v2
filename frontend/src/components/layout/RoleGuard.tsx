@@ -9,7 +9,11 @@ export default function RoleGuard({ role, children }: { role: string; children: 
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading && user?.role !== role) router.push('/auth/login');
+    if (loading) return;
+    if (user?.role === role) return;
+
+    const redirectTo = role === 'LABORATORY' ? '/auth/laboratorio/login' : '/auth/login';
+    router.push(redirectTo);
   }, [user, loading, role, router]);
 
   if (loading || user?.role !== role) return null;

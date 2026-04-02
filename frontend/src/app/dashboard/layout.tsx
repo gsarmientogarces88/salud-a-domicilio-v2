@@ -17,12 +17,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (loading) return <div className="flex min-h-screen items-center justify-center">Cargando...</div>;
   if (!user) return null;
 
+  const isPatient = user.role === 'PATIENT';
+
   return (
-    <div className="flex min-h-screen flex-col">
-      <Navbar />
+    <div className="flex min-h-screen flex-col bg-gray-50">
+      {!isPatient && <Navbar />}
       <div className="flex flex-1">
         <Sidebar />
-        <main className="flex-1 p-6">{children}</main>
+        <main className="flex-1 overflow-auto p-6">{children}</main>
       </div>
     </div>
   );

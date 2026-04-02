@@ -1,0 +1,10 @@
+{
+  "/page": "app/page.js",
+  "/dashboard/doctor/page": "app/dashboard/doctor/page.js",
+  "/dashboard/patient/medico/urgente/estado/page": "app/dashboard/patient/medico/urgente/estado/page.js",
+  "/dashboard/doctor/requests/page": "app/dashboard/doctor/requests/page.js",
+  "/dashboard/doctor/my-consultations/page": "app/dashboard/doctor/my-consultations/page.js",
+  "/dashboard/patient/page": "app/dashboard/patient/page.js",
+  "/dashboard/patient/agenda/page": "app/dashboard/patient/agenda/page.js",
+  "/dashboard/patient/medico/page": "app/dashboard/patient/medico/page.js"
+}

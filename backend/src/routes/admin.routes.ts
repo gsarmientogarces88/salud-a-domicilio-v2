@@ -141,4 +141,46 @@ router.patch('/commission/max-cancellations', async (req: Request, res: Response
   }
 });
 
+// --- Laboratorios y exámenes a domicilio (ADMIN ve todo) ---
+
+router.get('/lab-exams', async (req: Request, res: Response) => {
+  try {
+    const { status, page = '1', limit = '50' } = req.query;
+    const skip = (parseInt(page as string, 10) - 1) * parseInt(limit as string, 10);
+    const where = status ? { status: status as any } : {};
+
+    const [list, total] = await Promise.all([
+      prisma.labExamRequest.findMany({
+        where,
+        skip,
+        take: parseInt(limit as string, 10),
+        orderBy: { createdAt: 'desc' },
+        include: {
+          laboratory: { select: { id: true, name: true } },
+          patient: { include: { user: { select: { email: true, firstName: true, lastName: true } } } },
+          quote: true,
+        },
+      }),
+      prisma.labExamRequest.count({ where }),
+    ]);
+    res.json({ data: list, total, page: parseInt(page as string, 10) });
+  } catch (e: any) {
+    res.status(500).json({ error: true, message: e.message });
+  }
+});
+
+router.get('/laboratories', async (_req: Request, res: Response) => {
+  try {
+    const labs = await prisma.laboratory.findMany({
+      orderBy: { name: 'asc' },
+      include: {
+        user: { select: { id: true, email: true, firstName: true, lastName: true } },
+      },
+    });
+    res.json({ data: labs });
+  } catch (e: any) {
+    res.status(500).json({ error: true, message: e.message });
+  }
+});
+
 export default router;

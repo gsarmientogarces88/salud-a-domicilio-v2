@@ -1,108 +1,99 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { apiFetch } from '@/lib/api';
-import StatusBadge from '@/components/ui/StatusBadge';
+import { useAuth } from '@/context/AuthContext';
+import Link from 'next/link';
 
-interface Service {
-  id: string; type: string; status: string; description: string;
-  address: string; totalAmount: number; createdAt: string;
-  doctor?: { user: { firstName: string; lastName: string } };
-}
+const ATENCION_CLINICA = [
+  { id: 'agenda', label: 'Agenda a Domicilio', desc: 'Kine, enfermería, psicología, TO, nutrición. Pagas cuando el profesional confirma.', icon: '📅', href: '/dashboard/patient/agenda' as const },
+  { id: 'medico', label: 'Médico', desc: 'Consulta general con un doctor.', icon: '👨‍⚕️', href: '/dashboard/patient/medico' as const },
+  { id: 'nutricionista', label: 'Nutricionista', desc: 'Asesoría alimentaria y dietética.', icon: '🥗', href: '/dashboard/patient/consultas?servicio=nutricionista' as const },
+  { id: 'kinesiologo', label: 'Kinesiólogo', desc: 'Terapia física y rehabilitación.', icon: '🩺', href: '/dashboard/patient/consultas?servicio=kinesiologo' as const },
+  { id: 'enfermeria', label: 'Enfermería', desc: 'Cuidados e inyecciones a domicilio.', icon: '💉', href: '/dashboard/patient/consultas?servicio=enfermeria' as const },
+  { id: 'psicologo', label: 'Psicólogo', desc: 'Apoyo psicológico y terapia.', icon: '🧠', href: '/dashboard/patient/consultas?servicio=psicologo' as const },
+  { id: 'terapeuta', label: 'Terapeuta Ocupacional', desc: 'Apoyo en actividades de la vida diaria.', icon: '🧩', href: '/dashboard/patient/consultas?servicio=terapeuta' as const },
+];
+
+const VISIBLE_ATENCION_CLINICA = new Set(['medico', 'nutricionista']);
 
 export default function PatientDashboard() {
-  const [services, setServices] = useState<Service[]>([]);
-  const [showForm, setShowForm] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState({ type: 'URGENT', description: '', address: '', commune: '' });
-  const [error, setError] = useState('');
-
-  const load = async () => {
-    try {
-      const res = await apiFetch<{ data: Service[] }>('/services/me');
-      setServices(res.data);
-    } catch {} finally { setLoading(false); }
-  };
-
-  useEffect(() => { load(); }, []);
-
-  const set = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
-
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    try {
-      await apiFetch('/services', { method: 'POST', body: JSON.stringify(form) });
-      setShowForm(false);
-      setForm({ type: 'URGENT', description: '', address: '', commune: '' });
-      load();
-    } catch (err: any) { setError(err.message); }
-  };
-
-  const handlePay = async (serviceId: string) => {
-    try {
-      await apiFetch(`/payments/${serviceId}/create`, { method: 'POST', body: JSON.stringify({ provider: 'mercadopago' }) });
-      await apiFetch(`/payments/${serviceId}/confirm`, { method: 'POST', body: JSON.stringify({}) });
-      load();
-    } catch (err: any) { alert(err.message); }
-  };
-
-  if (loading) return <p>Cargando...</p>;
+  const { user } = useAuth();
 
   return (
-    <div>
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Mis Solicitudes</h1>
-        <button onClick={() => setShowForm(!showForm)}
-          className="rounded-lg bg-primary px-4 py-2 text-white hover:bg-primary-dark">
-          {showForm ? 'Cancelar' : '+ Nueva Solicitud'}
-        </button>
+    <div className="flex flex-col">
+      {/* Header */}
+      <div className="mb-8 flex items-start justify-between">
+        <div>
+          <h1 className="mb-1 flex items-center gap-2 text-2xl font-bold text-gray-900">
+            <span className="text-3xl">📋</span>
+            Solicitar Consulta Médica
+          </h1>
+          <p className="text-gray-600">
+            Programa una visita a domicilio eligiendo el tipo de servicio que necesitas.
+          </p>
+        </div>
+        <div className="flex items-center gap-4">
+          <button className="relative rounded-full p-2 hover:bg-gray-100">
+            <span className="text-xl">🔔</span>
+            <span className="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white">
+              1
+            </span>
+          </button>
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-gray-700">
+              {user?.firstName} {user?.lastName}
+            </span>
+            <span className="inline-block h-10 w-10 overflow-hidden rounded-full bg-sky-200 text-center leading-10 text-sky-700">
+              👤
+            </span>
+          </div>
+        </div>
       </div>
 
-      {showForm && (
-        <form onSubmit={handleCreate} className="mb-6 rounded-xl bg-white p-6 shadow">
-          {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
-          <select value={form.type} onChange={e => set('type', e.target.value)}
-            className="mb-3 w-full rounded-lg border px-4 py-2">
-            <option value="URGENT">🚨 Urgencia (tarifa fija)</option>
-            <option value="SCHEDULED">📅 Agendada</option>
-          </select>
-          <input placeholder="Motivo de consulta" value={form.description} onChange={e => set('description', e.target.value)}
-            className="mb-3 w-full rounded-lg border px-4 py-2" required />
-          <input placeholder="Dirección" value={form.address} onChange={e => set('address', e.target.value)}
-            className="mb-3 w-full rounded-lg border px-4 py-2" required />
-          <input placeholder="Comuna" value={form.commune} onChange={e => set('commune', e.target.value)}
-            className="mb-4 w-full rounded-lg border px-4 py-2" />
-          <button type="submit" className="rounded-lg bg-accent px-6 py-2 text-white hover:opacity-90">
-            Enviar Solicitud
-          </button>
-        </form>
-      )}
-
-      {services.length === 0 ? (
-        <p className="text-gray-500">No tienes solicitudes aún.</p>
-      ) : (
-        <div className="space-y-3">
-          {services.map(s => (
-            <div key={s.id} className="flex items-center justify-between rounded-xl bg-white p-4 shadow-sm">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">{s.type === 'URGENT' ? '🚨' : '📅'} {s.description}</span>
-                  <StatusBadge status={s.status} />
-                </div>
-                <p className="text-sm text-gray-500">{s.address} · ${s.totalAmount.toLocaleString('es-CL')} CLP</p>
-                {s.doctor && <p className="text-sm text-gray-400">Dr. {s.doctor.user.firstName} {s.doctor.user.lastName}</p>}
+      {/* Atención Clínica */}
+      <section className="mb-10">
+        <h2 className="mb-4 text-lg font-semibold text-gray-800">Atención Clínica</h2>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {ATENCION_CLINICA.filter((s) => VISIBLE_ATENCION_CLINICA.has(s.id)).map((s) => (
+            <Link
+              key={s.id}
+              href={s.href}
+              className="group flex flex-col rounded-xl border bg-white p-5 shadow-sm transition-all hover:shadow-md hover:ring-2 hover:ring-sky-200"
+            >
+              <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-lg bg-sky-50 text-3xl group-hover:bg-sky-100">
+                {s.icon}
               </div>
-              {s.status === 'ACCEPTED' && (
-                <button onClick={() => handlePay(s.id)}
-                  className="rounded-lg bg-accent px-4 py-2 text-sm text-white hover:opacity-90">
-                  💳 Pagar
-                </button>
-              )}
-            </div>
+              <h3 className="mb-1 font-semibold text-gray-900">{s.label}</h3>
+              <p className="text-sm text-gray-600">{s.desc}</p>
+            </Link>
           ))}
         </div>
-      )}
+      </section>
+
+      <section className="mb-10">
+        <h2 className="mb-4 text-lg font-semibold text-gray-800">Laboratorio</h2>
+        <Link
+          href="/dashboard/patient/examenes-domicilio"
+          className="group flex items-center gap-4 rounded-xl border border-sky-100 bg-white p-5 shadow-sm transition-all hover:shadow-md hover:ring-2 hover:ring-sky-200"
+        >
+          <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-sky-50 text-3xl group-hover:bg-sky-100">
+            🧪
+          </div>
+          <div>
+            <h3 className="font-semibold text-gray-900">Exámenes a Domicilio</h3>
+            <p className="text-sm text-gray-600">Orden médica, cotización y seguimiento en un solo lugar.</p>
+          </div>
+        </Link>
+      </section>
+
+      {/* Bottom info bar */}
+      <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3">
+        <p className="text-sm text-gray-700">
+          Podrás pagar con Bono de Isapre o en línea tras confirmar disponibilidad del profesional.{' '}
+          <Link href="#" className="font-medium text-sky-600 hover:underline">
+            Ve cómo funciona →
+          </Link>
+        </p>
+      </div>
     </div>
   );
 }

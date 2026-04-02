@@ -7,6 +7,8 @@ const config: Config = {
       colors: {
         primary: { DEFAULT: '#2563eb', dark: '#1d4ed8' },
         accent: '#10b981',
+        'salud-light': '#e0f2fe',
+        'salud-sidebar': '#7dd3fc',
       },
     },
   },

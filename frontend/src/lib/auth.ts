@@ -37,3 +37,10 @@ export async function registerRequest(data: {
     body: JSON.stringify(data),
   });
 }
+
+export async function laboratoryLoginRequest(email: string, password: string) {
+  return apiFetch<{ data: { token: string; user: any } }>('/auth/laboratory/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+}

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { apiFetch } from '@/lib/api';
 import StatusBadge from '@/components/ui/StatusBadge';
+import LabExamUpload from '@/components/examenes/LabExamUpload';
 
 interface User { id: string; email: string; firstName: string; lastName: string; role: string; isBanned: boolean; cancellationCount: number; }
 interface Service { id: string; type: string; status: string; description: string; totalAmount: number; commissionAmount: number; createdAt: string; }
@@ -10,7 +11,7 @@ interface Service { id: string; type: string; status: string; description: strin
 export default function AdminDashboard() {
   const [users, setUsers] = useState<User[]>([]);
   const [services, setServices] = useState<Service[]>([]);
-  const [tab, setTab] = useState<'users' | 'services' | 'config'>('users');
+  const [tab, setTab] = useState<'users' | 'services' | 'config' | 'lab'>('users');
   const [cfg, setCfg] = useState({ percentage: 20, pendingTimeoutSec: 240, maxCancellations: 3 });
   const [loading, setLoading] = useState(true);
 
@@ -65,11 +66,11 @@ export default function AdminDashboard() {
       </div>
 
       {/* Tabs */}
-      <div className="mb-4 flex gap-2">
-        {(['users', 'services', 'config'] as const).map(t => (
+      <div className="mb-4 flex flex-wrap gap-2">
+        {(['users', 'services', 'config', 'lab'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)}
-            className={`rounded-lg px-4 py-2 text-sm capitalize ${tab === t ? 'bg-primary text-white' : 'bg-white text-gray-600'}`}>
-            {t === 'users' ? '👥 Usuarios' : t === 'services' ? '🩺 Servicios' : '⚙️ Config'}
+            className={`rounded-lg px-4 py-2 text-sm ${tab === t ? 'bg-primary text-white' : 'bg-white text-gray-600'}`}>
+            {t === 'users' ? '👥 Usuarios' : t === 'services' ? '🩺 Servicios' : t === 'config' ? '⚙️ Config' : '🔬 Laboratorio'}
           </button>
         ))}
       </div>
@@ -108,6 +109,13 @@ export default function AdminDashboard() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Laboratorio: subir resultados de exámenes */}
+      {tab === 'lab' && (
+        <div className="max-w-2xl">
+          <LabExamUpload />
         </div>
       )}
 

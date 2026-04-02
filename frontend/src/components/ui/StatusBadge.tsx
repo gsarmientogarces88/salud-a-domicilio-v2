@@ -2,6 +2,7 @@
 
 const COLORS: Record<string, string> = {
   PENDING: 'bg-yellow-100 text-yellow-800',
+  QUEUED: 'bg-sky-100 text-sky-800',
   ACCEPTED: 'bg-blue-100 text-blue-800',
   IN_PROGRESS: 'bg-purple-100 text-purple-800',
   COMPLETED: 'bg-green-100 text-green-800',

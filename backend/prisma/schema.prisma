@@ -13,10 +13,12 @@ enum Role {
   PATIENT
   DOCTOR
   ADMIN
+  LABORATORY
 }
 
 enum ServiceStatus {
   PENDING
+  QUEUED
   ACCEPTED
   IN_PROGRESS
   COMPLETED
@@ -36,6 +38,29 @@ enum TransactionStatus {
   REFUNDED
 }
 
+enum ChatSenderType {
+  PATIENT
+  DOCTOR
+}
+
+enum LocationSource {
+  APP_GPS
+  WEB_BROWSER
+  PATIENT_GPS
+  PATIENT_MAP_PIN
+  ADDRESS_GEOCODE
+  ADMIN_MANUAL
+  IP_GEO
+  UNKNOWN
+}
+
+enum LocationPrecision {
+  HIGH
+  MEDIUM
+  LOW
+  UNKNOWN
+}
+
 // ========== USERS ==========
 
 model User {
@@ -52,8 +77,10 @@ model User {
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
 
-  doctorProfile     DoctorProfile?
-  patientProfile    PatientProfile?
+  doctorProfile      DoctorProfile?
+  patientProfile     PatientProfile?
+  laboratoryProfile  Laboratory?
+  notifications      Notification[]
 
   @@map("users")
 }
@@ -70,14 +97,52 @@ model DoctorProfile {
   isVerified    Boolean  @default(false)
   isAvailable   Boolean  @default(false)
   documentsUrl  String?
+  region        String?
+  city          String?
+  commune       String?
+  baseLat       Float?   // lat base para cálculo de cobertura
+  baseLng       Float?   // lng base para cálculo de cobertura
+  coverageKm    Int?     @default(15) // radio de cobertura en km
+  excludedZones Json?    // ["comunaX", "sectorY"] zonas no atendidas
   verifiedAt    DateTime?
   verifiedBy    String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  services      ServiceRequest[]
+  services            ServiceRequest[]
+  availabilities      Availability[]
+  blockedSlots        BlockedSlot[]
+  agendaSlots         AvailabilitySlot[]
+  appointmentRequests AppointmentRequest[]
+  liveLocation        DoctorLiveLocation?
+  serviceRejections   ServiceRequestRejection[]
 
   @@map("doctor_profiles")
+}
+
+model DoctorLiveLocation {
+  id              String            @id @default(cuid())
+  doctorId        String            @unique
+  doctor          DoctorProfile     @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  lat             Float
+  lng             Float
+  accuracyMeters  Int?
+  capturedAt      DateTime
+  receivedAt      DateTime          @default(now())
+  ttlSeconds      Int               @default(600)
+  expiresAt       DateTime
+  source          LocationSource    @default(UNKNOWN)
+  precision       LocationPrecision @default(UNKNOWN)
+  confidence      Float?            // 0..1 score interno/derivado
+  permissionState String?           // "granted" | "denied" | "prompt" | "unknown"
+  sessionId       String?
+  deviceId        String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([doctorId])
+  @@index([expiresAt])
+  @@map("doctor_live_locations")
 }
 
 // ========== PATIENT PROFILES ==========
@@ -90,10 +155,18 @@ model PatientProfile {
   address   String?
   commune   String?
   city      String?
+  addressLat Float?
+  addressLng Float?
+  addressGeocodedAt DateTime?
+  addressGeocodeSource LocationSource? @default(UNKNOWN)
+  addressGeocodePrecision LocationPrecision? @default(UNKNOWN)
+  addressGeocodeConfidence Float?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  services  ServiceRequest[]
+  services           ServiceRequest[]
+  appointmentRequests AppointmentRequest[]
+  labExamRequests    LabExamRequest[]
 
   @@map("patient_profiles")
 }
@@ -112,6 +185,21 @@ model ServiceRequest {
   address          String
   commune          String?
   city             String?
+  region           String?
+  referencias      String?
+  sexo             String?
+  telefono         String?
+  edadPaciente     Int?
+  esMenorEdad      Boolean       @default(false)
+  tieneFiebre      Boolean?
+  dificultadRespiratoria Boolean?
+  requestLat        Float?
+  requestLng        Float?
+  requestLocationCapturedAt DateTime?
+  requestLocationAccuracyMeters Int?
+  requestLocationSource LocationSource? @default(UNKNOWN)
+  requestLocationPrecision LocationPrecision? @default(UNKNOWN)
+  requestLocationConfidence Float?
   totalAmount      Int           // CLP - monto total cobrado
   commissionAmount Int           @default(0) // CLP - comisión plataforma
   doctorNetAmount  Int           @default(0) // CLP - neto médico
@@ -127,12 +215,47 @@ model ServiceRequest {
   updatedAt        DateTime      @updatedAt
 
   transactions     Transaction[]
+  rejections       ServiceRequestRejection[]
+  chatMessages     ServiceChatMessage[]
 
   @@index([status])
   @@index([type, status])
   @@index([patientId])
   @@index([doctorId])
+  @@index([type, status, expiresAt])
   @@map("service_requests")
+}
+
+model ServiceChatMessage {
+  id              String         @id @default(cuid())
+  serviceRequestId String
+  serviceRequest  ServiceRequest @relation(fields: [serviceRequestId], references: [id], onDelete: Cascade)
+
+  senderType      ChatSenderType
+  senderUserId    String
+  message         String
+
+  createdAt       DateTime       @default(now())
+  readAt          DateTime?
+
+  @@index([serviceRequestId, createdAt])
+  @@index([senderUserId, createdAt])
+  @@map("service_chat_messages")
+}
+
+model ServiceRequestRejection {
+  id              String        @id @default(cuid())
+  serviceRequestId String
+  serviceRequest  ServiceRequest @relation(fields: [serviceRequestId], references: [id], onDelete: Cascade)
+  doctorId        String
+  doctor          DoctorProfile @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  reason          String?
+  createdAt       DateTime      @default(now())
+
+  @@unique([serviceRequestId, doctorId])
+  @@index([doctorId, createdAt])
+  @@index([serviceRequestId, createdAt])
+  @@map("service_request_rejections")
 }
 
 // ========== TRANSACTIONS ==========
@@ -164,4 +287,286 @@ model CommissionSetting {
   updatedBy       String?
 
   @@map("commission_settings")
+}
+
+// ========== AGENDA Y DISPONIBILIDAD ==========
+
+model Availability {
+  id             String        @id @default(cuid())
+  professionalId String
+  professional   DoctorProfile @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  dayOfWeek      Int           // 0 = Domingo, 6 = Sábado
+  startTime      String        // "HH:MM"
+  endTime        String        // "HH:MM"
+  slotDuration   Int           // minutos
+  bufferMinutes  Int           @default(0) // minutos de buffer entre pacientes
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([professionalId, dayOfWeek])
+  @@map("availabilities")
+}
+
+model BlockedSlot {
+  id             String        @id @default(cuid())
+  professionalId String
+  professional   DoctorProfile @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  date           DateTime      // día específico
+  startTime      String        // "HH:MM"
+  endTime        String        // "HH:MM"
+  reason         String?
+  createdAt      DateTime      @default(now())
+
+  @@index([professionalId, date])
+  @@map("blocked_slots")
+}
+
+// ========== AGENDA A DOMICILIO (no urgencias) ==========
+
+enum SlotStatus {
+  AVAILABLE
+  HELD
+  BOOKED
+}
+
+enum AppointmentRequestStatus {
+  PENDING_PRO_CONFIRMATION
+  CONFIRMED
+  REJECTED
+  EXPIRED
+}
+
+enum AppointmentPaymentStatus {
+  HOLD
+  CAPTURED
+  CANCELED
+}
+
+model AvailabilitySlot {
+  id             String        @id @default(cuid())
+  professionalId String
+  professional   DoctorProfile @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  startAt        DateTime
+  endAt          DateTime
+  status         SlotStatus    @default(AVAILABLE)
+  heldUntil      DateTime?     // hasta cuándo está en hold (now + 20 min)
+
+  appointmentRequest AppointmentRequest?
+
+  @@index([professionalId, startAt])
+  @@index([status])
+  @@map("availability_slots")
+}
+
+model AppointmentRequest {
+  id             String                  @id @default(cuid())
+  patientId      String
+  patient        PatientProfile          @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  professionalId String
+  professional   DoctorProfile           @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  slotId         String    @unique
+  slot           AvailabilitySlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  addressText    String                  // dirección completa (sensible; no mostrar hasta aceptar)
+  region         String
+  city           String
+  commune        String
+  lat            Float
+  lng            Float
+  notes          String?
+  status         AppointmentRequestStatus @default(PENDING_PRO_CONFIRMATION)
+  rejectReason   String?                 // DISTANCIA, ZONA, HORARIO, OTRO
+  rejectComment  String?
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  confirmedAt    DateTime?
+  rejectedAt     DateTime?
+  expiredAt      DateTime?
+
+  payment         AppointmentPayment?
+
+  @@index([professionalId, status])
+  @@index([patientId])
+  @@index([status])
+  @@map("appointment_requests")
+}
+
+model AppointmentPayment {
+  id                String                  @id @default(cuid())
+  appointmentRequestId String               @unique
+  appointmentRequest   AppointmentRequest   @relation(fields: [appointmentRequestId], references: [id], onDelete: Cascade)
+  amount              Int                   // CLP
+  currency            String                @default("CLP")
+  provider            String                @default("simulated")
+  providerIntentId    String?               // id del payment_intent / preauth
+  status              AppointmentPaymentStatus @default(HOLD)
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+
+  @@index([status])
+  @@map("appointment_payments")
+}
+
+// ========== LABORATORIOS Y EXÁMENES A DOMICILIO ==========
+
+enum LabExamRequestStatus {
+  PENDING
+  IN_REVIEW
+  QUOTED
+  REJECTED
+  PATIENT_ACCEPTED
+  SCHEDULED
+  SAMPLE_COLLECTED
+  RESULTS_READY
+  COMPLETED
+  CANCELLED
+}
+
+enum LabAppointmentStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+model Laboratory {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  rut       String?
+  phone     String?
+  address   String?
+  commune   String?
+  city      String?
+  region    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  labExamRequests LabExamRequest[]
+  blockedSlots    LabBlockedSlot[]
+  appointments    LabAppointment[]
+
+  @@map("laboratories")
+}
+
+model LabExamRequest {
+  id                    String               @id @default(cuid())
+  displayNumber         Int                  @unique @default(autoincrement())
+  patientId             String
+  patient               PatientProfile       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  laboratoryId          String
+  laboratory            Laboratory           @relation(fields: [laboratoryId], references: [id], onDelete: Cascade)
+  status                LabExamRequestStatus @default(PENDING)
+  patientName           String
+  examRequested         String
+  address               String
+  commune               String
+  phone                 String
+  observationsPatient   String?
+  preferredTime         String?
+  orderFileUrl          String?
+  orderFileName         String?
+  labRejectionReason    String?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+
+  quote         LabQuote?
+  appointments  LabAppointment[]
+  results       LabResult[]
+  events        LabExamEvent[]
+
+  @@index([laboratoryId, status])
+  @@index([patientId])
+  @@index([status])
+  @@map("lab_exam_requests")
+}
+
+model LabQuote {
+  id                    String   @id @default(cuid())
+  requestId             String   @unique
+  request               LabExamRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  priceClp              Int
+  proposedVisitAt       DateTime?
+  proposedVisitEndAt    DateTime?
+  labObservations       String?
+  estimatedResultsHours Int?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@map("lab_quotes")
+}
+
+model LabAppointment {
+  id             String              @id @default(cuid())
+  requestId      String
+  request        LabExamRequest      @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  laboratoryId   String
+  laboratory     Laboratory          @relation(fields: [laboratoryId], references: [id], onDelete: Cascade)
+  startAt        DateTime
+  endAt          DateTime?
+  status         LabAppointmentStatus @default(SCHEDULED)
+  notes          String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@index([laboratoryId, startAt])
+  @@index([requestId])
+  @@map("lab_appointments")
+}
+
+model LabBlockedSlot {
+  id             String       @id @default(cuid())
+  laboratoryId   String
+  laboratory     Laboratory   @relation(fields: [laboratoryId], references: [id], onDelete: Cascade)
+  date           DateTime
+  startTime      String
+  endTime        String
+  reason         String?
+  createdAt      DateTime     @default(now())
+
+  @@index([laboratoryId, date])
+  @@map("lab_blocked_slots")
+}
+
+model LabResult {
+  id           String         @id @default(cuid())
+  requestId    String
+  request      LabExamRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  fileUrl      String
+  fileName     String
+  mimeType     String?
+  observations String?
+  published    Boolean        @default(false)
+  publishedAt  DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([requestId])
+  @@map("lab_results")
+}
+
+model LabExamEvent {
+  id        String         @id @default(cuid())
+  requestId String
+  request   LabExamRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  kind      String
+  message   String
+  createdAt DateTime       @default(now())
+
+  @@index([requestId])
+  @@map("lab_exam_events")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  title     String
+  body      String
+  read      Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, read])
+  @@map("notifications")
 }

@@ -1,13 +1,13 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { getToken, setToken, removeToken, loginRequest, registerRequest } from '@/lib/auth';
+import { getToken, setToken, removeToken, loginRequest, registerRequest, laboratoryLoginRequest } from '@/lib/auth';
 import { apiFetch } from '@/lib/api';
 
 interface User {
   id: string;
   email: string;
-  role: 'PATIENT' | 'DOCTOR' | 'ADMIN';
+  role: 'PATIENT' | 'DOCTOR' | 'ADMIN' | 'LABORATORY';
   firstName: string;
   lastName: string;
 }
@@ -16,6 +16,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginLaboratory: (email: string, password: string) => Promise<void>;
   register: (data: any) => Promise<void>;
   logout: () => void;
 }
@@ -30,19 +31,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const token = getToken();
     if (!token) { setLoading(false); return; }
     apiFetch<{ data: { user: User } }>('/auth/me')
-      .then(() => {
-        // Decodificar del token por ahora (no hay /auth/me en backend)
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        // Fetch user data would go here; for MVP use stored user
-        const stored = localStorage.getItem('user');
-        if (stored) setUser(JSON.parse(stored));
+      .then((res) => setUser(res.data.user))
+      .catch(() => {
+        removeToken();
+        localStorage.removeItem('user');
       })
-      .catch(() => removeToken())
       .finally(() => setLoading(false));
   }, []);
 
   const login = async (email: string, password: string) => {
     const res = await loginRequest(email, password);
+    setToken(res.data.token);
+    localStorage.setItem('user', JSON.stringify(res.data.user));
+    setUser(res.data.user);
+  };
+
+  const loginLaboratory = async (email: string, password: string) => {
+    const res = await laboratoryLoginRequest(email, password);
     setToken(res.data.token);
     localStorage.setItem('user', JSON.stringify(res.data.user));
     setUser(res.data.user);
@@ -62,7 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, loginLaboratory, register, logout }}>
       {children}
     </AuthContext.Provider>
   );
