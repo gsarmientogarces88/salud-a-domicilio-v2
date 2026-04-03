@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { useDoctorRequests } from '@/context/DoctorRequestsContext';
 import { apiFetch } from '@/lib/api';
 import StatusBadge from '@/components/ui/StatusBadge';
 
@@ -56,6 +57,7 @@ function formatMmSs(totalSeconds: number) {
 
 export default function DoctorDashboard() {
   const { user } = useAuth();
+  const doctorRequests = useDoctorRequests();
   const [profile, setProfile] = useState<DoctorProfile | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
@@ -108,6 +110,9 @@ export default function DoctorDashboard() {
         body: JSON.stringify({ isAvailable: !profile.isAvailable }),
       });
       setProfile(res.data);
+      if (doctorRequests.enabled) {
+        void doctorRequests.refresh(true);
+      }
     } catch (e: any) {
       alert(e.message);
     } finally {

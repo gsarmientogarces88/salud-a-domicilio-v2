@@ -1,3 +1,5 @@
+import LandingHeader from '@/components/layout/LandingHeader';
+
 const SERVICES = [
   {
     icon: '👨‍⚕️',
@@ -39,28 +41,7 @@ export default function Home() {
     <main className="min-h-screen bg-gradient-to-b from-salud-light via-white to-white">
       {/* Contenedor principal */}
       <div className="mx-auto max-w-6xl px-4 pb-16 pt-6">
-        {/* Header */}
-        <header className="mb-8 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-100 text-2xl">
-              🏥
-            </div>
-            <span className="text-base font-semibold text-sky-800">
-              Salud a Domicilio
-            </span>
-          </div>
-          <nav className="flex items-center gap-3 text-sm">
-            <a href="/auth/login" className="rounded-full px-3 py-1 text-gray-700 hover:bg-sky-50">
-              Iniciar Sesión
-            </a>
-            <a
-              href="/auth/register"
-              className="rounded-full border border-sky-300 bg-sky-50 px-4 py-1.5 font-medium text-sky-700 hover:bg-sky-100"
-            >
-              Registrarse
-            </a>
-          </nav>
-        </header>
+        <LandingHeader />
 
         {/* HERO */}
         <section className="mb-12 grid gap-10 rounded-3xl bg-white/90 p-6 shadow-xl ring-1 ring-sky-100 backdrop-blur md:grid-cols-2 md:p-10">

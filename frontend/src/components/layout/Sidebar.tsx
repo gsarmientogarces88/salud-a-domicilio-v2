@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { useDoctorRequests } from '@/context/DoctorRequestsContext';
 
 const LINKS: Record<string, { href: string; label: string; icon: string }[]> = {
   PATIENT: [
@@ -45,6 +46,7 @@ export default function Sidebar() {
   const { user, logout } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
+  const doctorRequests = useDoctorRequests();
   const links = LINKS[user?.role || 'PATIENT'] || LINKS.PATIENT;
 
   const isPatient = user?.role === 'PATIENT';
@@ -77,11 +79,21 @@ export default function Sidebar() {
             (l.href !== '/dashboard/patient' &&
               l.href !== '/dashboard/laboratorio' &&
               pathname.startsWith(l.href));
+          const isDoctorRequestsLink =
+            user?.role === 'DOCTOR' &&
+            doctorRequests.enabled &&
+            l.href === '/dashboard/doctor/requests';
+          const showPendingBadge =
+            isDoctorRequestsLink && doctorRequests.pendingCount > 0 && !isActive;
+          const blinkRequests =
+            isDoctorRequestsLink && doctorRequests.shouldBlinkRequestsNav && !isActive;
           return (
             <li key={l.href}>
               <Link
                 href={l.href}
                 className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
+                  blinkRequests ? 'ring-2 ring-amber-400/70 ring-offset-1 animate-pulse' : ''
+                } ${
                   isActive
                     ? isPatient
                       ? 'bg-sky-600 text-white'
@@ -92,7 +104,12 @@ export default function Sidebar() {
                 }`}
               >
                 <span className="text-lg">{l.icon}</span>
-                {l.label}
+                <span className="flex-1">{l.label}</span>
+                {showPendingBadge ? (
+                  <span className="flex min-h-[1.25rem] min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold leading-none text-white">
+                    {doctorRequests.pendingCount > 99 ? '99+' : doctorRequests.pendingCount}
+                  </span>
+                ) : null}
               </Link>
             </li>
           );

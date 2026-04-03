@@ -4,26 +4,9 @@ import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { useNow } from '@/hooks/useNow';
+import { useDoctorRequests, type DoctorAvailableRequestItem } from '@/context/DoctorRequestsContext';
 
-interface RequestItem {
-  id: string;
-  type: string;
-  status: string;
-  description: string;
-  address: string;
-  commune?: string | null;
-  city?: string | null;
-  telefono?: string | null;
-  referencias?: string | null;
-  totalAmount: number;
-  createdAt: string;
-  expiresAt?: string | null;
-  patient?: { user: { firstName: string; lastName: string } };
-  requestLat?: number | null;
-  requestLng?: number | null;
-  distanceKm?: number | null;
-  remainingSeconds?: number | null;
-}
+type RequestItem = DoctorAvailableRequestItem;
 
 type LatLng = { lat: number; lng: number };
 
@@ -95,8 +78,7 @@ const EMPTY_STATE = (
 );
 
 export default function DoctorRequestsPage() {
-  const [items, setItems] = useState<RequestItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { availableItems: items, loading, refresh, isAvailable } = useDoctorRequests();
   const [filterType, setFilterType] = useState<'ALL' | 'URGENT' | 'SCHEDULED'>('ALL');
   const [search, setSearch] = useState('');
   const [locationStatus, setLocationStatus] = useState<
@@ -174,30 +156,15 @@ export default function DoctorRequestsPage() {
     );
   };
 
-  const load = async () => {
-    setLoading(true);
-    try {
-      const res = await apiFetch<{ data: RequestItem[] }>('/services/available');
-      // eslint-disable-next-line no-console
-      console.log('[doctor.requests] available count:', res.data?.length);
-      setItems(res.data);
-    } catch (e: any) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
     loadProviderEffectiveLocation();
-    load();
     updateLiveLocationFromBrowser();
   }, []);
 
   const handleAccept = async (id: string) => {
     try {
       await apiFetch(`/services/${id}/accept`, { method: 'POST' });
-      load();
+      await refresh(true);
     } catch (e: any) {
       alert(e.message);
     }
@@ -208,7 +175,7 @@ export default function DoctorRequestsPage() {
     if (!ok) return;
     try {
       await apiFetch(`/services/${id}/reject`, { method: 'POST', body: JSON.stringify({}) });
-      setItems((prev) => prev.filter((x) => x.id !== id));
+      await refresh(true);
     } catch (e: any) {
       alert(e.message);
     }
@@ -226,8 +193,21 @@ export default function DoctorRequestsPage() {
     );
   });
 
+  const unavailableBlock =
+    isAvailable === false ? (
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-950 shadow-sm">
+        <p className="font-semibold">No estás disponible para recibir solicitudes</p>
+        <p className="mt-2 text-amber-900/90">
+          Activa tu disponibilidad en el <span className="font-medium">Dashboard</span> para ver
+          solicitudes en tu zona. Mientras tanto no se buscarán nuevas solicitudes en esta vista.
+        </p>
+      </div>
+    ) : null;
+
   return (
     <div className="space-y-6">
+      {unavailableBlock}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Solicitudes</h1>
@@ -237,15 +217,21 @@ export default function DoctorRequestsPage() {
           </p>
         </div>
         <button
-          onClick={load}
-          className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700"
+          type="button"
+          onClick={() => refresh(false)}
+          disabled={loading || isAvailable === false}
+          className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
           Actualizar
         </button>
       </div>
 
       {/* Filtros simples */}
-      <div className="flex flex-wrap items-center gap-3 rounded-xl bg-white p-4 shadow-sm">
+      <div
+        className={`flex flex-wrap items-center gap-3 rounded-xl bg-white p-4 shadow-sm ${
+          isAvailable === false ? 'pointer-events-none opacity-50' : ''
+        }`}
+      >
         <select
           value={filterType}
           onChange={(e) => setFilterType(e.target.value as any)}
@@ -289,7 +275,7 @@ export default function DoctorRequestsPage() {
         </div>
       </div>
 
-      {loading ? (
+      {isAvailable === false ? null : loading ? (
         <p className="text-sm text-gray-500">Cargando solicitudes...</p>
       ) : filtered.length === 0 ? (
         EMPTY_STATE
