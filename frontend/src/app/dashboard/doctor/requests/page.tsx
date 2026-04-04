@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { apiFetch } from '@/lib/api';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { useNow } from '@/hooks/useNow';
@@ -8,6 +9,14 @@ import { useDoctorRequests, type DoctorAvailableRequestItem } from '@/context/Do
 import { pendingExpiresAtMs } from '@/lib/serviceRequestTtl';
 
 type RequestItem = DoctorAvailableRequestItem;
+
+type MyAssignment = {
+  id: string;
+  status: string;
+  description: string;
+  address: string;
+  patient?: { user: { firstName: string; lastName: string } };
+};
 
 type LatLng = { lat: number; lng: number };
 
@@ -81,7 +90,23 @@ export default function DoctorRequestsPage() {
   >('idle');
   const [providerPos, setProviderPos] = useState<LatLng | null>(null);
   const [providerMsg, setProviderMsg] = useState<string | null>(null);
+  const [myAssignments, setMyAssignments] = useState<MyAssignment[]>([]);
+  const [finishingActiveId, setFinishingActiveId] = useState<string | null>(null);
   const nowMs = useNow(1000);
+
+  const loadMyAssignments = async () => {
+    try {
+      const res = await apiFetch<{ data: MyAssignment[] }>('/services/doctor/me');
+      setMyAssignments(res.data);
+    } catch {
+      /* no bloquear la lista de solicitudes entrantes */
+    }
+  };
+
+  const inProgressAssignment = useMemo(
+    () => myAssignments.find((s) => s.status === 'IN_PROGRESS') ?? null,
+    [myAssignments]
+  );
 
   const loadProviderEffectiveLocation = async () => {
     try {
@@ -156,10 +181,40 @@ export default function DoctorRequestsPage() {
     updateLiveLocationFromBrowser();
   }, []);
 
+  useEffect(() => {
+    void loadMyAssignments();
+  }, []);
+
+  useEffect(() => {
+    if (!inProgressAssignment) return undefined;
+    const t = setInterval(() => void loadMyAssignments(), 12_000);
+    return () => clearInterval(t);
+  }, [inProgressAssignment?.id]);
+
+  const finishInProgressAttention = async () => {
+    if (!inProgressAssignment) return;
+    const ok = window.confirm('¿Confirmas que finalizaste la atención?');
+    if (!ok) return;
+    setFinishingActiveId(inProgressAssignment.id);
+    try {
+      await apiFetch(`/services/${inProgressAssignment.id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'COMPLETED' }),
+      });
+      await loadMyAssignments();
+      await refresh(true);
+    } catch (e: any) {
+      alert(e.message || 'No se pudo finalizar la atención.');
+    } finally {
+      setFinishingActiveId(null);
+    }
+  };
+
   const handleAccept = async (id: string) => {
     try {
       await apiFetch(`/services/${id}/accept`, { method: 'POST' });
       await refresh(true);
+      await loadMyAssignments();
     } catch (e: any) {
       alert(e.message);
     }
@@ -202,6 +257,46 @@ export default function DoctorRequestsPage() {
   return (
     <div className="space-y-6">
       {unavailableBlock}
+
+      {inProgressAssignment ? (
+        <div
+          className="rounded-2xl border-2 border-emerald-300 bg-emerald-50 p-5 shadow-md ring-1 ring-emerald-200/80"
+          role="region"
+          aria-label="Atención en curso"
+        >
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="min-w-0">
+              <p className="text-xs font-bold uppercase tracking-wide text-emerald-900">Atención en curso</p>
+              <p className="mt-1 text-lg font-bold text-gray-900">
+                {inProgressAssignment.patient
+                  ? `${inProgressAssignment.patient.user.firstName} ${inProgressAssignment.patient.user.lastName}`
+                  : 'Paciente'}
+              </p>
+              <p className="mt-1 line-clamp-2 text-sm text-gray-700">{inProgressAssignment.description}</p>
+              <p className="mt-1 text-xs text-gray-600">📍 {inProgressAssignment.address}</p>
+              <p className="mt-2 text-sm text-emerald-900">
+                Al aceptar nuevas solicitudes puedes seguir aquí; cuando termines, finaliza para liberar al paciente.
+              </p>
+            </div>
+            <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center">
+              <Link
+                href={`/dashboard/doctor/consultations/${inProgressAssignment.id}`}
+                className="inline-flex min-h-[48px] items-center justify-center rounded-xl border border-emerald-200 bg-white px-4 py-3 text-sm font-semibold text-emerald-900 hover:bg-emerald-100/80"
+              >
+                Chat / detalle
+              </Link>
+              <button
+                type="button"
+                onClick={() => void finishInProgressAttention()}
+                disabled={finishingActiveId === inProgressAssignment.id}
+                className="inline-flex min-h-[52px] items-center justify-center rounded-2xl bg-emerald-600 px-5 py-3.5 text-base font-bold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {finishingActiveId === inProgressAssignment.id ? 'Finalizando…' : 'FINALIZAR ATENCIÓN'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <div className="flex items-center justify-between">
         <div>

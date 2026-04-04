@@ -22,6 +22,7 @@ type ServiceRequest = {
   type: 'URGENT' | 'SCHEDULED';
   status: ServiceStatus;
   createdAt: string;
+  startedAt?: string | null;
   expiresAt?: string | null;
   cancelReason?: string | null;
   address: string;
@@ -43,6 +44,13 @@ function formatMmSs(totalSeconds: number) {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
+function minutesSinceStart(startedAtIso: string | null | undefined, nowMs: number): number | null {
+  if (!startedAtIso) return null;
+  const t = new Date(startedAtIso).getTime();
+  if (!Number.isFinite(t)) return null;
+  return Math.max(0, Math.floor((nowMs - t) / 60_000));
+}
+
 export default function UrgentStatusPage() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
@@ -58,11 +66,12 @@ export default function UrgentStatusPage() {
 
   const remainingSeconds = useMemo(() => computeRemainingSeconds(sr, nowMs), [sr, nowMs]);
   const inQueue = sr?.status === 'QUEUED';
-  const inProgress = sr?.status === 'IN_PROGRESS';
-  const completed = sr?.status === 'COMPLETED';
-  const acceptedLegacy = sr?.status === 'ACCEPTED';
-  const confirmed = inProgress || completed || acceptedLegacy;
   const cancelled = sr?.status === 'CANCELLED';
+
+  const attendingDoctorLabel = (s: ServiceRequest | null) =>
+    s?.doctor?.user
+      ? `Dr. ${s.doctor.user.firstName} ${s.doctor.user.lastName}`
+      : 'Tu médico asignado';
   const isSystemExpiredCancel =
     cancelled && sr.cancelReason === AUTO_EXPIRE_PENDING_CANCEL_REASON;
   const clientTimerUp =
@@ -377,7 +386,7 @@ export default function UrgentStatusPage() {
               />
             </div>
           </>
-        ) : !confirmed ? (
+        ) : sr?.status === 'PENDING' ? (
           <>
             <div className="mb-6 flex justify-center">
               <div className="h-20 w-20 animate-spin rounded-full border-4 border-sky-200 border-t-sky-600" />
@@ -386,19 +395,20 @@ export default function UrgentStatusPage() {
               Buscando médico disponible…
             </h2>
             <p className="text-center text-gray-600">
-              Estamos buscando el médico más cercano a tu ubicación.
+              Estamos buscando un profesional disponible cerca de tu ubicación.
             </p>
 
             <div className="mt-6 flex justify-center">
               <div className="rounded-xl border border-sky-100 bg-sky-50 px-5 py-3 text-center">
-                <p className="text-xs font-medium text-sky-700">Tiempo restante</p>
-                <p className="mt-1 text-2xl font-bold text-gray-900">
-                  {remainingSeconds == null
-                    ? formatMmSs(URGENT_PENDING_FALLBACK_MINUTES * 60)
-                    : formatMmSs(remainingSeconds)}
+                <p className="text-xs font-medium text-sky-700">Tiempo máximo de búsqueda</p>
+                <p className="mt-1 text-2xl font-bold tabular-nums text-gray-900">
+                  {remainingSeconds != null
+                    ? formatMmSs(remainingSeconds)
+                    : formatMmSs(URGENT_PENDING_FALLBACK_MINUTES * 60)}
                 </p>
                 <p className="mt-1 text-xs text-gray-500">
-                  La solicitud se cierra sola si nadie acepta dentro de este plazo.
+                  Si nadie acepta dentro de este plazo, la solicitud se cerrará sola. Cuando un médico acepte, este
+                  contador deja de aplicar.
                 </p>
               </div>
             </div>
@@ -442,95 +452,74 @@ export default function UrgentStatusPage() {
             )}
 
           </>
-        ) : (
+        ) : sr?.status === 'COMPLETED' ? (
           <>
-            {/* Ilustración + Título */}
+            <div className="mb-6 flex justify-center">
+              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-green-50 text-4xl">✓</div>
+            </div>
+            <h2 className="mb-2 text-center text-xl font-bold text-gray-900">Atención finalizada</h2>
+            <p className="text-center text-gray-600">
+              Gracias por confiar en nosotros. Si necesitas otra consulta, puedes solicitarla desde tu inicio.
+            </p>
+            <div className="mt-6 flex flex-wrap justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => router.push('/dashboard/patient')}
+                className="rounded-xl bg-sky-600 px-6 py-3 font-semibold text-white hover:bg-sky-700"
+              >
+                Volver al inicio
+              </button>
+            </div>
+            {sr?.id ? (
+              <div className="mt-8">
+                <ServiceRequestChat
+                  requestId={sr.id}
+                  currentUserRole="PATIENT"
+                  title="Chat con tu médico"
+                  quickMessages={['Gracias por la atención', 'Quedó todo claro', 'Hasta pronto']}
+                />
+              </div>
+            ) : null}
+          </>
+        ) : sr?.status === 'IN_PROGRESS' ? (
+          <>
             <div className="mb-6 flex items-start gap-6">
-              <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-sky-100 text-4xl">
-                👨‍⚕️
+              <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-4xl">
+                🩺
               </div>
               <div>
-                <h2 className="text-xl font-bold text-gray-900">
-                  Consulta Médica Confirmada
-                </h2>
+                <h2 className="text-xl font-bold text-gray-900">Atención en curso</h2>
                 <p className="text-gray-600">
-                  Un médico general está en camino a tu casa.
+                  {attendingDoctorLabel(sr)} está atendiendo o se dirige a tu domicilio según lo acordado por chat.
                 </p>
+                {minutesSinceStart(sr.startedAt, nowMs) != null ? (
+                  <p className="mt-2 text-sm font-medium text-emerald-800">
+                    Atención iniciada hace {minutesSinceStart(sr.startedAt, nowMs)} min
+                    <span className="ml-1 font-normal text-gray-500">(se actualiza en vivo)</span>
+                  </p>
+                ) : null}
               </div>
             </div>
-
-            <StepProgress currentStep="camino" />
-
-            {/* Info doctor + mapa */}
-            <p className="mb-4 text-sm text-gray-600">
-              Se estima que un médico llegará a tu hogar en aproximadamente:
-            </p>
-
-            <div className="mb-6 grid gap-6 md:grid-cols-3">
-              {/* Card doctor */}
+            <StepProgress currentStep="consulta" />
+            <div className="mb-6 grid gap-6 md:grid-cols-2">
               <div className="rounded-xl border bg-white p-4 shadow-sm">
-                <div className="mb-3 flex items-center gap-3">
-                  <span className="flex h-14 w-14 items-center justify-center rounded-full bg-sky-100 text-2xl">
-                    👨‍⚕️
-                  </span>
-                  <div>
-                    <p className="font-bold text-gray-900">
-                      {sr?.doctor?.user
-                        ? `Dr. ${sr.doctor.user.firstName} ${sr.doctor.user.lastName}`
-                        : 'Médico asignado'}
-                    </p>
-                    <p className="text-sm text-gray-600">Médico General, Urgencias</p>
-                  </div>
-                </div>
-                <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-700">
-                  ✓ Profesional Verificado
-                </span>
+                <p className="mb-2 text-sm font-medium text-gray-700">Profesional</p>
+                <p className="font-bold text-gray-900">{attendingDoctorLabel(sr)}</p>
+                <p className="mt-1 text-sm text-gray-600">Coordina hora de llegada y detalles por el chat.</p>
               </div>
-
-              {/* Dirección */}
               <div className="rounded-xl border bg-white p-4 shadow-sm">
-                <p className="mb-2 text-sm font-medium text-gray-700">
-                  El médico más cercano se está dirigiendo a tu domicilio.
-                </p>
-                <p className="flex items-center gap-2 text-sm text-gray-600">
-                  📍 {sr?.address || '—'}
-                </p>
+                <p className="mb-2 text-sm font-medium text-gray-700">Domicilio</p>
+                <p className="text-sm text-gray-600">📍 {sr?.address || '—'}</p>
               </div>
             </div>
-
-            {/* Mapa */}
             <div className="mb-6">
               <TrackingMapMock patientAddress={sr?.address || '—'} />
             </div>
-
-            {/* Info adicional */}
-            <div className="mb-6 space-y-2 text-sm text-gray-600">
-              <p className="flex items-center gap-2">
-                <span>🕐</span>
-                Dr. Rodrigo llega en 15 min aprox.
-              </p>
-              <p className="flex items-center gap-2">
-                <span>🩺</span>
-                Lleva equipo completo para atención segura
-              </p>
-              <p className="flex items-center gap-2">
-                <span>📞</span>
-                Teléfono 24/7 por cualquier consulta: +56 9 4435 0134
-              </p>
-            </div>
-
-            {/* Botones */}
-            <div className="flex flex-wrap gap-3">
-              <button className="flex items-center gap-2 rounded-xl bg-sky-600 px-6 py-3 font-semibold text-white hover:bg-sky-700">
-                📞 Contactar Médico
-              </button>
-              <button className="flex items-center gap-2 rounded-xl bg-amber-400 px-6 py-3 font-semibold text-gray-800 hover:bg-amber-500">
-                💬 Contactar Soporte 24/7
-              </button>
-            </div>
-
-            {/* Chat (solo después de aceptación/cola) */}
-            {sr?.id && (sr.status === 'ACCEPTED' || sr.status === 'QUEUED' || sr.status === 'IN_PROGRESS' || sr.status === 'COMPLETED') && (
+            <p className="mb-4 text-sm text-gray-600">
+              El tiempo de llegada no es un contador fijo: acuerda la referencia y el acceso con tu médico por chat o
+              llamada.
+            </p>
+            {sr?.id ? (
               <div className="mt-8">
                 <ServiceRequestChat
                   requestId={sr.id}
@@ -545,7 +534,70 @@ export default function UrgentStatusPage() {
                   ]}
                 />
               </div>
-            )}
+            ) : null}
+          </>
+        ) : sr?.status === 'ACCEPTED' ? (
+          <>
+            <div className="mb-6 flex items-start gap-6">
+              <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-sky-100 text-4xl">
+                👨‍⚕️
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Médico asignado</h2>
+                <p className="text-gray-600">
+                  {attendingDoctorLabel(sr)} aceptó tu solicitud. Ya no aplica el tiempo de búsqueda de prestadores.
+                </p>
+              </div>
+            </div>
+            <StepProgress currentStep="camino" />
+            <div className="mb-6 grid gap-6 md:grid-cols-2">
+              <div className="rounded-xl border bg-white p-4 shadow-sm">
+                <p className="font-bold text-gray-900">{attendingDoctorLabel(sr)}</p>
+                <p className="mt-1 text-sm text-gray-600">Pronto iniciará el traslado; confirma detalles por chat.</p>
+              </div>
+              <div className="rounded-xl border bg-white p-4 shadow-sm">
+                <p className="text-sm text-gray-600">📍 {sr?.address || '—'}</p>
+              </div>
+            </div>
+            <div className="mb-6">
+              <TrackingMapMock patientAddress={sr?.address || '—'} />
+            </div>
+            {sr?.id ? (
+              <div className="mt-8">
+                <ServiceRequestChat
+                  requestId={sr.id}
+                  currentUserRole="PATIENT"
+                  title="Chat con tu médico"
+                  quickMessages={[
+                    'Ya lo espero',
+                    'Estoy bajando',
+                    'La entrada es por atrás',
+                    'Mi referencia es…',
+                    'Estoy afuera',
+                  ]}
+                />
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <>
+            <div className="mb-6 flex justify-center">
+              <div className="h-16 w-16 animate-spin rounded-full border-4 border-sky-200 border-t-sky-600" />
+            </div>
+            <h2 className="mb-2 text-center text-xl font-bold text-gray-900">Sincronizando estado…</h2>
+            <p className="text-center text-sm text-gray-600">
+              Tu solicitud está en un estado que la app aún está actualizando ({sr?.status ?? 'desconocido'}). Espera unos
+              segundos o vuelve a cargar.
+            </p>
+            <div className="mt-6 flex justify-center">
+              <button
+                type="button"
+                onClick={() => void load()}
+                className="rounded-xl bg-sky-600 px-6 py-3 font-semibold text-white hover:bg-sky-700"
+              >
+                Actualizar ahora
+              </button>
+            </div>
           </>
         )}
       </div>

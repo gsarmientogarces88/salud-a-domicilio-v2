@@ -135,7 +135,7 @@ export default function MyConsultationsPage() {
                         disabled={finishingId === active.id}
                         className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:bg-gray-300"
                       >
-                        {finishingId === active.id ? 'Finalizando…' : 'Finalizar atención'}
+                        {finishingId === active.id ? 'Finalizando…' : 'FINALIZAR ATENCIÓN'}
                       </button>
                     </div>
                   </div>

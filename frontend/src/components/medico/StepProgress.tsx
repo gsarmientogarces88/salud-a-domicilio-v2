@@ -3,7 +3,7 @@
 const STEPS = [
   { id: 'solicitar', label: 'Solicitar' },
   { id: 'confirmar', label: 'Confirmar' },
-  { id: 'camino', label: '15 MIN' },
+  { id: 'camino', label: 'En camino' },
   { id: 'consulta', label: 'En Consulta' },
   { id: 'listo', label: 'Listo' },
 ];
@@ -14,7 +14,6 @@ interface StepProgressProps {
 
 export default function StepProgress({ currentStep }: StepProgressProps) {
   const currentIndex = STEPS.findIndex((s) => s.id === currentStep);
-  const caminoIndex = STEPS.findIndex((s) => s.id === 'camino');
 
   return (
     <div className="mb-8">

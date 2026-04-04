@@ -242,6 +242,8 @@ export async function acceptRequest(serviceId: string, doctorId: string) {
       totalAmount,
       commissionAmount,
       doctorNetAmount: totalAmount - commissionAmount,
+      /** Evita que clientes o reportes interpreten el TTL de PENDING tras asignar médico. */
+      expiresAt: null,
       ...(nextStatus === 'QUEUED'
         ? { queuedAt: nowAccept, acceptedAt: null, startedAt: null }
         : { startedAt: startedAt!, queuedAt: null, acceptedAt: null }),
