@@ -7,6 +7,13 @@ import { apiFetch } from '@/lib/api';
 import StepProgress from '@/components/medico/StepProgress';
 import TrackingMapMock from '@/components/medico/TrackingMapMock';
 import ServiceRequestChat from '@/components/chat/ServiceRequestChat';
+import {
+  AUTO_EXPIRE_PENDING_CANCEL_REASON,
+  isAcceptedTimeoutCancellation,
+  isQueuedTimeoutCancellation,
+  URGENT_PENDING_FALLBACK_MINUTES,
+  urgentExpiresAtMs,
+} from '@/lib/serviceRequestTtl';
 
 type ServiceStatus = 'PENDING' | 'QUEUED' | 'ACCEPTED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'REFUNDED';
 
@@ -16,18 +23,16 @@ type ServiceRequest = {
   status: ServiceStatus;
   createdAt: string;
   expiresAt?: string | null;
+  cancelReason?: string | null;
   address: string;
   doctor?: { user: { firstName: string; lastName: string } } | null;
 };
-
-const URGENT_TTL_SECONDS = 15 * 60;
 
 function computeRemainingSeconds(sr: ServiceRequest | null, nowMs: number) {
   if (!sr) return null;
   if (sr.status !== 'PENDING') return null;
 
-  const createdMs = new Date(sr.createdAt).getTime();
-  const expiresMs = sr.expiresAt ? new Date(sr.expiresAt).getTime() : createdMs + URGENT_TTL_SECONDS * 1000;
+  const expiresMs = urgentExpiresAtMs(sr.createdAt, sr.expiresAt);
   const diffSec = Math.floor((expiresMs - nowMs) / 1000);
   return Math.max(0, diffSec);
 }
@@ -52,13 +57,26 @@ export default function UrgentStatusPage() {
   const [cancelling, setCancelling] = useState(false);
 
   const remainingSeconds = useMemo(() => computeRemainingSeconds(sr, nowMs), [sr, nowMs]);
-  const expired = remainingSeconds === 0 && sr?.status === 'PENDING';
   const inQueue = sr?.status === 'QUEUED';
   const inProgress = sr?.status === 'IN_PROGRESS';
   const completed = sr?.status === 'COMPLETED';
-  const confirmed = inProgress || completed;
+  const acceptedLegacy = sr?.status === 'ACCEPTED';
+  const confirmed = inProgress || completed || acceptedLegacy;
   const cancelled = sr?.status === 'CANCELLED';
-  const canCancel = sr?.status === 'PENDING' && !expired;
+  const isSystemExpiredCancel =
+    cancelled && sr.cancelReason === AUTO_EXPIRE_PENDING_CANCEL_REASON;
+  const clientTimerUp =
+    sr?.status === 'PENDING' && remainingSeconds !== null && remainingSeconds <= 0;
+  const showTimeUpUi = isSystemExpiredCancel || clientTimerUp;
+  const showAcceptedTimeoutUi = cancelled && isAcceptedTimeoutCancellation(sr?.cancelReason);
+  const showQueuedTimeoutUi = cancelled && isQueuedTimeoutCancellation(sr?.cancelReason);
+  const showGenericCancelledUi =
+    cancelled &&
+    !showTimeUpUi &&
+    !showAcceptedTimeoutUi &&
+    !showQueuedTimeoutUi;
+  const canCancel =
+    sr?.status === 'PENDING' && remainingSeconds !== null && remainingSeconds > 0;
 
   const resolveLatestUrgentRequestId = async () => {
     try {
@@ -109,16 +127,16 @@ export default function UrgentStatusPage() {
       resolveLatestUrgentRequestId().finally(() => setLoading(false));
       return;
     }
-    load();
+    void load();
+    const terminal =
+      sr?.status && !['PENDING', 'QUEUED', 'ACCEPTED', 'IN_PROGRESS'].includes(sr.status);
+    if (terminal) return undefined;
     const poll = setInterval(() => {
-      // Si expiró o ya no está pendiente/en cola, dejamos de “spamear” el backend.
-      if (sr?.status && !['PENDING', 'QUEUED', 'ACCEPTED', 'IN_PROGRESS'].includes(sr.status)) return;
-      if (expired) return;
-      load();
+      void load();
     }, 4000);
     return () => clearInterval(poll);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resolvedRequestId, expired, sr?.status]);
+  }, [resolvedRequestId, sr?.status]);
 
   useEffect(() => {
     const t = setInterval(() => setNowMs(Date.now()), 1000);
@@ -215,7 +233,7 @@ export default function UrgentStatusPage() {
             <h2 className="mb-2 text-center text-xl font-bold text-gray-900">Cargando tu solicitud…</h2>
             <p className="text-center text-gray-600">Estamos sincronizando el estado con el prestador.</p>
           </>
-        ) : cancelled ? (
+        ) : showGenericCancelledUi ? (
           <>
             <div className="mb-6 flex justify-center">
               <div className="flex h-20 w-20 items-center justify-center rounded-full bg-red-50 text-4xl">
@@ -244,19 +262,22 @@ export default function UrgentStatusPage() {
               </button>
             </div>
           </>
-        ) : expired ? (
+        ) : showTimeUpUi ? (
           <>
             <div className="mb-6 flex justify-center">
               <div className="flex h-20 w-20 items-center justify-center rounded-full bg-amber-50 text-4xl">
-                ⚠
+                ⏱
               </div>
             </div>
             <h2 className="mb-2 text-center text-xl font-bold text-gray-900">
-              No hay médicos disponibles
+              Se agotó el tiempo de búsqueda
             </h2>
             <p className="text-center text-gray-600">
-              No hay médicos disponibles en tu zona en este momento.
+              Nadie aceptó tu solicitud dentro del plazo. Puedes intentar de nuevo en unos minutos.
             </p>
+            {clientTimerUp && !isSystemExpiredCancel ? (
+              <p className="mt-2 text-center text-xs text-gray-500">Sincronizando estado con el servidor…</p>
+            ) : null}
 
             <div className="mt-6 flex flex-wrap justify-center gap-3">
               <button
@@ -264,6 +285,58 @@ export default function UrgentStatusPage() {
                 className="rounded-xl bg-sky-600 px-6 py-3 font-semibold text-white hover:bg-sky-700"
               >
                 Intentar nuevamente
+              </button>
+              <button
+                onClick={() => router.push('/dashboard/patient')}
+                className="rounded-xl border border-gray-200 bg-white px-6 py-3 font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                Volver al inicio
+              </button>
+            </div>
+          </>
+        ) : showAcceptedTimeoutUi ? (
+          <>
+            <div className="mb-6 flex justify-center">
+              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-amber-50 text-4xl">
+                ⏱
+              </div>
+            </div>
+            <h2 className="mb-2 text-center text-xl font-bold text-gray-900">Solicitud cancelada por tiempo</h2>
+            <p className="text-center text-gray-600">
+              La solicitud fue cancelada porque no se inició la atención a tiempo. Puedes intentar solicitar de nuevo.
+            </p>
+            <div className="mt-6 flex flex-wrap justify-center gap-3">
+              <button
+                onClick={() => router.push('/dashboard/patient/medico')}
+                className="rounded-xl bg-sky-600 px-6 py-3 font-semibold text-white hover:bg-sky-700"
+              >
+                Solicitar nuevamente
+              </button>
+              <button
+                onClick={() => router.push('/dashboard/patient')}
+                className="rounded-xl border border-gray-200 bg-white px-6 py-3 font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                Volver al inicio
+              </button>
+            </div>
+          </>
+        ) : showQueuedTimeoutUi ? (
+          <>
+            <div className="mb-6 flex justify-center">
+              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-amber-50 text-4xl">
+                ⏱
+              </div>
+            </div>
+            <h2 className="mb-2 text-center text-xl font-bold text-gray-900">Espera cancelada por tiempo</h2>
+            <p className="text-center text-gray-600">
+              Tu solicitud en lista de espera expiró porque no avanzó a tiempo. Puedes crear una nueva solicitud.
+            </p>
+            <div className="mt-6 flex flex-wrap justify-center gap-3">
+              <button
+                onClick={() => router.push('/dashboard/patient/medico')}
+                className="rounded-xl bg-sky-600 px-6 py-3 font-semibold text-white hover:bg-sky-700"
+              >
+                Solicitar nuevamente
               </button>
               <button
                 onClick={() => router.push('/dashboard/patient')}
@@ -319,18 +392,14 @@ export default function UrgentStatusPage() {
             <div className="mt-6 flex justify-center">
               <div className="rounded-xl border border-sky-100 bg-sky-50 px-5 py-3 text-center">
                 <p className="text-xs font-medium text-sky-700">Tiempo restante</p>
-                <p className={`mt-1 text-2xl font-bold ${expired ? 'text-red-600' : 'text-gray-900'}`}>
-                  {remainingSeconds == null ? '15:00' : formatMmSs(remainingSeconds)}
+                <p className="mt-1 text-2xl font-bold text-gray-900">
+                  {remainingSeconds == null
+                    ? formatMmSs(URGENT_PENDING_FALLBACK_MINUTES * 60)
+                    : formatMmSs(remainingSeconds)}
                 </p>
-                {expired ? (
-                  <p className="mt-1 text-xs text-gray-600">
-                    No encontramos un médico disponible en este momento.
-                  </p>
-                ) : (
-                  <p className="mt-1 text-xs text-gray-500">
-                    La solicitud expira automáticamente si nadie acepta.
-                  </p>
-                )}
+                <p className="mt-1 text-xs text-gray-500">
+                  La solicitud se cierra sola si nadie acepta dentro de este plazo.
+                </p>
               </div>
             </div>
 
@@ -372,22 +441,6 @@ export default function UrgentStatusPage() {
               </div>
             )}
 
-            {expired && (
-              <div className="mt-6 flex flex-wrap justify-center gap-3">
-                <button
-                  onClick={() => router.push('/dashboard/patient/consultas?servicio=medico')}
-                  className="rounded-xl bg-sky-600 px-6 py-3 font-semibold text-white hover:bg-sky-700"
-                >
-                  Reintentar
-                </button>
-                <button
-                  onClick={() => router.push('/dashboard/patient')}
-                  className="rounded-xl border border-gray-200 bg-white px-6 py-3 font-semibold text-gray-700 hover:bg-gray-50"
-                >
-                  Volver al inicio
-                </button>
-              </div>
-            )}
           </>
         ) : (
           <>

@@ -5,6 +5,7 @@ import { apiFetch } from '@/lib/api';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { useNow } from '@/hooks/useNow';
 import { useDoctorRequests, type DoctorAvailableRequestItem } from '@/context/DoctorRequestsContext';
+import { pendingExpiresAtMs } from '@/lib/serviceRequestTtl';
 
 type RequestItem = DoctorAvailableRequestItem;
 
@@ -42,13 +43,7 @@ function formatMmSs(totalSeconds: number) {
 }
 
 function getExpiresAtMs(s: RequestItem) {
-  if (s.expiresAt) {
-    const ms = new Date(s.expiresAt).getTime();
-    if (Number.isFinite(ms)) return ms;
-  }
-  const createdMs = new Date(s.createdAt).getTime();
-  // Regla solicitada: si no existe expiresAt, usar createdAt + 15 minutos.
-  return createdMs + 15 * 60 * 1000;
+  return pendingExpiresAtMs(s.type, s.createdAt, s.expiresAt);
 }
 
 function getRemainingSeconds(s: RequestItem, nowMs: number) {

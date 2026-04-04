@@ -1,6 +1,34 @@
-import { ServiceStatus } from '@prisma/client';
+import { Prisma, ServiceStatus } from '@prisma/client';
 import prisma from '../lib/prisma';
 import { config } from '../config';
+
+/** Prefijo en `notes` para cierres automáticos por tiempo en IN_PROGRESS (auditoría / soporte). */
+export const AUTO_COMPLETED_IN_PROGRESS_MARKER = '[AUTO_COMPLETED_TIMEOUT]';
+
+const AUTO_COMPLETED_IN_PROGRESS_NOTE = `${AUTO_COMPLETED_IN_PROGRESS_MARKER} Atención cerrada automáticamente por tiempo (límite de atención en curso).`;
+
+/** Prefijos históricos en cancelReason/notes si en el pasado hubo autocancelación; el job ya no las aplica. */
+export const AUTO_CANCELLED_ACCEPTED_TIMEOUT_MARKER = '[AUTO_CANCELLED_ACCEPTED_TIMEOUT]';
+export const AUTO_CANCELLED_QUEUED_TIMEOUT_MARKER = '[AUTO_CANCELLED_QUEUED_TIMEOUT]';
+
+type Db = Prisma.TransactionClient | typeof prisma;
+
+async function promoteNextQueuedAfterComplete(db: Db, doctorId: string, now: Date) {
+  const next = await db.serviceRequest.findFirst({
+    where: { doctorId, status: 'QUEUED' },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true },
+  });
+  if (!next) return;
+  await db.serviceRequest.update({
+    where: { id: next.id },
+    data: { status: 'IN_PROGRESS', startedAt: now, queuedAt: null, acceptedAt: null },
+  });
+  if (config.isDev) {
+    // eslint-disable-next-line no-console
+    console.log('[services.promoteQueued]', { nextId: next.id, doctorId });
+  }
+}
 
 class OpenServiceExistsError extends Error {
   code = 'OPEN_SERVICE_EXISTS' as const;
@@ -22,8 +50,8 @@ class OpenServiceExistsError extends Error {
 // Transiciones válidas
 const TRANSITIONS: Record<ServiceStatus, ServiceStatus[]> = {
   PENDING: ['CANCELLED'],
-  QUEUED: ['IN_PROGRESS'],
-  ACCEPTED: ['IN_PROGRESS'], // legacy: mantener compatibilidad
+  QUEUED: ['IN_PROGRESS', 'CANCELLED'],
+  ACCEPTED: ['IN_PROGRESS', 'CANCELLED'], // legacy + cancelación médico/sistema
   IN_PROGRESS: ['COMPLETED'],
   COMPLETED: [],
   CANCELLED: [],
@@ -105,7 +133,7 @@ export async function createRequest(data: {
     data.type === 'URGENT'
       ? config.serviceRequests.urgentPendingTtlMinutes
       : config.serviceRequests.scheduledPendingTtlMinutes;
-  const ttlMin = Number.isFinite(rawTtlMin) ? Math.max(1, rawTtlMin) : data.type === 'URGENT' ? 15 : 10;
+  const ttlMin = Number.isFinite(rawTtlMin) ? Math.max(1, rawTtlMin) : 10;
   const expiresAt = new Date(now.getTime() + ttlMin * 60 * 1000);
 
   let totalAmount: number;
@@ -203,7 +231,8 @@ export async function acceptRequest(serviceId: string, doctorId: string) {
   }
 
   const nextStatus: ServiceStatus = active ? 'QUEUED' : 'IN_PROGRESS';
-  const startedAt = active ? undefined : new Date();
+  const nowAccept = new Date();
+  const startedAt = active ? undefined : nowAccept;
 
   const updated = await prisma.serviceRequest.update({
     where: { id: serviceId },
@@ -213,7 +242,9 @@ export async function acceptRequest(serviceId: string, doctorId: string) {
       totalAmount,
       commissionAmount,
       doctorNetAmount: totalAmount - commissionAmount,
-      ...(startedAt ? { startedAt } : {}),
+      ...(nextStatus === 'QUEUED'
+        ? { queuedAt: nowAccept, acceptedAt: null, startedAt: null }
+        : { startedAt: startedAt!, queuedAt: null, acceptedAt: null }),
     },
   });
 
@@ -238,9 +269,19 @@ export async function startRequest(serviceId: string, doctorId: string) {
   if (sr.doctorId !== doctorId) throw new Error('No es tu solicitud');
   if (!canTransition(sr.status, 'IN_PROGRESS')) throw new Error(`No se puede iniciar desde ${sr.status}`);
 
+  if (sr.status === 'QUEUED') {
+    const otherActive = await prisma.serviceRequest.findFirst({
+      where: { doctorId, status: 'IN_PROGRESS', id: { not: serviceId } },
+      select: { id: true },
+    });
+    if (otherActive) {
+      throw new Error('Finaliza la atención en curso antes de iniciar la que está en cola.');
+    }
+  }
+
   return prisma.serviceRequest.update({
     where: { id: serviceId },
-    data: { status: 'IN_PROGRESS', startedAt: new Date() },
+    data: { status: 'IN_PROGRESS', startedAt: new Date(), queuedAt: null, acceptedAt: null },
   });
 }
 
@@ -257,25 +298,74 @@ export async function completeRequest(serviceId: string, doctorId: string, notes
     data: { status: 'COMPLETED', completedAt: now, notes },
   });
 
-  // Al completar: si existe una solicitud en cola (QUEUED), iniciarla automáticamente
-  const next = await prisma.serviceRequest.findFirst({
-    where: { doctorId, status: 'QUEUED' },
-    orderBy: { createdAt: 'asc' },
+  await promoteNextQueuedAfterComplete(prisma, doctorId, now);
+
+  return completed;
+}
+
+/**
+ * Cierra IN_PROGRESS que superaron el límite desde `startedAt` (no usa createdAt).
+ * Idempotente: `updateMany` con status IN_PROGRESS evita doble cierre si el médico ya finalizó.
+ * También promueve QUEUED igual que un cierre manual.
+ */
+export async function autoCompleteStaleInProgressServices(): Promise<number> {
+  const maxMin = Number.isFinite(config.serviceRequests.inProgressAutoCompleteAfterMinutes)
+    ? Math.max(1, config.serviceRequests.inProgressAutoCompleteAfterMinutes)
+    : 100;
+  const cutoff = new Date(Date.now() - maxMin * 60 * 1000);
+
+  const stale = await prisma.serviceRequest.findMany({
+    where: {
+      status: 'IN_PROGRESS',
+      startedAt: { not: null, lte: cutoff },
+    },
     select: { id: true },
   });
 
-  if (next) {
-    await prisma.serviceRequest.update({
-      where: { id: next.id },
-      data: { status: 'IN_PROGRESS', startedAt: now },
+  let closed = 0;
+  for (const row of stale) {
+    const did = await prisma.$transaction(async (tx) => {
+      const cur = await tx.serviceRequest.findFirst({
+        where: {
+          id: row.id,
+          status: 'IN_PROGRESS',
+          startedAt: { not: null, lte: cutoff },
+        },
+        select: { id: true, doctorId: true, notes: true },
+      });
+      if (!cur?.doctorId) return false;
+
+      const newNotes = cur.notes?.includes(AUTO_COMPLETED_IN_PROGRESS_MARKER)
+        ? cur.notes
+        : cur.notes?.trim()
+          ? `${cur.notes.trim()}\n\n${AUTO_COMPLETED_IN_PROGRESS_NOTE}`
+          : AUTO_COMPLETED_IN_PROGRESS_NOTE;
+
+      const upd = await tx.serviceRequest.updateMany({
+        where: {
+          id: cur.id,
+          status: 'IN_PROGRESS',
+          startedAt: { lte: cutoff },
+        },
+        data: {
+          status: 'COMPLETED',
+          completedAt: new Date(),
+          notes: newNotes,
+        },
+      });
+      if (upd.count === 0) return false;
+
+      await promoteNextQueuedAfterComplete(tx, cur.doctorId, new Date());
+      return true;
     });
-    if (config.isDev) {
-      // eslint-disable-next-line no-console
-      console.log('[services.complete] queued->in_progress:', { completedId: serviceId, nextId: next.id, doctorId });
-    }
+    if (did) closed += 1;
   }
 
-  return completed;
+  if (closed > 0 && config.isDev) {
+    // eslint-disable-next-line no-console
+    console.log('[services.autoCompleteInProgress]', { closed, cutoff: cutoff.toISOString() });
+  }
+  return closed;
 }
 
 // Cancelar (solo desde PENDING)

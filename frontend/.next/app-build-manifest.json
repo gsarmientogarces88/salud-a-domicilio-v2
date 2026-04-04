@@ -12,7 +12,7 @@
       "static/chunks/fd9d1056-d1d7422462ae6d01.js",
       "static/chunks/2117-fbf9fb2c793a368d.js",
       "static/chunks/main-app-0216533be493d510.js",
-      "static/css/1af8418c09078e41.css",
+      "static/css/cad52244c9858ed7.css",
       "static/chunks/app/layout-be7e3c6660aa7f09.js"
     ],
     "/error": [
@@ -29,13 +29,12 @@
       "static/chunks/main-app-0216533be493d510.js",
       "static/chunks/app/global-error-f31d590a47603fea.js"
     ],
-    "/auth/laboratorio/login/page": [
+    "/auth/login/page": [
       "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
       "static/chunks/fd9d1056-d1d7422462ae6d01.js",
       "static/chunks/2117-fbf9fb2c793a368d.js",
       "static/chunks/main-app-0216533be493d510.js",
-      "static/chunks/7648-995b28336acf6d89.js",
-      "static/chunks/app/auth/laboratorio/login/page-47eb1a2b001d1a73.js"
+      "static/chunks/app/auth/login/page-dc17d125f645ebe1.js"
     ],
     "/auth/register/page": [
       "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
@@ -44,12 +43,13 @@
       "static/chunks/main-app-0216533be493d510.js",
       "static/chunks/app/auth/register/page-c2fcce1659b1d558.js"
     ],
-    "/auth/login/page": [
+    "/auth/laboratorio/login/page": [
       "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
       "static/chunks/fd9d1056-d1d7422462ae6d01.js",
       "static/chunks/2117-fbf9fb2c793a368d.js",
       "static/chunks/main-app-0216533be493d510.js",
-      "static/chunks/app/auth/login/page-dc17d125f645ebe1.js"
+      "static/chunks/7648-995b28336acf6d89.js",
+      "static/chunks/app/auth/laboratorio/login/page-47eb1a2b001d1a73.js"
     ],
     "/page": [
       "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
@@ -64,7 +64,7 @@
       "static/chunks/fd9d1056-d1d7422462ae6d01.js",
       "static/chunks/2117-fbf9fb2c793a368d.js",
       "static/chunks/main-app-0216533be493d510.js",
-      "static/chunks/app/dashboard/doctor/consultations/[id]/page-7ebae1febd2860b2.js"
+      "static/chunks/app/dashboard/doctor/consultations/[id]/page-c493fbd7964d72c3.js"
     ],
     "/dashboard/doctor/layout": [
       "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
@@ -79,28 +79,14 @@
       "static/chunks/2117-fbf9fb2c793a368d.js",
       "static/chunks/main-app-0216533be493d510.js",
       "static/chunks/7648-995b28336acf6d89.js",
-      "static/chunks/app/dashboard/layout-b17f22be6ce9bf57.js"
+      "static/chunks/app/dashboard/layout-8790e8a4fa9d46f1.js"
     ],
-    "/dashboard/doctor/my-consultations/page": [
+    "/dashboard/doctor/page": [
       "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
       "static/chunks/fd9d1056-d1d7422462ae6d01.js",
       "static/chunks/2117-fbf9fb2c793a368d.js",
       "static/chunks/main-app-0216533be493d510.js",
-      "static/chunks/app/dashboard/doctor/my-consultations/page-4716345d276065db.js"
-    ],
-    "/dashboard/doctor/agenda/page": [
-      "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
-      "static/chunks/fd9d1056-d1d7422462ae6d01.js",
-      "static/chunks/2117-fbf9fb2c793a368d.js",
-      "static/chunks/main-app-0216533be493d510.js",
-      "static/chunks/app/dashboard/doctor/agenda/page-625c5be5d5a35850.js"
-    ],
-    "/dashboard/doctor/agenda-requests/page": [
-      "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
-      "static/chunks/fd9d1056-d1d7422462ae6d01.js",
-      "static/chunks/2117-fbf9fb2c793a368d.js",
-      "static/chunks/main-app-0216533be493d510.js",
-      "static/chunks/app/dashboard/doctor/agenda-requests/page-9e2233a0011ff82c.js"
+      "static/chunks/app/dashboard/doctor/page-fcc9c53e687d17ca.js"
     ],
     "/dashboard/admin/page": [
       "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
@@ -116,6 +102,56 @@
       "static/chunks/main-app-0216533be493d510.js",
       "static/chunks/app/dashboard/admin/layout-136f0014d0416411.js"
     ],
+    "/dashboard/doctor/agenda/page": [
+      "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
+      "static/chunks/fd9d1056-d1d7422462ae6d01.js",
+      "static/chunks/2117-fbf9fb2c793a368d.js",
+      "static/chunks/main-app-0216533be493d510.js",
+      "static/chunks/app/dashboard/doctor/agenda/page-625c5be5d5a35850.js"
+    ],
+    "/dashboard/doctor/earnings/page": [
+      "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
+      "static/chunks/fd9d1056-d1d7422462ae6d01.js",
+      "static/chunks/2117-fbf9fb2c793a368d.js",
+      "static/chunks/main-app-0216533be493d510.js",
+      "static/chunks/app/dashboard/doctor/earnings/page-5fbfa6054732687b.js"
+    ],
+    "/dashboard/doctor/agenda-requests/page": [
+      "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
+      "static/chunks/fd9d1056-d1d7422462ae6d01.js",
+      "static/chunks/2117-fbf9fb2c793a368d.js",
+      "static/chunks/main-app-0216533be493d510.js",
+      "static/chunks/app/dashboard/doctor/agenda-requests/page-9e2233a0011ff82c.js"
+    ],
+    "/dashboard/patient/agenda/page": [
+      "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
+      "static/chunks/fd9d1056-d1d7422462ae6d01.js",
+      "static/chunks/2117-fbf9fb2c793a368d.js",
+      "static/chunks/main-app-0216533be493d510.js",
+      "static/chunks/9085-4645d41f4d867ec3.js",
+      "static/chunks/app/dashboard/patient/agenda/page-6e30e48f006981be.js"
+    ],
+    "/dashboard/patient/layout": [
+      "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
+      "static/chunks/fd9d1056-d1d7422462ae6d01.js",
+      "static/chunks/2117-fbf9fb2c793a368d.js",
+      "static/chunks/main-app-0216533be493d510.js",
+      "static/chunks/app/dashboard/patient/layout-ef57d9f94afd87c3.js"
+    ],
+    "/dashboard/doctor/metrics/page": [
+      "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
+      "static/chunks/fd9d1056-d1d7422462ae6d01.js",
+      "static/chunks/2117-fbf9fb2c793a368d.js",
+      "static/chunks/main-app-0216533be493d510.js",
+      "static/chunks/app/dashboard/doctor/metrics/page-63abdb47e78798da.js"
+    ],
+    "/dashboard/doctor/my-consultations/page": [
+      "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
+      "static/chunks/fd9d1056-d1d7422462ae6d01.js",
+      "static/chunks/2117-fbf9fb2c793a368d.js",
+      "static/chunks/main-app-0216533be493d510.js",
+      "static/chunks/app/dashboard/doctor/my-consultations/page-4716345d276065db.js"
+    ],
     "/dashboard/laboratorio/configuracion/page": [
       "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
       "static/chunks/fd9d1056-d1d7422462ae6d01.js",
@@ -130,12 +166,26 @@
       "static/chunks/main-app-0216533be493d510.js",
       "static/chunks/app/dashboard/laboratorio/layout-c7e3245e98598149.js"
     ],
-    "/dashboard/doctor/page": [
+    "/dashboard/doctor/settings/page": [
       "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
       "static/chunks/fd9d1056-d1d7422462ae6d01.js",
       "static/chunks/2117-fbf9fb2c793a368d.js",
       "static/chunks/main-app-0216533be493d510.js",
-      "static/chunks/app/dashboard/doctor/page-cd9265ec53572e55.js"
+      "static/chunks/app/dashboard/doctor/settings/page-09d480a90783de8e.js"
+    ],
+    "/dashboard/laboratorio/solicitudes/[id]/page": [
+      "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
+      "static/chunks/fd9d1056-d1d7422462ae6d01.js",
+      "static/chunks/2117-fbf9fb2c793a368d.js",
+      "static/chunks/main-app-0216533be493d510.js",
+      "static/chunks/app/dashboard/laboratorio/solicitudes/[id]/page-c93c39063603b42b.js"
+    ],
+    "/dashboard/patient/examenes-domicilio/page": [
+      "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
+      "static/chunks/fd9d1056-d1d7422462ae6d01.js",
+      "static/chunks/2117-fbf9fb2c793a368d.js",
+      "static/chunks/main-app-0216533be493d510.js",
+      "static/chunks/app/dashboard/patient/examenes-domicilio/page-0cdb9a151780f852.js"
     ],
     "/dashboard/laboratorio/page": [
       "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
@@ -145,27 +195,19 @@
       "static/chunks/7648-995b28336acf6d89.js",
       "static/chunks/app/dashboard/laboratorio/page-325be16835018895.js"
     ],
-    "/dashboard/doctor/settings/page": [
+    "/dashboard/patient/medico/urgente/estado/page": [
       "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
       "static/chunks/fd9d1056-d1d7422462ae6d01.js",
       "static/chunks/2117-fbf9fb2c793a368d.js",
       "static/chunks/main-app-0216533be493d510.js",
-      "static/chunks/app/dashboard/doctor/settings/page-09d480a90783de8e.js"
+      "static/chunks/app/dashboard/patient/medico/urgente/estado/page-e60d5b8cf8666145.js"
     ],
-    "/dashboard/laboratorio/agenda/page": [
+    "/dashboard/patient/medico/agendar/pago/page": [
       "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
       "static/chunks/fd9d1056-d1d7422462ae6d01.js",
       "static/chunks/2117-fbf9fb2c793a368d.js",
       "static/chunks/main-app-0216533be493d510.js",
-      "static/chunks/7648-995b28336acf6d89.js",
-      "static/chunks/app/dashboard/laboratorio/agenda/page-47e48fa05dbce36c.js"
-    ],
-    "/dashboard/doctor/metrics/page": [
-      "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
-      "static/chunks/fd9d1056-d1d7422462ae6d01.js",
-      "static/chunks/2117-fbf9fb2c793a368d.js",
-      "static/chunks/main-app-0216533be493d510.js",
-      "static/chunks/app/dashboard/doctor/metrics/page-63abdb47e78798da.js"
+      "static/chunks/app/dashboard/patient/medico/agendar/pago/page-e1a0a3b83b277c69.js"
     ],
     "/dashboard/laboratorio/resultados/page": [
       "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
@@ -175,21 +217,6 @@
       "static/chunks/7648-995b28336acf6d89.js",
       "static/chunks/app/dashboard/laboratorio/resultados/page-6ba9a2faf211f1c9.js"
     ],
-    "/dashboard/laboratorio/solicitudes/page": [
-      "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
-      "static/chunks/fd9d1056-d1d7422462ae6d01.js",
-      "static/chunks/2117-fbf9fb2c793a368d.js",
-      "static/chunks/main-app-0216533be493d510.js",
-      "static/chunks/7648-995b28336acf6d89.js",
-      "static/chunks/app/dashboard/laboratorio/solicitudes/page-0fe0695b264e366a.js"
-    ],
-    "/dashboard/laboratorio/solicitudes/[id]/page": [
-      "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
-      "static/chunks/fd9d1056-d1d7422462ae6d01.js",
-      "static/chunks/2117-fbf9fb2c793a368d.js",
-      "static/chunks/main-app-0216533be493d510.js",
-      "static/chunks/app/dashboard/laboratorio/solicitudes/[id]/page-c93c39063603b42b.js"
-    ],
     "/dashboard/patient/consultas/page": [
       "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
       "static/chunks/fd9d1056-d1d7422462ae6d01.js",
@@ -198,56 +225,12 @@
       "static/chunks/9085-4645d41f4d867ec3.js",
       "static/chunks/app/dashboard/patient/consultas/page-c8fb6efe2d54a81e.js"
     ],
-    "/dashboard/patient/layout": [
+    "/dashboard/patient/mensajes/page": [
       "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
       "static/chunks/fd9d1056-d1d7422462ae6d01.js",
       "static/chunks/2117-fbf9fb2c793a368d.js",
       "static/chunks/main-app-0216533be493d510.js",
-      "static/chunks/app/dashboard/patient/layout-ef57d9f94afd87c3.js"
-    ],
-    "/dashboard/patient/agenda/page": [
-      "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
-      "static/chunks/fd9d1056-d1d7422462ae6d01.js",
-      "static/chunks/2117-fbf9fb2c793a368d.js",
-      "static/chunks/main-app-0216533be493d510.js",
-      "static/chunks/9085-4645d41f4d867ec3.js",
-      "static/chunks/app/dashboard/patient/agenda/page-6e30e48f006981be.js"
-    ],
-    "/dashboard/doctor/earnings/page": [
-      "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
-      "static/chunks/fd9d1056-d1d7422462ae6d01.js",
-      "static/chunks/2117-fbf9fb2c793a368d.js",
-      "static/chunks/main-app-0216533be493d510.js",
-      "static/chunks/app/dashboard/doctor/earnings/page-5fbfa6054732687b.js"
-    ],
-    "/dashboard/patient/agenda/estado/[id]/page": [
-      "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
-      "static/chunks/fd9d1056-d1d7422462ae6d01.js",
-      "static/chunks/2117-fbf9fb2c793a368d.js",
-      "static/chunks/main-app-0216533be493d510.js",
-      "static/chunks/7648-995b28336acf6d89.js",
-      "static/chunks/app/dashboard/patient/agenda/estado/[id]/page-3655f5177bc9095e.js"
-    ],
-    "/dashboard/doctor/requests/page": [
-      "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
-      "static/chunks/fd9d1056-d1d7422462ae6d01.js",
-      "static/chunks/2117-fbf9fb2c793a368d.js",
-      "static/chunks/main-app-0216533be493d510.js",
-      "static/chunks/app/dashboard/doctor/requests/page-ba7e1015665b1fdf.js"
-    ],
-    "/dashboard/patient/examenes-domicilio/page": [
-      "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
-      "static/chunks/fd9d1056-d1d7422462ae6d01.js",
-      "static/chunks/2117-fbf9fb2c793a368d.js",
-      "static/chunks/main-app-0216533be493d510.js",
-      "static/chunks/app/dashboard/patient/examenes-domicilio/page-0cdb9a151780f852.js"
-    ],
-    "/dashboard/patient/medico/agendar/pago/page": [
-      "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
-      "static/chunks/fd9d1056-d1d7422462ae6d01.js",
-      "static/chunks/2117-fbf9fb2c793a368d.js",
-      "static/chunks/main-app-0216533be493d510.js",
-      "static/chunks/app/dashboard/patient/medico/agendar/pago/page-e1a0a3b83b277c69.js"
+      "static/chunks/app/dashboard/patient/mensajes/page-0bb029b63db7c433.js"
     ],
     "/dashboard/patient/medico/agendar/page": [
       "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
@@ -256,6 +239,29 @@
       "static/chunks/main-app-0216533be493d510.js",
       "static/chunks/9085-4645d41f4d867ec3.js",
       "static/chunks/app/dashboard/patient/medico/agendar/page-feb04e8bd1150820.js"
+    ],
+    "/dashboard/doctor/requests/page": [
+      "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
+      "static/chunks/fd9d1056-d1d7422462ae6d01.js",
+      "static/chunks/2117-fbf9fb2c793a368d.js",
+      "static/chunks/main-app-0216533be493d510.js",
+      "static/chunks/app/dashboard/doctor/requests/page-52f10667636a42c4.js"
+    ],
+    "/dashboard/patient/page": [
+      "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
+      "static/chunks/fd9d1056-d1d7422462ae6d01.js",
+      "static/chunks/2117-fbf9fb2c793a368d.js",
+      "static/chunks/main-app-0216533be493d510.js",
+      "static/chunks/7648-995b28336acf6d89.js",
+      "static/chunks/app/dashboard/patient/page-2f61500093cd3e22.js"
+    ],
+    "/dashboard/patient/agenda/estado/[id]/page": [
+      "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
+      "static/chunks/fd9d1056-d1d7422462ae6d01.js",
+      "static/chunks/2117-fbf9fb2c793a368d.js",
+      "static/chunks/main-app-0216533be493d510.js",
+      "static/chunks/7648-995b28336acf6d89.js",
+      "static/chunks/app/dashboard/patient/agenda/estado/[id]/page-3655f5177bc9095e.js"
     ],
     "/dashboard/patient/medico/page": [
       "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
@@ -266,41 +272,13 @@
       "static/chunks/c36f3faa-3b3447eebb01a82a.js",
       "static/chunks/app/dashboard/patient/medico/page-934a33be88ebe07f.js"
     ],
-    "/dashboard/patient/medico/urgente/estado/page": [
-      "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
-      "static/chunks/fd9d1056-d1d7422462ae6d01.js",
-      "static/chunks/2117-fbf9fb2c793a368d.js",
-      "static/chunks/main-app-0216533be493d510.js",
-      "static/chunks/app/dashboard/patient/medico/urgente/estado/page-a7d874d10b89a3cc.js"
-    ],
-    "/dashboard/patient/mensajes/page": [
-      "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
-      "static/chunks/fd9d1056-d1d7422462ae6d01.js",
-      "static/chunks/2117-fbf9fb2c793a368d.js",
-      "static/chunks/main-app-0216533be493d510.js",
-      "static/chunks/app/dashboard/patient/mensajes/page-0bb029b63db7c433.js"
-    ],
-    "/dashboard/patient/page": [
+    "/dashboard/laboratorio/solicitudes/page": [
       "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
       "static/chunks/fd9d1056-d1d7422462ae6d01.js",
       "static/chunks/2117-fbf9fb2c793a368d.js",
       "static/chunks/main-app-0216533be493d510.js",
       "static/chunks/7648-995b28336acf6d89.js",
-      "static/chunks/app/dashboard/patient/page-2f61500093cd3e22.js"
-    ],
-    "/dashboard/patient/perfil/page": [
-      "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
-      "static/chunks/fd9d1056-d1d7422462ae6d01.js",
-      "static/chunks/2117-fbf9fb2c793a368d.js",
-      "static/chunks/main-app-0216533be493d510.js",
-      "static/chunks/app/dashboard/patient/perfil/page-98fc82c51af351df.js"
-    ],
-    "/dashboard/patient/resultados-examenes/page": [
-      "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
-      "static/chunks/fd9d1056-d1d7422462ae6d01.js",
-      "static/chunks/2117-fbf9fb2c793a368d.js",
-      "static/chunks/main-app-0216533be493d510.js",
-      "static/chunks/app/dashboard/patient/resultados-examenes/page-f65ea0536a45511d.js"
+      "static/chunks/app/dashboard/laboratorio/solicitudes/page-0fe0695b264e366a.js"
     ],
     "/dashboard/patient/pagos/page": [
       "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
@@ -309,12 +287,34 @@
       "static/chunks/main-app-0216533be493d510.js",
       "static/chunks/app/dashboard/patient/pagos/page-f9f776007f5b2de7.js"
     ],
+    "/dashboard/patient/perfil/page": [
+      "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
+      "static/chunks/fd9d1056-d1d7422462ae6d01.js",
+      "static/chunks/2117-fbf9fb2c793a368d.js",
+      "static/chunks/main-app-0216533be493d510.js",
+      "static/chunks/app/dashboard/patient/perfil/page-98fc82c51af351df.js"
+    ],
     "/dashboard/patient/soporte/page": [
       "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
       "static/chunks/fd9d1056-d1d7422462ae6d01.js",
       "static/chunks/2117-fbf9fb2c793a368d.js",
       "static/chunks/main-app-0216533be493d510.js",
       "static/chunks/app/dashboard/patient/soporte/page-efe6263d6d0d0c3e.js"
+    ],
+    "/dashboard/patient/resultados-examenes/page": [
+      "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
+      "static/chunks/fd9d1056-d1d7422462ae6d01.js",
+      "static/chunks/2117-fbf9fb2c793a368d.js",
+      "static/chunks/main-app-0216533be493d510.js",
+      "static/chunks/app/dashboard/patient/resultados-examenes/page-f65ea0536a45511d.js"
+    ],
+    "/dashboard/laboratorio/agenda/page": [
+      "static/chunks/webpack-c6b6ea7a8fbd41f0.js",
+      "static/chunks/fd9d1056-d1d7422462ae6d01.js",
+      "static/chunks/2117-fbf9fb2c793a368d.js",
+      "static/chunks/main-app-0216533be493d510.js",
+      "static/chunks/7648-995b28336acf6d89.js",
+      "static/chunks/app/dashboard/laboratorio/agenda/page-47e48fa05dbce36c.js"
     ]
   }
 }

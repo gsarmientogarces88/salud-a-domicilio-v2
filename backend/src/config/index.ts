@@ -8,8 +8,12 @@ export const config = {
   nodeEnv: process.env.NODE_ENV || 'development',
   isDev: process.env.NODE_ENV !== 'production',
   serviceRequests: {
-    urgentPendingTtlMinutes: parseInt(process.env.SERVICE_REQUEST_URGENT_PENDING_TTL_MINUTES || '15'),
+    urgentPendingTtlMinutes: parseInt(process.env.SERVICE_REQUEST_URGENT_PENDING_TTL_MINUTES || '10'),
     scheduledPendingTtlMinutes: parseInt(process.env.SERVICE_REQUEST_SCHEDULED_PENDING_TTL_MINUTES || '10'),
+    /** IN_PROGRESS → COMPLETED automático si `startedAt` supera este límite (minutos). */
+    inProgressAutoCompleteAfterMinutes: parseInt(
+      process.env.SERVICE_REQUEST_IN_PROGRESS_AUTO_COMPLETE_MINUTES || '100'
+    ),
   },
   geo: {
     urgentProximityFilterEnabled: (process.env.GEO_URGENT_PROXIMITY_FILTER_ENABLED || 'true') === 'true',

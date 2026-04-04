@@ -385,12 +385,15 @@ async function main() {
       });
       if (existing) continue;
 
+      const status = j === 0 ? 'ACCEPTED' : 'PENDING';
+      const nowSeed = new Date();
       await prisma.serviceRequest.create({
         data: {
           patientId: patientProfileId,
           doctorId: doc.id,
           type: 'SCHEDULED',
-          status: j === 0 ? 'ACCEPTED' : 'PENDING',
+          status,
+          acceptedAt: status === 'ACCEPTED' ? nowSeed : null,
           description: `Consulta ${doc.specialty} - cita de prueba`,
           address: 'Rosas 475, Concepción',
           commune: 'Concepción',

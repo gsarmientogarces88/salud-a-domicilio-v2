@@ -206,6 +206,10 @@ model ServiceRequest {
   urgentFixedPrice Int?          // CLP - solo si type=URGENT
   scheduledAt      DateTime?     // solo si type=SCHEDULED
   expiresAt        DateTime?     // PENDING + 240s
+  /// Entrada explícita a estado ACCEPTED (legacy / futuro pago). Sin autocancelación por tiempo hasta definir flujo post-pago.
+  acceptedAt       DateTime?
+  /// Entrada explícita a cola. Sin autocancelación por tiempo hasta definir flujo post-pago.
+  queuedAt         DateTime?
   startedAt        DateTime?
   completedAt      DateTime?
   cancelledAt      DateTime?

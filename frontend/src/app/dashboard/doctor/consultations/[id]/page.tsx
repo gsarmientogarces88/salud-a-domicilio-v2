@@ -22,6 +22,8 @@ export default function DoctorConsultationDetailPage() {
 
   const [sr, setSr] = useState<ServiceRequest | null>(null);
   const [loading, setLoading] = useState(true);
+  const [finishing, setFinishing] = useState(false);
+  const [starting, setStarting] = useState(false);
 
   const load = async () => {
     if (!id) return;
@@ -41,24 +43,83 @@ export default function DoctorConsultationDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  const finishAttention = async () => {
+    if (!sr || sr.status !== 'IN_PROGRESS') return;
+    const ok = window.confirm('¿Confirmas que finalizaste la atención?');
+    if (!ok) return;
+    setFinishing(true);
+    try {
+      await apiFetch(`/services/${sr.id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'COMPLETED' }),
+      });
+      await load();
+    } catch (e: any) {
+      alert(e?.message || 'No se pudo finalizar la atención.');
+    } finally {
+      setFinishing(false);
+    }
+  };
+
+  const startAttention = async () => {
+    if (!sr || (sr.status !== 'ACCEPTED' && sr.status !== 'QUEUED')) return;
+    const ok = window.confirm('¿Iniciar la atención en el domicilio del paciente?');
+    if (!ok) return;
+    setStarting(true);
+    try {
+      await apiFetch(`/services/${sr.id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'IN_PROGRESS' }),
+      });
+      await load();
+    } catch (e: any) {
+      alert(e?.message || 'No se pudo iniciar la atención.');
+    } finally {
+      setStarting(false);
+    }
+  };
+
   if (loading) return <p className="text-sm text-gray-500">Cargando…</p>;
   if (!sr) return <p className="text-sm text-gray-500">No encontrada.</p>;
 
-  const chatEnabled = sr.status === 'ACCEPTED' || sr.status === 'IN_PROGRESS' || sr.status === 'COMPLETED';
+  const chatEnabled = ['ACCEPTED', 'QUEUED', 'IN_PROGRESS', 'COMPLETED'].includes(sr.status);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Atención</h1>
           <p className="text-sm text-gray-600">Detalle y coordinación con el paciente.</p>
         </div>
-        <button
-          onClick={load}
-          className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700"
-        >
-          Actualizar
-        </button>
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
+          {sr.status === 'IN_PROGRESS' ? (
+            <button
+              type="button"
+              onClick={finishAttention}
+              disabled={finishing}
+              className="min-h-[52px] w-full touch-manipulation rounded-2xl bg-emerald-600 px-5 py-3 text-base font-bold text-white hover:bg-emerald-700 disabled:bg-gray-300 sm:w-auto"
+            >
+              {finishing ? 'Finalizando…' : 'FINALIZAR ATENCIÓN'}
+            </button>
+          ) : null}
+          {sr.status === 'ACCEPTED' || sr.status === 'QUEUED' ? (
+            <button
+              type="button"
+              onClick={startAttention}
+              disabled={starting}
+              className="min-h-[52px] w-full touch-manipulation rounded-2xl bg-sky-600 px-5 py-3 text-base font-bold text-white hover:bg-sky-700 disabled:bg-gray-300 sm:w-auto"
+            >
+              {starting ? 'Iniciando…' : 'INICIAR ATENCIÓN'}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={load}
+            className="min-h-[44px] w-full touch-manipulation rounded-xl bg-sky-100 px-4 py-2 text-sm font-semibold text-sky-800 hover:bg-sky-200 sm:w-auto"
+          >
+            Actualizar
+          </button>
+        </div>
       </div>
 
       <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/5">
@@ -72,7 +133,15 @@ export default function DoctorConsultationDetailPage() {
           {sr.patient ? `${sr.patient.user.firstName} ${sr.patient.user.lastName}` : 'Paciente'}
         </p>
         <p className="mt-1 text-sm text-gray-700">{sr.description}</p>
-        <p className="mt-1 text-xs text-gray-500">📍 {sr.address}</p>
+        <p className="mt-1 text-sm text-gray-600">📍 {sr.address}</p>
+        {sr.patient?.user.phone ? (
+          <a
+            href={`tel:${sr.patient.user.phone}`}
+            className="mt-3 inline-flex min-h-[44px] items-center text-base font-semibold text-sky-700 touch-manipulation"
+          >
+            📞 Llamar al paciente
+          </a>
+        ) : null}
       </div>
 
       {chatEnabled ? (
@@ -90,10 +159,10 @@ export default function DoctorConsultationDetailPage() {
         />
       ) : (
         <div className="rounded-2xl border border-dashed border-gray-200 bg-white p-5 text-sm text-gray-600">
-          El chat se habilita cuando la solicitud esté en <strong>ACCEPTED</strong> o <strong>IN_PROGRESS</strong>.
+          El chat se habilita cuando la solicitud esté en <strong>cola</strong>, <strong>aceptada</strong> o{' '}
+          <strong>en curso</strong>.
         </div>
       )}
     </div>
   );
 }
-

@@ -26,7 +26,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {!isPatient && <Navbar />}
         <div className="flex flex-1">
           <Sidebar />
-          <main className="flex-1 overflow-auto p-6">{children}</main>
+          <main className="flex-1 overflow-auto p-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] md:p-6">
+            {children}
+          </main>
         </div>
       </div>
     </DoctorRequestsProvider>

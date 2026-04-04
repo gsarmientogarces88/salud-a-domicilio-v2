@@ -5,6 +5,10 @@ import { useAuth } from '@/context/AuthContext';
 import { useDoctorRequests } from '@/context/DoctorRequestsContext';
 import { apiFetch } from '@/lib/api';
 import StatusBadge from '@/components/ui/StatusBadge';
+import {
+  IN_PROGRESS_WARNING_AFTER_MINUTES,
+  inProgressElapsedMinutes,
+} from '@/lib/serviceRequestTtl';
 
 interface DoctorProfile {
   id: string;
@@ -30,6 +34,7 @@ interface Service {
   totalAmount: number;
   doctorNetAmount: number;
   createdAt: string;
+  startedAt?: string | null;
   requestLat?: number | null;
   requestLng?: number | null;
   patient?: { user: { firstName: string; lastName: string; phone?: string | null } };
@@ -49,11 +54,14 @@ function haversineKm(a: LatLng, b: LatLng) {
   return R * c;
 }
 
-function formatMmSs(totalSeconds: number) {
-  const m = Math.floor(totalSeconds / 60);
-  const s = totalSeconds % 60;
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+function patientLabel(s: Service) {
+  return s.patient ? `${s.patient.user.firstName} ${s.patient.user.lastName}` : 'Paciente';
 }
+
+const btnPrimary =
+  'flex min-h-[52px] w-full touch-manipulation items-center justify-center rounded-2xl px-5 py-3.5 text-base font-bold shadow-sm transition active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:min-w-[200px]';
+const btnSecondary =
+  'flex min-h-[48px] w-full touch-manipulation items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-800 active:bg-gray-50 sm:w-auto';
 
 export default function DoctorDashboard() {
   const { user } = useAuth();
@@ -63,6 +71,7 @@ export default function DoctorDashboard() {
   const [loading, setLoading] = useState(true);
   const [savingAvailability, setSavingAvailability] = useState(false);
   const [finishingId, setFinishingId] = useState<string | null>(null);
+  const [startingId, setStartingId] = useState<string | null>(null);
   const [providerPos, setProviderPos] = useState<LatLng | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
@@ -128,6 +137,7 @@ export default function DoctorDashboard() {
     recent,
     activeService,
     queuedService,
+    primaryFocus,
   } = useMemo(() => {
     const now = new Date();
     const month = now.getMonth();
@@ -160,9 +170,36 @@ export default function DoctorDashboard() {
 
     const activeService = services.find((s) => s.status === 'IN_PROGRESS') || null;
     const queuedService = services.find((s) => s.status === 'QUEUED') || null;
+    const acceptedService = services.find((s) => s.status === 'ACCEPTED') || null;
 
-    return { monthIncome, todayCount, avgArrival, avgRating, recent, activeService, queuedService };
+    type Primary =
+      | { kind: 'IN_PROGRESS'; service: Service }
+      | { kind: 'START'; service: Service; fromStatus: 'ACCEPTED' | 'QUEUED' }
+      | { kind: 'NONE' };
+
+    let primaryFocus: Primary = { kind: 'NONE' };
+    if (activeService) primaryFocus = { kind: 'IN_PROGRESS', service: activeService };
+    else if (acceptedService) primaryFocus = { kind: 'START', service: acceptedService, fromStatus: 'ACCEPTED' };
+    else if (queuedService) primaryFocus = { kind: 'START', service: queuedService, fromStatus: 'QUEUED' };
+
+    return {
+      monthIncome,
+      todayCount,
+      avgArrival,
+      avgRating,
+      recent,
+      activeService,
+      queuedService,
+      primaryFocus,
+    };
   }, [services]);
+
+  const showInProgressLongWarning = useMemo(() => {
+    if (!activeService || activeService.status !== 'IN_PROGRESS') return false;
+    const elapsed = inProgressElapsedMinutes(activeService.startedAt ?? null, nowMs);
+    if (elapsed == null) return false;
+    return elapsed >= IN_PROGRESS_WARNING_AFTER_MINUTES;
+  }, [activeService, nowMs]);
 
   const finishActive = async (serviceId: string) => {
     const ok = window.confirm('¿Confirmas que finalizaste la atención?');
@@ -181,31 +218,181 @@ export default function DoctorDashboard() {
     }
   };
 
+  const startAttention = async (serviceId: string) => {
+    const ok = window.confirm('¿Iniciar la atención en el domicilio del paciente?');
+    if (!ok) return;
+    setStartingId(serviceId);
+    try {
+      await apiFetch(`/services/${serviceId}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'IN_PROGRESS' }),
+      });
+      await load();
+    } catch (e: any) {
+      alert(e.message || 'No se pudo iniciar la atención.');
+    } finally {
+      setStartingId(null);
+    }
+  };
+
   const buildMapsHref = (s: Service) => {
     const hasCoords = typeof s.requestLat === 'number' && typeof s.requestLng === 'number';
     const destination = hasCoords ? `${s.requestLat},${s.requestLng}` : s.address;
     return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`;
   };
 
-  if (loading) return <p>Cargando...</p>;
+  if (loading) {
+    return (
+      <p className="py-8 text-center text-base text-gray-600" role="status">
+        Cargando…
+      </p>
+    );
+  }
+
+  const renderServiceBody = (s: Service) => {
+    const phone = s.patient?.user.phone || null;
+    const hasCoords =
+      typeof s.requestLat === 'number' && typeof s.requestLng === 'number' && providerPos != null;
+    const distKm = hasCoords
+      ? haversineKm(providerPos!, { lat: s.requestLat as number, lng: s.requestLng as number })
+      : null;
+    return (
+      <div className="space-y-3">
+        <p className="text-lg font-bold leading-snug text-gray-900 md:text-base">{patientLabel(s)}</p>
+        <p className="text-base leading-relaxed text-gray-700 md:text-sm">{s.description}</p>
+        <p className="text-sm leading-relaxed text-gray-600 md:text-xs">
+          📍 {s.address}
+          {s.commune ? `, ${s.commune}` : ''}
+          {s.city ? ` · ${s.city}` : ''}
+        </p>
+        {phone ? (
+          <a
+            href={`tel:${phone}`}
+            className="inline-flex min-h-[44px] items-center gap-2 text-base font-semibold text-sky-700 touch-manipulation"
+          >
+            <span className="text-xl leading-none">📞</span>
+            <span>Llamar al paciente</span>
+          </a>
+        ) : null}
+        {distKm != null ? (
+          <p className="text-sm font-semibold text-sky-700">A {distKm.toFixed(1)} km de tu ubicación</p>
+        ) : null}
+        <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:flex-wrap">
+          <a href={buildMapsHref(s)} target="_blank" rel="noreferrer" className={btnSecondary}>
+            🗺 Ver ruta
+          </a>
+          <a href={`/dashboard/doctor/consultations/${s.id}`} className={`${btnSecondary} border-sky-200 bg-sky-50 text-sky-800`}>
+            💬 Chat
+          </a>
+        </div>
+      </div>
+    );
+  };
 
   return (
-    <div className="space-y-6">
-      {/* Header médico */}
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-white p-5 shadow-sm">
-        <div className="flex items-center gap-4">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-sky-100 text-3xl">
+    <div className="flex flex-col gap-4 md:gap-6">
+      {/* Móvil: primero; escritorio: después de KPI */}
+      <section className="order-1 space-y-3 md:order-3">
+        <div className="rounded-2xl border border-sky-100 bg-gradient-to-b from-sky-50/80 to-white p-4 shadow-md ring-1 ring-sky-100/80 md:p-5">
+          <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-sky-800">Modo terreno</p>
+              <p className="text-sm text-gray-600">Acciones para atención domiciliaria</p>
+            </div>
+            {primaryFocus.kind !== 'NONE' ? (
+              <StatusBadge status={primaryFocus.service.status} />
+            ) : null}
+          </div>
+
+          {primaryFocus.kind === 'NONE' ? (
+            <p className="text-base text-gray-600">
+              No tienes una atención activa ni pendiente de iniciar. Activa disponibilidad para recibir solicitudes.
+            </p>
+          ) : null}
+
+          {primaryFocus.kind === 'IN_PROGRESS' ? (
+            <>
+              {showInProgressLongWarning ? (
+                <div
+                  className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+                  role="status"
+                >
+                  <p className="font-semibold text-amber-900">Atención activa prolongada</p>
+                  <p className="mt-1 text-amber-900/90">
+                    Llevas más de {IN_PROGRESS_WARNING_AFTER_MINUTES} minutos. Si ya terminó, presiona{' '}
+                    <span className="font-semibold">FINALIZAR ATENCIÓN</span>.
+                  </p>
+                </div>
+              ) : null}
+              {renderServiceBody(primaryFocus.service)}
+              <button
+                type="button"
+                onClick={() => finishActive(primaryFocus.service.id)}
+                disabled={finishingId === primaryFocus.service.id}
+                className={`${btnPrimary} mt-4 bg-emerald-600 text-white hover:bg-emerald-700`}
+              >
+                {finishingId === primaryFocus.service.id ? 'Finalizando…' : 'FINALIZAR ATENCIÓN'}
+              </button>
+            </>
+          ) : null}
+
+          {primaryFocus.kind === 'START' ? (
+            <>
+              <p className="mb-2 text-sm text-gray-600">
+                {primaryFocus.fromStatus === 'ACCEPTED'
+                  ? 'Solicitud aceptada: inicia cuando estés en el domicilio.'
+                  : 'Solicitud en cola: puedes iniciarla cuando no tengas otra atención en curso.'}
+              </p>
+              {renderServiceBody(primaryFocus.service)}
+              <button
+                type="button"
+                onClick={() => startAttention(primaryFocus.service.id)}
+                disabled={startingId === primaryFocus.service.id}
+                className={`${btnPrimary} mt-4 bg-sky-600 text-white hover:bg-sky-700`}
+              >
+                {startingId === primaryFocus.service.id ? 'Iniciando…' : 'INICIAR ATENCIÓN'}
+              </button>
+            </>
+          ) : null}
+        </div>
+
+        {activeService && queuedService ? (
+          <div className="rounded-2xl border border-amber-100 bg-amber-50/90 p-4 shadow-sm ring-1 ring-amber-100">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <p className="text-sm font-bold text-amber-950">Siguiente en cola</p>
+              <StatusBadge status="QUEUED" />
+            </div>
+            <p className="text-base font-semibold text-gray-900">{patientLabel(queuedService)}</p>
+            <p className="mt-1 text-sm text-gray-700">{queuedService.description}</p>
+            <p className="mt-1 text-sm text-gray-600">📍 {queuedService.address}</p>
+            <p className="mt-3 rounded-lg bg-white/80 px-3 py-2 text-sm font-medium text-amber-900 ring-1 ring-amber-200/80">
+              Se iniciará automáticamente al finalizar la atención actual, o puedes usar INICIAR cuando ya no haya otra
+              en curso.
+            </p>
+            <a
+              href={`/dashboard/doctor/consultations/${queuedService.id}`}
+              className={`${btnSecondary} mt-3 border-amber-200 bg-white`}
+            >
+              💬 Chat con paciente (cola)
+            </a>
+          </div>
+        ) : null}
+      </section>
+
+      <header className="order-2 flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-white p-4 shadow-sm md:order-1 md:p-5">
+        <div className="flex items-center gap-3 md:gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-sky-100 text-2xl md:h-14 md:w-14 md:text-3xl">
             👨‍⚕️
           </div>
           <div>
-            <p className="text-sm text-gray-500">Bienvenido</p>
-            <p className="text-xl font-bold text-gray-900">
+            <p className="text-xs text-gray-500 md:text-sm">Bienvenido</p>
+            <p className="text-lg font-bold text-gray-900 md:text-xl">
               Dr. {user?.firstName} {user?.lastName}
             </p>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
               {profile?.isVerified && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 font-medium text-green-700">
-                  ✓ Profesional verificado
+                  ✓ Verificado
                 </span>
               )}
               {profile && (
@@ -216,12 +403,13 @@ export default function DoctorDashboard() {
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-gray-600">Estado</span>
+        <div className="flex w-full flex-col gap-1 sm:w-auto sm:items-end">
+          <span className="text-xs text-gray-600 md:text-sm">Disponibilidad</span>
           <button
+            type="button"
             onClick={toggleAvailability}
             disabled={savingAvailability}
-            className={`flex items-center rounded-full px-3 py-1 text-xs font-medium shadow-inner ${
+            className={`flex min-h-[44px] w-full touch-manipulation items-center justify-center rounded-full px-4 py-2 text-sm font-semibold shadow-inner sm:w-auto ${
               profile?.isAvailable ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-700'
             }`}
           >
@@ -233,15 +421,12 @@ export default function DoctorDashboard() {
             {profile?.isAvailable ? 'Disponible' : 'No disponible'}
           </button>
         </div>
-      </div>
+      </header>
 
-      {/* KPIs */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="order-3 hidden gap-4 md:order-2 md:grid md:grid-cols-4">
         <div className="rounded-2xl bg-white p-4 shadow-sm">
           <p className="text-xs text-gray-500">Ingresos del mes</p>
-          <p className="mt-2 text-2xl font-bold text-emerald-600">
-            ${monthIncome.toLocaleString('es-CL')}
-          </p>
+          <p className="mt-2 text-2xl font-bold text-emerald-600">${monthIncome.toLocaleString('es-CL')}</p>
         </div>
         <div className="rounded-2xl bg-white p-4 shadow-sm">
           <p className="text-xs text-gray-500">Atenciones hoy</p>
@@ -263,179 +448,80 @@ export default function DoctorDashboard() {
         </div>
       </div>
 
-      {/* SERVICIO ACTIVO + COLA (prioritario) */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/5">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold text-gray-700">Servicio activo</p>
-              <p className="text-sm text-gray-500">ATENCIÓN EN CURSO</p>
-            </div>
-            {activeService ? <StatusBadge status={activeService.status} /> : null}
-          </div>
-
-          {!activeService ? (
-            <p className="text-sm text-gray-600">No tienes atenciones activas.</p>
-          ) : (
-            (() => {
-              const patientName = activeService.patient
-                ? `${activeService.patient.user.firstName} ${activeService.patient.user.lastName}`
-                : 'Paciente';
-              const phone = activeService.patient?.user.phone || null;
-              const hasCoords =
-                typeof activeService.requestLat === 'number' &&
-                typeof activeService.requestLng === 'number' &&
-                providerPos != null;
-              const distKm = hasCoords
-                ? haversineKm(providerPos!, {
-                    lat: activeService.requestLat as number,
-                    lng: activeService.requestLng as number,
-                  })
-                : null;
-
-              return (
-                <div className="space-y-2">
-                  <p className="text-base font-semibold text-gray-900">{patientName}</p>
-                  <p className="text-sm text-gray-700">{activeService.description}</p>
-                  <p className="text-xs text-gray-500">
-                    📍 {activeService.address}
-                    {activeService.commune ? `, ${activeService.commune}` : ''}{' '}
-                    {activeService.city ? `· ${activeService.city}` : ''}
-                  </p>
-                  {phone ? (
-                    <a href={`tel:${phone}`} className="inline-flex items-center gap-2 text-sm font-medium text-sky-700 hover:text-sky-800">
-                      <span className="text-base leading-none">📞</span>
-                      <span>{phone}</span>
-                    </a>
-                  ) : null}
-                  {distKm != null ? (
-                    <p className="text-xs font-semibold text-sky-700">
-                      A {distKm.toFixed(1)} km de tu ubicación
-                    </p>
-                  ) : null}
-
-                  <div className="pt-2 flex flex-wrap gap-2">
-                    <a
-                      href={buildMapsHref(activeService)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
-                    >
-                      Ver ruta
-                    </a>
-                    <a
-                      href={`/dashboard/doctor/consultations/${activeService.id}`}
-                      className="rounded-lg bg-sky-50 px-4 py-2 text-xs font-semibold text-sky-700 hover:bg-sky-100"
-                    >
-                      Chat con paciente
-                    </a>
-                    <button
-                      onClick={() => finishActive(activeService.id)}
-                      disabled={finishingId === activeService.id}
-                      className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:bg-gray-300"
-                    >
-                      {finishingId === activeService.id ? 'Finalizando…' : 'FINALIZAR ATENCIÓN'}
-                    </button>
-                  </div>
-                </div>
-              );
-            })()
-          )}
-        </div>
-
-        <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/5">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold text-gray-700">Próximo servicio</p>
-              <p className="text-sm text-gray-500">En espera</p>
-            </div>
-            {queuedService ? <StatusBadge status={queuedService.status} /> : null}
-          </div>
-
-          {!queuedService ? (
-            <p className="text-sm text-gray-600">No tienes servicios en cola.</p>
-          ) : (
-            (() => {
-              const patientName = queuedService.patient
-                ? `${queuedService.patient.user.firstName} ${queuedService.patient.user.lastName}`
-                : 'Paciente';
-              return (
-                <div className="space-y-2">
-                  <p className="text-base font-semibold text-gray-900">{patientName}</p>
-                  <p className="text-sm text-gray-700">{queuedService.description}</p>
-                  <p className="text-xs text-gray-500">📍 {queuedService.address}</p>
-                  <div className="pt-2 flex flex-wrap gap-2">
-                    <a
-                      href={`/dashboard/doctor/consultations/${queuedService.id}`}
-                      className="rounded-lg bg-sky-50 px-4 py-2 text-xs font-semibold text-sky-700 hover:bg-sky-100"
-                    >
-                      Chat con paciente
-                    </a>
-                    <span className="rounded-lg bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-700">
-                      Se iniciará al finalizar la atención activa
-                    </span>
-                  </div>
-                </div>
-              );
-            })()
-          )}
-        </div>
-      </div>
-
-      {/* Atenciones recientes */}
-      <div className="rounded-2xl bg-white p-5 shadow-sm">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">Atenciones recientes</h2>
-        </div>
+      <section className="order-4 rounded-2xl bg-white p-4 shadow-sm md:p-5">
+        <h2 className="mb-3 text-base font-semibold text-gray-900 md:text-lg">Atenciones recientes</h2>
         {recent.length === 0 ? (
           <p className="text-sm text-gray-500">Aún no tienes atenciones registradas.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead>
-                <tr className="border-b text-xs text-gray-500">
-                  <th className="px-3 py-2">Fecha</th>
-                  <th className="px-3 py-2">Paciente</th>
-                  <th className="px-3 py-2">Motivo</th>
-                  <th className="px-3 py-2">Estado</th>
-                  <th className="px-3 py-2">Pago</th>
-                  <th className="px-3 py-2" />
-                </tr>
-              </thead>
-              <tbody>
-                {recent.map((s) => (
-                  <tr key={s.id} className="border-b last:border-0">
-                    <td className="px-3 py-2 text-xs text-gray-600">
-                      {new Date(s.createdAt).toLocaleString('es-CL', {
-                        dateStyle: 'short',
-                        timeStyle: 'short',
-                      })}
-                    </td>
-                    <td className="px-3 py-2 text-xs text-gray-700">
-                      {s.patient ? `${s.patient.user.firstName} ${s.patient.user.lastName}` : '-'}
-                    </td>
-                    <td className="px-3 py-2 text-xs text-gray-600">{s.description}</td>
-                    <td className="px-3 py-2 text-xs">
-                      <StatusBadge status={s.status} />
-                    </td>
-                    <td className="px-3 py-2 text-xs text-gray-700">
-                      ${s.doctorNetAmount.toLocaleString('es-CL')}
-                    </td>
-                    <td className="px-3 py-2 text-right text-xs">
-                      <a
-                        href={`/dashboard/doctor/consultations/${s.id}`}
-                        className="rounded-lg bg-sky-50 px-3 py-1 font-medium text-sky-700 hover:bg-sky-100"
-                      >
-                        Ver
-                      </a>
-                    </td>
+          <>
+            <ul className="space-y-3 md:hidden">
+              {recent.map((s) => (
+                <li key={s.id} className="rounded-xl border border-gray-100 bg-gray-50/80 p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm font-semibold text-gray-900">
+                      {s.patient ? `${s.patient.user.firstName} ${s.patient.user.lastName}` : '—'}
+                    </p>
+                    <StatusBadge status={s.status} />
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500">
+                    {new Date(s.createdAt).toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' })}
+                  </p>
+                  <p className="mt-2 text-sm text-gray-700">{s.description}</p>
+                  <p className="mt-2 text-xs text-gray-600">${s.doctorNetAmount.toLocaleString('es-CL')}</p>
+                  <a
+                    href={`/dashboard/doctor/consultations/${s.id}`}
+                    className="mt-3 inline-flex min-h-[44px] w-full items-center justify-center rounded-lg bg-sky-50 py-2 text-sm font-semibold text-sky-700 touch-manipulation"
+                  >
+                    Ver detalle
+                  </a>
+                </li>
+              ))}
+            </ul>
+            <div className="hidden overflow-x-auto md:block">
+              <table className="min-w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b text-xs text-gray-500">
+                    <th className="px-3 py-2">Fecha</th>
+                    <th className="px-3 py-2">Paciente</th>
+                    <th className="px-3 py-2">Motivo</th>
+                    <th className="px-3 py-2">Estado</th>
+                    <th className="px-3 py-2">Pago</th>
+                    <th className="px-3 py-2" />
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {recent.map((s) => (
+                    <tr key={s.id} className="border-b last:border-0">
+                      <td className="px-3 py-2 text-xs text-gray-600">
+                        {new Date(s.createdAt).toLocaleString('es-CL', {
+                          dateStyle: 'short',
+                          timeStyle: 'short',
+                        })}
+                      </td>
+                      <td className="px-3 py-2 text-xs text-gray-700">
+                        {s.patient ? `${s.patient.user.firstName} ${s.patient.user.lastName}` : '-'}
+                      </td>
+                      <td className="px-3 py-2 text-xs text-gray-600">{s.description}</td>
+                      <td className="px-3 py-2 text-xs">
+                        <StatusBadge status={s.status} />
+                      </td>
+                      <td className="px-3 py-2 text-xs text-gray-700">${s.doctorNetAmount.toLocaleString('es-CL')}</td>
+                      <td className="px-3 py-2 text-right text-xs">
+                        <a
+                          href={`/dashboard/doctor/consultations/${s.id}`}
+                          className="rounded-lg bg-sky-50 px-3 py-1 font-medium text-sky-700 hover:bg-sky-100"
+                        >
+                          Ver
+                        </a>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
-      </div>
+      </section>
     </div>
   );
 }
