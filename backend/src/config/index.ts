@@ -7,6 +7,8 @@ export const config = {
   frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
   nodeEnv: process.env.NODE_ENV || 'development',
   isDev: process.env.NODE_ENV !== 'production',
+  /** Logs `[serviceFlow.*]` en consola (complete/start y snapshot tras cerrar). */
+  debugServiceStateFlow: process.env.DEBUG_SERVICE_STATE_FLOW === '1',
   serviceRequests: {
     urgentPendingTtlMinutes: parseInt(process.env.SERVICE_REQUEST_URGENT_PENDING_TTL_MINUTES || '10'),
     scheduledPendingTtlMinutes: parseInt(process.env.SERVICE_REQUEST_SCHEDULED_PENDING_TTL_MINUTES || '10'),

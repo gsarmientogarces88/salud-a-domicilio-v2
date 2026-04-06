@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ApiError, apiFetch } from '@/lib/api';
+import { buildChileGeocodeQuery, geocodeChileAddressLine } from '@/lib/mapboxGeocode';
 import LocationSelector from '@/components/ui/LocationSelector';
 import MapaDireccion from '@/components/MapaDireccion';
 
@@ -19,7 +20,7 @@ export default function UrgentRequestModal({ isOpen, onClose }: UrgentRequestMod
   const [telefono, setTelefono] = useState('');
   const [tieneFiebre, setTieneFiebre] = useState<'Sí' | 'No' | ''>('');
   const [region, setRegion] = useState('');
-  const [city, setCity] = useState('');
+  const [province, setProvince] = useState('');
   const [commune, setCommune] = useState('');
   const [direccion, setDireccion] = useState('');
   const [referencias, setReferencias] = useState('');
@@ -36,78 +37,45 @@ export default function UrgentRequestModal({ isOpen, onClose }: UrgentRequestMod
   const [loading, setLoading] = useState(false);
 
   const norm = (v: string) => v.replace(/\s+/g, ' ').trim();
-  const eq = (a: string, b: string) => norm(a).toLowerCase() === norm(b).toLowerCase();
 
   const direccionExacta = norm(direccion);
   const comuna = norm(commune);
-  const ciudad = norm(city);
+  const provinciaNorm = norm(province);
   const regionNorm = norm(region);
 
-  const fullAddress = [direccionExacta, comuna, regionNorm, 'Chile'].filter(Boolean).join(', ');
+  const fullAddress = buildChileGeocodeQuery({
+    streetLine: direccionExacta,
+    commune: comuna,
+    province: provinciaNorm,
+    region: regionNorm,
+  });
 
   const handleSearchLocation = async () => {
     // Validaciones antes de buscar
     const e: Record<string, string> = {};
     if (!regionNorm) e.region = 'Región requerida';
     if (!comuna) e.commune = 'Comuna requerida';
+    if (!provinciaNorm) e.province = 'Provincia requerida';
     if (!direccionExacta) e.direccion = 'Dirección requerida';
 
     if (Object.keys(e).length > 0) {
       setErrors((prev) => ({ ...prev, ...e }));
-      setGeocodeState({ loading: false, error: 'Completa región, comuna y dirección exacta para buscar.' });
+      setGeocodeState({
+        loading: false,
+        error: 'Completa región, provincia, comuna y dirección exacta para buscar.',
+      });
       return;
     }
-
-    const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
-    if (!token) {
-      setGeocodeState({ loading: false, error: 'Falta configurar NEXT_PUBLIC_MAPBOX_TOKEN.' });
-      return;
-    }
-
-    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
-      fullAddress
-    )}.json?access_token=${token}&country=cl&limit=1&language=es`;
-
-    // Logs recomendados
-    // eslint-disable-next-line no-console
-    console.log('direccionExacta:', direccionExacta);
-    // eslint-disable-next-line no-console
-    console.log('comuna:', comuna);
-    // eslint-disable-next-line no-console
-    console.log('ciudad:', ciudad);
-    // eslint-disable-next-line no-console
-    console.log('region:', regionNorm);
-    // eslint-disable-next-line no-console
-    console.log('fullAddress:', fullAddress);
-    // eslint-disable-next-line no-console
-    console.log('url:', url);
 
     setGeocodeState({ loading: true, error: null });
-
-    try {
-      const res = await fetch(url);
-      const data = await res.json();
-
-      // eslint-disable-next-line no-console
-      console.log('response:', data);
-      // eslint-disable-next-line no-console
-      console.log('coords:', data?.features?.[0]?.center);
-
-      if (!data?.features || !Array.isArray(data.features) || data.features.length === 0) {
-        setCoords(null);
-        setGeocodeState({ loading: false, error: 'No se encontró la dirección' });
-        return;
-      }
-
-      const [lng, lat] = data.features[0].center;
-      setCoords({ lat, lng });
-      setGeocodeState({ loading: false, error: null });
-    } catch (err) {
+    const result = await geocodeChileAddressLine(fullAddress);
+    if (!result.ok) {
       setCoords(null);
-      setGeocodeState({ loading: false, error: 'Error buscando la dirección. Intenta nuevamente.' });
-    } finally {
-      setGeocodeState((prev) => ({ ...prev, loading: false }));
+      setGeocodeState({ loading: false, error: result.error });
+      return;
     }
+    setCoords({ lat: result.lat, lng: result.lng });
+    setGeocodeState({ loading: false, error: null });
   };
 
   const validate = () => {
@@ -118,7 +86,7 @@ export default function UrgentRequestModal({ isOpen, onClose }: UrgentRequestMod
     if (!motivo.trim()) e.motivo = 'Motivo de consulta requerido';
     if (!telefono.trim()) e.telefono = 'Teléfono requerido';
     if (!region.trim()) e.region = 'Región requerida';
-    if (!city.trim()) e.city = 'Ciudad requerida';
+    if (!province.trim()) e.province = 'Provincia requerida';
     if (!commune.trim()) e.commune = 'Comuna requerida';
     if (!direccion.trim()) e.direccion = 'Dirección requerida';
     if (!coords) e.coords = 'Confirma tu ubicación en el mapa para continuar';
@@ -136,7 +104,8 @@ export default function UrgentRequestModal({ isOpen, onClose }: UrgentRequestMod
         description: motivo.trim(),
         address: direccion.trim(),
         commune: commune.trim(),
-        city: city.trim(),
+        province: province.trim(),
+        city: province.trim(),
         region: region.trim(),
         referencias: referencias.trim() || undefined,
         sexo: sexo,
@@ -301,16 +270,16 @@ export default function UrgentRequestModal({ isOpen, onClose }: UrgentRequestMod
             <div className="space-y-4">
               <LocationSelector
                 region={region}
-                city={city}
+                province={province}
                 commune={commune}
                 onRegionChange={setRegion}
-                onCityChange={setCity}
+                onProvinceChange={setProvince}
                 onCommuneChange={setCommune}
                 labelClassName="mb-1 block text-sm font-medium text-gray-700"
                 selectClassName={`w-full rounded-lg border px-4 py-2 ${'border-gray-300'}`}
                 errors={{
                   region: errors.region,
-                  city: errors.city,
+                  province: errors.province,
                   commune: errors.commune,
                 }}
               />
@@ -333,7 +302,7 @@ export default function UrgentRequestModal({ isOpen, onClose }: UrgentRequestMod
                 debug={{
                   direccionExacta,
                   comuna,
-                  ciudad,
+                  provincia: provinciaNorm,
                   region: regionNorm,
                 }}
                 onChangeCoords={(c) => {

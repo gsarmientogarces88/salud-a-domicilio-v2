@@ -3,15 +3,25 @@
 interface DateRangePickerProps {
   selectedDate: Date | null;
   onSelect: (date: Date) => void;
+  /** Días desde hoy para el primer botón (1 = mañana; no permitir mismo día). */
+  fromDayOffset?: number;
+  /** Cuántos días mostrar desde el primero. */
+  dayCount?: number;
 }
 
-export default function DateRangePicker({ selectedDate, onSelect }: DateRangePickerProps) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+export default function DateRangePicker({
+  selectedDate,
+  onSelect,
+  fromDayOffset = 1,
+  dayCount = 14,
+}: DateRangePickerProps) {
+  const anchor = new Date();
+  anchor.setHours(0, 0, 0, 0);
+
   const dates: Date[] = [];
-  for (let i = 0; i <= 5; i++) {
-    const d = new Date(today);
-    d.setDate(today.getDate() + i);
+  for (let i = 0; i < dayCount; i++) {
+    const d = new Date(anchor);
+    d.setDate(anchor.getDate() + fromDayOffset + i);
     dates.push(d);
   }
 
@@ -20,11 +30,6 @@ export default function DateRangePicker({ selectedDate, onSelect }: DateRangePic
     const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
     return `${days[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]}`;
   };
-
-  const isToday = (d: Date) =>
-    d.getDate() === today.getDate() &&
-    d.getMonth() === today.getMonth() &&
-    d.getFullYear() === today.getFullYear();
 
   const isSelected = (d: Date) =>
     selectedDate &&
@@ -41,11 +46,10 @@ export default function DateRangePicker({ selectedDate, onSelect }: DateRangePic
           onClick={() => onSelect(d)}
           className={`rounded-lg px-4 py-2 text-sm font-medium transition-all ${
             isSelected(d)
-              ? 'bg-green-500 text-white ring-2 ring-green-300'
-              : 'bg-sky-100 text-sky-700 hover:bg-sky-200'
+              ? 'bg-sky-600 text-white ring-2 ring-sky-300'
+              : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
           }`}
         >
-          {isToday(d) ? 'Hoy, ' : ''}
           {formatDate(d)}
         </button>
       ))}

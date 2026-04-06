@@ -27,7 +27,8 @@ interface Professional {
   id: string;
   specialty: string;
   region: string | null;
-  city: string | null;
+  province: string | null;
+  city?: string | null;
   commune: string | null;
   baseFee: number;
   coverageKm: number | null;
@@ -38,7 +39,7 @@ export default function AgendaPage() {
   const { user } = useAuth();
   const router = useRouter();
   const [region, setRegion] = useState('');
-  const [city, setCity] = useState('');
+  const [province, setProvince] = useState('');
   const [commune, setCommune] = useState('');
   const [tipoProfesional, setTipoProfesional] = useState('Kinesiología');
   const [professionals, setProfessionals] = useState<Professional[]>([]);
@@ -54,8 +55,8 @@ export default function AgendaPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const loadProfessionals = async () => {
-    if (!region || !city || !commune) {
-      setError('Selecciona región, ciudad y comuna para buscar profesionales.');
+    if (!region || !province || !commune) {
+      setError('Selecciona región, provincia y comuna para buscar profesionales.');
       return;
     }
     setLoadingPros(true);
@@ -64,7 +65,8 @@ export default function AgendaPage() {
       const params = new URLSearchParams();
       params.set('type', tipoProfesional);
       params.set('region', region);
-      params.set('city', city);
+      params.set('province', province);
+      params.set('city', province);
       params.set('commune', commune);
       const res = await apiFetch<{ data: Professional[] }>(`/professionals?${params}`);
       setProfessionals(res.data || []);
@@ -144,8 +146,8 @@ export default function AgendaPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (!region || !city || !commune) {
-      setError('Selecciona región, ciudad y comuna.');
+    if (!region || !province || !commune) {
+      setError('Selecciona región, provincia y comuna.');
       return;
     }
     if (!selectedProfessional) {
@@ -161,7 +163,7 @@ export default function AgendaPage() {
       return;
     }
 
-    const addressText = `${street.trim()}, ${commune}, ${city}`;
+    const addressText = `${street.trim()}, ${commune}, ${province}`;
     const { lat, lng } = getCoordsForCommune(commune);
 
     setSubmitting(true);
@@ -175,7 +177,8 @@ export default function AgendaPage() {
             slotId: selectedSlotId,
             addressText,
             region,
-            city,
+            province,
+            city: province,
             commune,
             lat,
             lng,
@@ -239,10 +242,10 @@ export default function AgendaPage() {
           </label>
           <LocationSelector
             region={region}
-            city={city}
+            province={province}
             commune={commune}
             onRegionChange={setRegion}
-            onCityChange={setCity}
+            onProvinceChange={setProvince}
             onCommuneChange={setCommune}
           />
         </div>

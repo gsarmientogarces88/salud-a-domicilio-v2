@@ -5,14 +5,15 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api';
 
-type Status = 'PENDING_PRO_CONFIRMATION' | 'CONFIRMED' | 'REJECTED' | 'EXPIRED';
+type Status = 'PENDING' | 'CONFIRMED' | 'REJECTED' | 'EXPIRED';
 
 interface RequestDetail {
   id: string;
   status: Status;
   addressText?: string;
   region: string;
-  city: string;
+  province: string;
+  city?: string;
   commune: string;
   notes: string | null;
   rejectReason?: string | null;
@@ -30,15 +31,14 @@ interface RequestDetail {
 }
 
 const STATUS_LABELS: Record<Status, string> = {
-  PENDING_PRO_CONFIRMATION: 'Pendiente de confirmación',
+  PENDING: 'Pendiente de confirmación',
   CONFIRMED: 'Confirmada',
   REJECTED: 'Rechazada',
   EXPIRED: 'Expirada',
 };
 
 const STATUS_MESSAGES: Record<Status, string> = {
-  PENDING_PRO_CONFIRMATION:
-    'Solicitud enviada. Esperando confirmación del profesional (máx. 20 min).',
+  PENDING: 'Solicitud enviada, esperando confirmación del médico.',
   CONFIRMED: 'Tu cita ha sido confirmada. El profesional te visitará en la fecha y hora acordadas.',
   REJECTED:
     'El profesional rechazó la solicitud. Puedes elegir otro disponible.',

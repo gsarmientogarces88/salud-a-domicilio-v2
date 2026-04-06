@@ -5,24 +5,24 @@ import { chileLocations } from '@/data/chileLocations';
 
 export interface LocationSelectorProps {
   region: string;
-  city: string;
+  province: string;
   commune: string;
   onRegionChange: (value: string) => void;
-  onCityChange: (value: string) => void;
+  onProvinceChange: (value: string) => void;
   onCommuneChange: (value: string) => void;
   className?: string;
   labelClassName?: string;
   selectClassName?: string;
-  errors?: { region?: string; city?: string; commune?: string };
+  errors?: { region?: string; province?: string; commune?: string };
   required?: boolean;
 }
 
 export default function LocationSelector({
   region,
-  city,
+  province,
   commune,
   onRegionChange,
-  onCityChange,
+  onProvinceChange,
   onCommuneChange,
   className = '',
   labelClassName = 'mb-1 block text-xs font-semibold text-gray-700',
@@ -36,33 +36,33 @@ export default function LocationSelector({
     () => chileLocations.find((r) => r.region === region),
     [region],
   );
-  const cities = useMemo(
-    () => selectedRegionData?.cities.map((c) => c.city) ?? [],
+  const provinceNames = useMemo(
+    () => selectedRegionData?.provinces.map((p) => p.province) ?? [],
     [selectedRegionData],
   );
 
-  const selectedCityData = useMemo(
-    () => selectedRegionData?.cities.find((c) => c.city === city),
-    [selectedRegionData, city],
+  const selectedProvinceData = useMemo(
+    () => selectedRegionData?.provinces.find((p) => p.province === province),
+    [selectedRegionData, province],
   );
   const communes = useMemo(
-    () => selectedCityData?.communes ?? [],
-    [selectedCityData],
+    () => selectedProvinceData?.communes ?? [],
+    [selectedProvinceData],
   );
 
   const handleRegionChange = (value: string) => {
     onRegionChange(value);
-    onCityChange('');
+    onProvinceChange('');
     onCommuneChange('');
   };
 
-  const handleCityChange = (value: string) => {
-    onCityChange(value);
+  const handleProvinceChange = (value: string) => {
+    onProvinceChange(value);
     onCommuneChange('');
   };
 
   const regionSelectClassName = `${selectClassName} ${errors.region ? 'border-red-500' : ''}`;
-  const citySelectClassName = `${selectClassName} ${errors.city ? 'border-red-500' : ''}`;
+  const provinceSelectClassName = `${selectClassName} ${errors.province ? 'border-red-500' : ''}`;
   const communeSelectClassName = `${selectClassName} ${errors.commune ? 'border-red-500' : ''}`;
 
   return (
@@ -86,22 +86,22 @@ export default function LocationSelector({
         )}
       </div>
       <div>
-        <label className={labelClassName}>Ciudad {required && '*'}</label>
+        <label className={labelClassName}>Provincia {required && '*'}</label>
         <select
-          value={city}
-          onChange={(e) => handleCityChange(e.target.value)}
+          value={province}
+          onChange={(e) => handleProvinceChange(e.target.value)}
           disabled={!region}
-          className={`${citySelectClassName} ${!region ? 'cursor-not-allowed bg-gray-100' : ''}`}
+          className={`${provinceSelectClassName} ${!region ? 'cursor-not-allowed bg-gray-100' : ''}`}
         >
-          <option value="">Selecciona ciudad</option>
-          {cities.map((c) => (
-            <option key={c} value={c}>
-              {c}
+          <option value="">{region ? 'Selecciona provincia' : 'Primero elige región'}</option>
+          {provinceNames.map((p) => (
+            <option key={p} value={p}>
+              {p}
             </option>
           ))}
         </select>
-        {errors.city && (
-          <p className="mt-1 text-xs text-red-600">{errors.city}</p>
+        {errors.province && (
+          <p className="mt-1 text-xs text-red-600">{errors.province}</p>
         )}
       </div>
       <div>
@@ -109,10 +109,10 @@ export default function LocationSelector({
         <select
           value={commune}
           onChange={(e) => onCommuneChange(e.target.value)}
-          disabled={!city}
-          className={`${communeSelectClassName} ${!city ? 'cursor-not-allowed bg-gray-100' : ''}`}
+          disabled={!province}
+          className={`${communeSelectClassName} ${!province ? 'cursor-not-allowed bg-gray-100' : ''}`}
         >
-          <option value="">Selecciona comuna</option>
+          <option value="">{province ? 'Selecciona comuna' : 'Primero elige provincia'}</option>
           {communes.map((c) => (
             <option key={c} value={c}>
               {c}

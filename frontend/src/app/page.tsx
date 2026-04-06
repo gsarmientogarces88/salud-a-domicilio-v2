@@ -76,7 +76,7 @@ export default function Home() {
             </div>
 
             <p className="text-xs text-gray-500 sm:text-sm">
-              Cobertura inicial en principales ciudades de Chile. Expandiéndonos progresivamente a más comunas.
+              Cobertura inicial en principales regiones y comunas de Chile. Expandiéndonos progresivamente.
             </p>
           </div>
 

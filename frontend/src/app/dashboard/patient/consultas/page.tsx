@@ -48,7 +48,7 @@ function ConsultasContent() {
   });
   const [error, setError] = useState('');
   const [region, setRegion] = useState('');
-  const [city, setCity] = useState('');
+  const [province, setProvince] = useState('');
   const [commune, setCommune] = useState('');
   const [professionals, setProfessionals] = useState<any[]>([]);
   const [loadingPros, setLoadingPros] = useState(false);
@@ -88,8 +88,8 @@ function ConsultasContent() {
 
   const loadProfessionals = async () => {
     if (!soloAgendado) return;
-    if (!region || !city || !commune) {
-      setError('Selecciona región, ciudad y comuna para buscar profesionales.');
+    if (!region || !province || !commune) {
+      setError('Selecciona región, provincia y comuna para buscar profesionales.');
       return;
     }
     setHasSearchedPros(true);
@@ -100,7 +100,8 @@ function ConsultasContent() {
       // Usamos el label del servicio como tipo de profesional (Nutricionista, Kinesiólogo, etc.)
       if (selectedServicio) params.set('type', selectedServicio.label);
       params.set('region', region);
-      params.set('city', city);
+      params.set('province', province);
+      params.set('city', province);
       params.set('commune', commune);
 
       const res = await apiFetch<{ data: any[] }>(`/professionals?${params.toString()}`);
@@ -177,7 +178,8 @@ function ConsultasContent() {
             description: desc,
             address: form.address,
             commune,
-            city,
+            province,
+            city: province,
             scheduledAt,
           }),
         });
@@ -277,16 +279,16 @@ function ConsultasContent() {
               {/* Filtro ubicación paciente */}
               <LocationSelector
                 region={region}
-                city={city}
+                province={province}
                 commune={commune}
                 onRegionChange={setRegion}
-                onCityChange={setCity}
+                onProvinceChange={setProvince}
                 onCommuneChange={setCommune}
               />
 
               <div className="flex items-center justify-between gap-3">
                 <p className="text-xs text-gray-600">
-                  Se mostrarán primero profesionales de tu misma comuna, luego ciudad y finalmente región.
+                  Se mostrarán primero profesionales de tu misma comuna, luego provincia y finalmente región.
                 </p>
                 <button
                   type="button"
@@ -324,7 +326,8 @@ function ConsultasContent() {
                       </div>
                       <div className="text-[11px] text-gray-600">{p.specialty}</div>
                       <div className="text-[11px] text-gray-500">
-                        📍 {p.commune || 'Sin comuna'}, {p.city || 'Sin ciudad'}, {p.region || 'Sin región'}
+                        📍 {p.commune || 'Sin comuna'},{' '}
+                        {p.province || p.city || 'Sin provincia'}, {p.region || 'Sin región'}
                       </div>
                     </div>
                     <span className="text-[11px] font-medium text-sky-600">

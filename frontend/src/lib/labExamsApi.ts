@@ -4,9 +4,17 @@ import type { PatientLabExamRequestDto } from './labExamTypes';
 const BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
 
 export async function fetchPublicLaboratories() {
-  return apiFetch<{ data: { id: string; name: string; commune: string | null; city: string | null; region: string | null; phone: string | null }[] }>(
-    '/laboratories'
-  );
+  return apiFetch<{
+    data: {
+      id: string;
+      name: string;
+      commune: string | null;
+      province: string | null;
+      city: string | null;
+      region: string | null;
+      phone: string | null;
+    }[];
+  }>('/laboratories');
 }
 
 export async function fetchPatientLabExams() {

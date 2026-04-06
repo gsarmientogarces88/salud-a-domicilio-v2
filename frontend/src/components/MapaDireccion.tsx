@@ -11,7 +11,7 @@ interface MapaDireccionProps {
   debug?: {
     direccionExacta?: string;
     comuna?: string;
-    ciudad?: string;
+    provincia?: string;
     region?: string;
   };
   onChangeCoords: (coords: LatLng | null) => void;
@@ -114,6 +114,7 @@ export default function MapaDireccion({
       {process.env.NODE_ENV === 'development' && debug && (
         <p className="text-[11px] text-gray-400">
           {debug.direccionExacta ? `Dir: ${debug.direccionExacta}` : ''}
+          {debug.provincia ? ` · Prov.: ${debug.provincia}` : ''}
         </p>
       )}
       {error && (

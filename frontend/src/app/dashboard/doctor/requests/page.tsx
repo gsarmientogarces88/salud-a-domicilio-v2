@@ -96,7 +96,7 @@ export default function DoctorRequestsPage() {
 
   const loadMyAssignments = async () => {
     try {
-      const res = await apiFetch<{ data: MyAssignment[] }>('/services/doctor/me');
+      const res = await apiFetch<{ data: MyAssignment[] }>(`/services/doctor/me?_=${Date.now()}`);
       setMyAssignments(res.data);
     } catch {
       /* no bloquear la lista de solicitudes entrantes */
@@ -460,7 +460,7 @@ export default function DoctorRequestsPage() {
                           <p className="text-sm text-gray-700">
                             {s.address}
                             {s.commune ? `, ${s.commune}` : ''}
-                            {s.city ? ` · ${s.city}` : ''}
+                            {s.province || s.city ? ` · ${s.province || s.city}` : ''}
                           </p>
                         </div>
 

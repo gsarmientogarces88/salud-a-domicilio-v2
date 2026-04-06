@@ -20,13 +20,18 @@ async function promoteNextQueuedAfterComplete(db: Db, doctorId: string, now: Dat
     select: { id: true },
   });
   if (!next) return;
-  await db.serviceRequest.update({
+  const promoted = await db.serviceRequest.update({
     where: { id: next.id },
     data: { status: 'IN_PROGRESS', startedAt: now, queuedAt: null, acceptedAt: null },
   });
-  if (config.isDev) {
+  if (config.isDev || config.debugServiceStateFlow) {
     // eslint-disable-next-line no-console
-    console.log('[services.promoteQueued]', { nextId: next.id, doctorId });
+    console.log('[serviceFlow.promoteQueued]', {
+      promotedId: next.id,
+      doctorId,
+      promotedStatus: promoted.status,
+      startedAt: promoted.startedAt,
+    });
   }
 }
 
@@ -80,6 +85,9 @@ export async function createRequest(data: {
   description: string;
   address: string;
   commune?: string;
+  /** Provincia (canónico). */
+  province?: string;
+  /** @deprecated usar province; se mapea a la misma columna. */
   city?: string;
   region?: string;
   referencias?: string;
@@ -157,6 +165,8 @@ export async function createRequest(data: {
   const commissionAmount = Math.round(totalAmount * (cfg.percentage / 100));
   const doctorNetAmount = totalAmount - commissionAmount;
 
+  const province = data.province ?? data.city;
+
   return prisma.serviceRequest.create({
     data: {
       patientId: data.patientId,
@@ -166,7 +176,7 @@ export async function createRequest(data: {
       description: data.description,
       address: data.address,
       commune: data.commune,
-      city: data.city,
+      province,
       region: data.region,
       referencias: data.referencias,
       sexo: data.sexo,
@@ -266,9 +276,14 @@ export async function acceptRequest(serviceId: string, doctorId: string) {
 
 // Iniciar atención
 export async function startRequest(serviceId: string, doctorId: string) {
+  const dbg = config.debugServiceStateFlow;
   const sr = await prisma.serviceRequest.findUnique({ where: { id: serviceId } });
   if (!sr) throw new Error('Solicitud no encontrada');
   if (sr.doctorId !== doctorId) throw new Error('No es tu solicitud');
+  if (dbg) {
+    // eslint-disable-next-line no-console
+    console.log('[serviceFlow.start]', { serviceId, doctorId, beforeStatus: sr.status });
+  }
   if (!canTransition(sr.status, 'IN_PROGRESS')) throw new Error(`No se puede iniciar desde ${sr.status}`);
 
   if (sr.status === 'QUEUED') {
@@ -281,28 +296,75 @@ export async function startRequest(serviceId: string, doctorId: string) {
     }
   }
 
-  return prisma.serviceRequest.update({
+  const updated = await prisma.serviceRequest.update({
     where: { id: serviceId },
     data: { status: 'IN_PROGRESS', startedAt: new Date(), queuedAt: null, acceptedAt: null },
   });
+  if (dbg) {
+    // eslint-disable-next-line no-console
+    console.log('[serviceFlow.start]', { serviceId, afterStatus: updated.status, startedAt: updated.startedAt });
+  }
+  return updated;
 }
 
 // Completar atención
 export async function completeRequest(serviceId: string, doctorId: string, notes?: string) {
-  const sr = await prisma.serviceRequest.findUnique({ where: { id: serviceId } });
-  if (!sr) throw new Error('Solicitud no encontrada');
-  if (sr.doctorId !== doctorId) throw new Error('No es tu solicitud');
-  if (!canTransition(sr.status, 'COMPLETED')) throw new Error(`No se puede completar desde ${sr.status}`);
+  const dbg = config.debugServiceStateFlow;
 
-  const now = new Date();
-  const completed = await prisma.serviceRequest.update({
-    where: { id: serviceId },
-    data: { status: 'COMPLETED', completedAt: now, notes },
+  return prisma.$transaction(async (tx) => {
+    const sr = await tx.serviceRequest.findUnique({ where: { id: serviceId } });
+    if (!sr) throw new Error('Solicitud no encontrada');
+    if (sr.doctorId !== doctorId) throw new Error('No es tu solicitud');
+    if (dbg) {
+      // eslint-disable-next-line no-console
+      console.log('[serviceFlow.complete]', { serviceId, doctorId, beforeStatus: sr.status });
+    }
+    if (!canTransition(sr.status, 'COMPLETED')) throw new Error(`No se puede completar desde ${sr.status}`);
+
+    const now = new Date();
+    const updatePayload: { status: 'COMPLETED'; completedAt: Date; notes?: string | null } = {
+      status: 'COMPLETED',
+      completedAt: now,
+    };
+    if (notes !== undefined) updatePayload.notes = notes;
+
+    const completed = await tx.serviceRequest.update({
+      where: { id: serviceId },
+      data: updatePayload,
+    });
+    if (dbg) {
+      // eslint-disable-next-line no-console
+      console.log('[serviceFlow.complete]', {
+        serviceId,
+        afterStatus: completed.status,
+        completedAt: completed.completedAt,
+      });
+    }
+
+    await promoteNextQueuedAfterComplete(tx, doctorId, now);
+
+    if (dbg) {
+      const inProg = await tx.serviceRequest.findMany({
+        where: { doctorId, status: 'IN_PROGRESS' },
+        select: { id: true, startedAt: true },
+        orderBy: { startedAt: 'desc' },
+      });
+      const queued = await tx.serviceRequest.findMany({
+        where: { doctorId, status: 'QUEUED' },
+        select: { id: true },
+        orderBy: { createdAt: 'asc' },
+      });
+      // eslint-disable-next-line no-console
+      console.log('[serviceFlow.complete.afterPromote]', {
+        doctorId,
+        closedServiceId: serviceId,
+        inProgress: inProg.map((r) => ({ id: r.id, startedAt: r.startedAt })),
+        queuedIds: queued.map((r) => r.id),
+      });
+    }
+
+    return completed;
   });
-
-  await promoteNextQueuedAfterComplete(prisma, doctorId, now);
-
-  return completed;
 }
 
 /**

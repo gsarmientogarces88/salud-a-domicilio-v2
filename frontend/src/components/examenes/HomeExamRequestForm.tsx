@@ -8,7 +8,9 @@ const ACCEPTED_TYPES = '.pdf,.jpg,.jpeg,.png';
 const MAX_FILE_SIZE_MB = 10;
 
 const allCommunes = chileLocations.flatMap((r) =>
-  r.cities.flatMap((c) => c.communes.map((com) => ({ commune: com, region: r.region, city: c.city }))),
+  r.provinces.flatMap((p) =>
+    p.communes.map((com) => ({ commune: com, region: r.region, province: p.province })),
+  ),
 );
 
 export interface HomeExamRequestFormProps {
@@ -211,8 +213,8 @@ export default function HomeExamRequestForm({ patientName, onSuccess }: HomeExam
               required
             >
               <option value="">Selecciona comuna</option>
-              {allCommunes.map(({ commune, region, city }) => (
-                <option key={`${commune}-${city}-${region}`} value={commune}>
+              {allCommunes.map(({ commune, region, province }) => (
+                <option key={`${commune}-${province}-${region}`} value={commune}>
                   {commune}
                 </option>
               ))}

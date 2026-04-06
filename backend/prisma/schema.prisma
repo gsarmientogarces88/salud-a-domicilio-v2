@@ -98,7 +98,8 @@ model DoctorProfile {
   isAvailable   Boolean  @default(false)
   documentsUrl  String?
   region        String?
-  city          String?
+  /// División territorial (provincia chilena); columna física legacy `city`.
+  province      String?  @map("city")
   commune       String?
   baseLat       Float?   // lat base para cálculo de cobertura
   baseLng       Float?   // lng base para cálculo de cobertura
@@ -154,7 +155,7 @@ model PatientProfile {
   rut       String?  @unique
   address   String?
   commune   String?
-  city      String?
+  province  String?  @map("city")
   addressLat Float?
   addressLng Float?
   addressGeocodedAt DateTime?
@@ -184,7 +185,7 @@ model ServiceRequest {
   description      String
   address          String
   commune          String?
-  city             String?
+  province         String?  @map("city")
   region           String?
   referencias      String?
   sexo             String?
@@ -334,7 +335,7 @@ enum SlotStatus {
 }
 
 enum AppointmentRequestStatus {
-  PENDING_PRO_CONFIRMATION
+  PENDING
   CONFIRMED
   REJECTED
   EXPIRED
@@ -372,12 +373,12 @@ model AppointmentRequest {
   slot           AvailabilitySlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
   addressText    String                  // dirección completa (sensible; no mostrar hasta aceptar)
   region         String
-  city           String
+  province       String                  @map("city")
   commune        String
   lat            Float
   lng            Float
   notes          String?
-  status         AppointmentRequestStatus @default(PENDING_PRO_CONFIRMATION)
+  status         AppointmentRequestStatus @default(PENDING)
   rejectReason   String?                 // DISTANCIA, ZONA, HORARIO, OTRO
   rejectComment  String?
   createdAt      DateTime                @default(now())
@@ -440,7 +441,7 @@ model Laboratory {
   phone     String?
   address   String?
   commune   String?
-  city      String?
+  province  String?  @map("city")
   region    String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

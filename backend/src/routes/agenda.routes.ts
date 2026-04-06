@@ -3,7 +3,11 @@ import { authenticate } from '../middleware/auth';
 import { authorize } from '../middleware/roles';
 import prisma from '../lib/prisma';
 import * as agenda from '../services/agenda.service';
-import { haversineDistance } from '../lib/haversine';
+import { addDays } from 'date-fns';
+import { fromZonedTime } from 'date-fns-tz';
+import { BOOKING_TIMEZONE, evaluateBookingSlot } from '../lib/appointmentBookingRules';
+import * as geo from '../services/geo.service';
+import { coalesceProvinceFromPayload } from '../lib/territoryCompat';
 
 const router = Router();
 router.use(authenticate);
@@ -14,32 +18,34 @@ router.post('/requests', authorize('PATIENT'), async (req: Request, res: Respons
     const patient = await prisma.patientProfile.findUnique({ where: { userId: req.user!.id } });
     if (!patient) return res.status(404).json({ error: true, message: 'Perfil paciente no encontrado' });
 
-    const {
-      professionalId,
-      slotId,
-      addressText,
-      region,
-      city,
-      commune,
-      lat,
-      lng,
-      notes,
-    } = req.body as {
+    const body = req.body as {
       professionalId?: string;
       slotId?: string;
       addressText?: string;
       region?: string;
+      province?: string;
       city?: string;
       commune?: string;
       lat?: number;
       lng?: number;
       notes?: string;
     };
+    const {
+      professionalId,
+      slotId,
+      addressText,
+      region,
+      commune,
+      lat,
+      lng,
+      notes,
+    } = body;
+    const province = coalesceProvinceFromPayload(body);
 
-    if (!professionalId || !slotId || !addressText || !region || !city || !commune) {
+    if (!professionalId || !slotId || !addressText || !region || !province || !commune) {
       return res.status(400).json({
         error: true,
-        message: 'Faltan campos: professionalId, slotId, addressText, region, city, commune',
+        message: 'Faltan campos: professionalId, slotId, addressText, region, province (o city legacy), commune',
       });
     }
     const latNum = typeof lat === 'number' ? lat : parseFloat(String(lat));
@@ -54,7 +60,7 @@ router.post('/requests', authorize('PATIENT'), async (req: Request, res: Respons
       slotId,
       addressText,
       region,
-      city,
+      province,
       commune,
       lat: latNum,
       lng: lngNum,
@@ -62,7 +68,7 @@ router.post('/requests', authorize('PATIENT'), async (req: Request, res: Respons
     });
 
     res.status(201).json({
-      message: 'Solicitud enviada. Esperando confirmación del profesional (máx. 20 min).',
+      message: 'Solicitud enviada, esperando confirmación del médico.',
       data: { id: request.id, status: request.status },
     });
   } catch (e: any) {
@@ -93,14 +99,25 @@ router.get('/requests', async (req: Request, res: Response) => {
         },
       });
       // Para el profesional: no exponer addressText completo; solo comuna + distancia
-      const safe = list.map((r) => {
-        const { addressText: _at, ...rest } = r as any;
-        const prof = r.professional as { baseLat?: number | null; baseLng?: number | null } | null;
-        const dist = prof?.baseLat != null && prof?.baseLng != null
-          ? haversineDistance(prof.baseLat, prof.baseLng, r.lat, r.lng).toFixed(1)
-          : null;
-        return { ...rest, addressDisplay: r.commune, distanceKm: dist };
-      });
+      const safe = await Promise.all(
+        list.map(async (r) => {
+          const { addressText: _at, ...rest } = r as any;
+          const eff = await geo.getEffectiveDoctorLocation(r.professionalId);
+          let distanceKm: string | null = null;
+          if (eff.kind !== 'UNKNOWN') {
+            distanceKm = geo
+              .distanceKm({ lat: eff.lat, lng: eff.lng }, { lat: r.lat, lng: r.lng })
+              .toFixed(1);
+          }
+          return {
+            ...rest,
+            city: r.province,
+            addressDisplay: r.commune,
+            distanceKm,
+            patientLocation: { lat: r.lat, lng: r.lng },
+          };
+        }),
+      );
       return res.json({ data: safe });
     }
 
@@ -116,7 +133,9 @@ router.get('/requests', async (req: Request, res: Response) => {
           professional: { include: { user: { select: { firstName: true, lastName: true } } } },
         },
       });
-      return res.json({ data: list });
+      return res.json({
+        data: list.map((row) => ({ ...row, city: row.province })),
+      });
     }
 
     return res.status(403).json({ error: true, message: 'Sin perfil' });
@@ -152,7 +171,7 @@ router.get('/requests/:id', async (req: Request, res: Response) => {
       ? { ...r, addressText: undefined, addressDisplay: `${r.commune}` }
       : r;
 
-    res.json({ data: out });
+    res.json({ data: { ...out, city: out.province } });
   } catch (e: any) {
     res.status(500).json({ error: true, message: e.message });
   }
@@ -194,27 +213,28 @@ router.get('/slots', async (req: Request, res: Response) => {
     if (!professionalId || !date || typeof professionalId !== 'string' || typeof date !== 'string') {
       return res.status(400).json({ error: true, message: 'professionalId y date requeridos' });
     }
-    const target = new Date(date);
-    if (Number.isNaN(target.getTime())) {
-      return res.status(400).json({ error: true, message: 'Fecha inválida' });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ error: true, message: 'date debe ser YYYY-MM-DD' });
     }
-    const startOfDay = new Date(target);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(target);
-    endOfDay.setHours(23, 59, 59, 999);
+
+    const dayStart = fromZonedTime(`${date}T00:00:00`, BOOKING_TIMEZONE);
+    const dayEndExclusive = addDays(dayStart, 1);
 
     const slots = await prisma.availabilitySlot.findMany({
       where: {
         professionalId,
-        startAt: { gte: startOfDay, lte: endOfDay },
+        startAt: { gte: dayStart, lt: dayEndExclusive },
         status: 'AVAILABLE',
         OR: [{ heldUntil: null }, { heldUntil: { gt: new Date() } }],
       },
       orderBy: { startAt: 'asc' },
     });
 
+    const now = new Date();
+    const allowed = slots.filter((s) => evaluateBookingSlot(s.startAt, now).ok);
+
     res.json({
-      data: slots.map((s) => ({
+      data: allowed.map((s) => ({
         id: s.id,
         startAt: s.startAt,
         endAt: s.endAt,

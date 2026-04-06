@@ -24,6 +24,7 @@ export interface DoctorAvailableRequestItem {
   description: string;
   address: string;
   commune?: string | null;
+  province?: string | null;
   city?: string | null;
   telefono?: string | null;
   referencias?: string | null;

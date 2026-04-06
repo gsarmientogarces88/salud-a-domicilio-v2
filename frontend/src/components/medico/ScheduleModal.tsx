@@ -1,10 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api';
+import { formatLocalYmd } from '@/lib/formatLocalYmd';
+import { buildChileGeocodeQuery, geocodeChileAddressLine } from '@/lib/mapboxGeocode';
 import DateRangePicker from './DateRangePicker';
-import TimeSlots from './TimeSlots';
+import MapaDireccion from '@/components/MapaDireccion';
+import LocationSelector from '@/components/ui/LocationSelector';
 
 interface Doctor {
   id: string;
@@ -13,115 +16,361 @@ interface Doctor {
   photo?: string;
 }
 
+export interface ScheduleLocationContext {
+  region: string;
+  province: string;
+  commune: string;
+}
+
+interface AgendaSlot {
+  id: string;
+  startAt: string;
+  endAt: string;
+}
+
 interface ScheduleModalProps {
   isOpen: boolean;
   onClose: () => void;
   doctor: Doctor | null;
+  location: ScheduleLocationContext;
+  onLocationRegion: (v: string) => void;
+  onLocationProvince: (v: string) => void;
+  onLocationCommune: (v: string) => void;
 }
 
-export default function ScheduleModal({ isOpen, onClose, doctor }: ScheduleModalProps) {
+export default function ScheduleModal({
+  isOpen,
+  onClose,
+  doctor,
+  location,
+  onLocationRegion,
+  onLocationProvince,
+  onLocationCommune,
+}: ScheduleModalProps) {
   const router = useRouter();
+  const [step, setStep] = useState<1 | 2>(1);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [selectedTime, setSelectedTime] = useState<string | null>(null);
-  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+  const [agendaSlots, setAgendaSlots] = useState<AgendaSlot[]>([]);
+  const [selectedSlot, setSelectedSlot] = useState<AgendaSlot | null>(null);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [slotsError, setSlotsError] = useState('');
 
-  useEffect(() => {
-    // limpiar al abrir/cerrar o cambiar doctor
+  const [addressText, setAddressText] = useState('');
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [geocodeState, setGeocodeState] = useState<{ loading: boolean; error: string | null }>({
+    loading: false,
+    error: null,
+  });
+  /** Clave normalizada de la última búsqueda exitosa; evita enviar con pin movido sin geocodificar antes. */
+  const [searchKey, setSearchKey] = useState<string | null>(null);
+  const [notes, setNotes] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+
+  const reset = useCallback(() => {
+    setStep(1);
     setSelectedDate(null);
-    setSelectedTime(null);
-    setAvailableSlots([]);
+    setAgendaSlots([]);
+    setSelectedSlot(null);
     setSlotsError('');
-  }, [isOpen, doctor]);
+    setAddressText('');
+    setCoords(null);
+    setSearchKey(null);
+    setGeocodeState({ loading: false, error: null });
+    setNotes('');
+    setSubmitError('');
+    setSuccessMessage('');
+  }, []);
 
   useEffect(() => {
-    const loadSlots = async () => {
+    if (!isOpen) return;
+    reset();
+  }, [isOpen, doctor?.id, reset]);
+
+  const norm = (s: string) => s.replace(/\s+/g, ' ').trim();
+  const currentAddressKey = useMemo(
+    () =>
+      [norm(addressText), norm(location.commune), norm(location.province), norm(location.region)].join('|'),
+    [addressText, location.commune, location.province, location.region],
+  );
+
+  /** Si cambia región/provincia/comuna en paso 2, la ubicación geocodificada deja de ser válida. */
+  useEffect(() => {
+    if (step !== 2) return;
+    setCoords(null);
+    setSearchKey(null);
+    setGeocodeState((s) => ({ ...s, error: null }));
+  }, [location.region, location.province, location.commune, step]);
+
+  useEffect(() => {
+    const load = async () => {
       if (!doctor || !selectedDate) return;
       setLoadingSlots(true);
       setSlotsError('');
+      setSelectedSlot(null);
       try {
-        const dateParam = selectedDate.toISOString().split('T')[0];
-        const res = await apiFetch<{ data: { slots: string[] } }>(
-          `/professionals/${doctor.id}/availability?date=${dateParam}`,
+        const dateParam = formatLocalYmd(selectedDate);
+        const res = await apiFetch<{ data: AgendaSlot[] }>(
+          `/agenda/slots?professionalId=${encodeURIComponent(doctor.id)}&date=${dateParam}`,
         );
-        setAvailableSlots(res.data.slots || []);
+        setAgendaSlots(res.data || []);
       } catch (e: any) {
-        setSlotsError(e.message || 'No se pudieron cargar los horarios disponibles.');
+        setAgendaSlots([]);
+        setSlotsError(e.message || 'No se pudieron cargar los horarios.');
       } finally {
         setLoadingSlots(false);
       }
     };
-
-    loadSlots();
+    load();
   }, [doctor, selectedDate]);
 
-  const handleConfirm = () => {
-    if (!doctor || !selectedDate || !selectedTime) return;
-    onClose();
-    const fecha = selectedDate.toISOString().split('T')[0];
-    router.push(`/dashboard/patient/medico/agendar/pago?doctor=${doctor.id}&fecha=${fecha}&hora=${selectedTime}`);
+  const canGoStep2 = doctor && selectedDate && selectedSlot;
+  const canSubmit =
+    doctor &&
+    selectedSlot &&
+    location.region &&
+    location.province &&
+    location.commune &&
+    addressText.trim().length >= 8 &&
+    coords != null &&
+    searchKey != null &&
+    searchKey === currentAddressKey;
+
+  const handleSearchLocation = async () => {
+    const street = norm(addressText);
+    const comuna = norm(location.commune);
+    const provincia = norm(location.province);
+    const region = norm(location.region);
+
+    if (!region || !provincia || !comuna || !street) {
+      setGeocodeState({
+        loading: false,
+        error: 'Completa región, provincia, comuna y dirección (calle y número) para buscar.',
+      });
+      return;
+    }
+
+    setGeocodeState({ loading: true, error: null });
+    const fullAddress = buildChileGeocodeQuery({
+      streetLine: street,
+      commune: comuna,
+      province: provincia,
+      region,
+    });
+    const result = await geocodeChileAddressLine(fullAddress);
+    if (!result.ok) {
+      setCoords(null);
+      setSearchKey(null);
+      setGeocodeState({ loading: false, error: result.error });
+      return;
+    }
+    const key = [street, comuna, provincia, region].join('|');
+    setCoords({ lat: result.lat, lng: result.lng });
+    setSearchKey(key);
+    setGeocodeState({ loading: false, error: null });
   };
 
-  const canConfirm = doctor && selectedDate && selectedTime;
+  const handleSubmit = async () => {
+    if (!canSubmit || !doctor || !selectedSlot || !coords) return;
+    setSubmitting(true);
+    setSubmitError('');
+    try {
+      const res = await apiFetch<{ message?: string; data: { id: string } }>('/agenda/requests', {
+        method: 'POST',
+        body: JSON.stringify({
+          professionalId: doctor.id,
+          slotId: selectedSlot.id,
+          addressText: addressText.trim(),
+          region: location.region,
+          province: location.province,
+          city: location.province,
+          commune: location.commune,
+          lat: coords.lat,
+          lng: coords.lng,
+          notes: notes.trim() || undefined,
+        }),
+      });
+      setSuccessMessage(res.message || 'Solicitud enviada, esperando confirmación del médico.');
+      setTimeout(() => {
+        onClose();
+        reset();
+        router.push(`/dashboard/patient/agenda/estado/${res.data.id}`);
+      }, 1600);
+    } catch (e: any) {
+      setSubmitError(e.message || 'No se pudo enviar la solicitud.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
-        <h3 className="mb-4 text-xl font-bold text-gray-900">Seleccionar Fecha y Hora</h3>
+      <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <h3 className="text-xl font-bold text-gray-900">Agendar visita</h3>
+          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+            Paso {step} de 2
+          </span>
+        </div>
         {doctor && (
-          <p className="mb-6 text-sm text-gray-600">
+          <p className="mb-4 text-sm text-gray-600">
             {doctor.name} · {doctor.specialty}
           </p>
         )}
 
-        <div className="space-y-6">
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700">Fecha</label>
-            <DateRangePicker selectedDate={selectedDate} onSelect={setSelectedDate} />
-          </div>
+        {successMessage && (
+          <div className="mb-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{successMessage}</div>
+        )}
 
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700">Hora</label>
-            <TimeSlots
-              selectedTime={selectedTime}
-              onSelect={setSelectedTime}
-              occupied={[]}
-              slots={availableSlots}
+        {step === 1 && (
+          <div className="space-y-5">
+            <p className="text-xs text-gray-500">
+              Las visitas programadas no permiten el mismo día y requieren al menos 12 horas de anticipación.
+            </p>
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700">Fecha</label>
+              <DateRangePicker selectedDate={selectedDate} onSelect={setSelectedDate} fromDayOffset={1} dayCount={14} />
+            </div>
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700">Hora disponible</label>
+              {loadingSlots && <p className="text-xs text-gray-500">Cargando horarios...</p>}
+              {!loadingSlots && agendaSlots.length === 0 && selectedDate && !slotsError && (
+                <p className="text-xs text-gray-500">No hay cupos para esta fecha. Prueba otra.</p>
+              )}
+              {slotsError && <p className="text-xs text-red-600">{slotsError}</p>}
+              <div className="mt-2 flex flex-wrap gap-2">
+                {agendaSlots.map((s) => {
+                  const label = new Date(s.startAt).toLocaleTimeString('es-CL', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  });
+                  const active = selectedSlot?.id === s.id;
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => setSelectedSlot(s)}
+                      className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                        active ? 'bg-sky-600 text-white' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Confirma el domicilio de la visita. El médico verá mapa y distancia antes de aceptar.
+            </p>
+            <LocationSelector
+              region={location.region}
+              province={location.province}
+              commune={location.commune}
+              onRegionChange={onLocationRegion}
+              onProvinceChange={onLocationProvince}
+              onCommuneChange={onLocationCommune}
             />
-            {loadingSlots && (
-              <p className="mt-2 text-xs text-gray-500">Cargando horarios disponibles...</p>
-            )}
-            {!loadingSlots && selectedDate && availableSlots.length === 0 && !slotsError && (
-              <p className="mt-2 text-xs text-gray-500">
-                No hay horas disponibles para este día. Prueba con otra fecha.
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-gray-700">Dirección (calle y número) *</label>
+              <input
+                value={addressText}
+                onChange={(e) => setAddressText(e.target.value)}
+                placeholder="Ej: Los Alerces 123, depto 45"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => void handleSearchLocation()}
+              disabled={geocodeState.loading}
+              className="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+            >
+              {geocodeState.loading ? 'Buscando ubicación...' : coords ? 'Volver a buscar ubicación' : 'Buscar ubicación'}
+            </button>
+            {geocodeState.error && <p className="text-xs text-amber-700">{geocodeState.error}</p>}
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-gray-700">
+                Mapa — puedes arrastrar el pin solo si necesitas afinar la ubicación
+              </label>
+              <MapaDireccion
+                position={coords}
+                onChangeCoords={(c) => {
+                  setCoords(c);
+                  if (c) setGeocodeState((s) => ({ ...s, error: null }));
+                }}
+              />
+            </div>
+            {!coords && !geocodeState.loading && (
+              <p className="text-xs text-gray-500">
+                Busca la dirección para confirmar la ubicación. El envío se habilita cuando haya coordenadas válidas
+                (geocodificación o ajuste opcional del pin).
               </p>
             )}
-            {slotsError && <p className="mt-2 text-xs text-red-600">{slotsError}</p>}
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-gray-700">Notas para el médico (opcional)</label>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={2}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                placeholder="Motivo breve de la consulta"
+              />
+            </div>
           </div>
-        </div>
+        )}
 
-        <div className="mt-6 flex gap-3">
+        <div className="mt-6 flex flex-wrap gap-3">
           <button
-            onClick={onClose}
-            className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50"
+            type="button"
+            onClick={() => {
+              if (step === 2) {
+                setStep(1);
+                setCoords(null);
+                setSearchKey(null);
+                setGeocodeState({ loading: false, error: null });
+              } else onClose();
+            }}
+            disabled={submitting || geocodeState.loading}
+            className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
           >
-            Cancelar
+            {step === 2 ? 'Atrás' : 'Cancelar'}
           </button>
-          <button
-            onClick={handleConfirm}
-            disabled={!canConfirm}
-            className={`flex-1 rounded-lg px-4 py-2 font-medium text-white ${
-              canConfirm
-                ? 'bg-green-500 hover:bg-green-600'
-                : 'cursor-not-allowed bg-gray-300'
-            }`}
-          >
-            Confirmar horario
-          </button>
+          {step === 1 ? (
+            <button
+              type="button"
+              disabled={!canGoStep2}
+              onClick={() => setStep(2)}
+              className={`flex-1 rounded-lg px-4 py-2 font-medium text-white ${
+                canGoStep2 ? 'bg-sky-600 hover:bg-sky-700' : 'cursor-not-allowed bg-gray-300'
+              }`}
+            >
+              Continuar
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={!canSubmit || submitting || geocodeState.loading}
+              onClick={handleSubmit}
+              className={`flex-1 rounded-lg px-4 py-2 font-medium text-white ${
+                canSubmit && !submitting && !geocodeState.loading
+                  ? 'bg-emerald-600 hover:bg-emerald-700'
+                  : 'cursor-not-allowed bg-gray-300'
+              }`}
+            >
+              {submitting ? 'Enviando...' : 'Enviar solicitud'}
+            </button>
+          )}
         </div>
+        {submitError && <p className="mt-3 text-center text-xs text-red-600">{submitError}</p>}
       </div>
     </div>
   );

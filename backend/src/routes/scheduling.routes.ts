@@ -9,6 +9,8 @@ import {
   isSlotAvailable,
 } from '../services/scheduling.service';
 import * as svc from '../services/serviceRequests.service';
+import { assertBookingSlotAllowed } from '../lib/appointmentBookingRules';
+import { coalesceProvinceFromPayload } from '../lib/territoryCompat';
 
 const router = Router();
 
@@ -60,12 +62,11 @@ router.get('/slots/:professionalId', async (req: Request, res: Response) => {
       return res.status(400).json({ error: true, message: 'Parámetro date requerido (YYYY-MM-DD)' });
     }
 
-    const target = new Date(date);
-    if (Number.isNaN(target.getTime())) {
-      return res.status(400).json({ error: true, message: 'Fecha inválida' });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ error: true, message: 'date debe ser YYYY-MM-DD' });
     }
 
-    const slots = await getAvailableSlotsForDate(professionalId, target);
+    const slots = await getAvailableSlotsForDate(professionalId, date);
     res.json({ data: { slots } });
   } catch (e: any) {
     res.status(500).json({ error: true, message: e.message });
@@ -80,14 +81,17 @@ router.post('/book', authorize('PATIENT'), async (req: Request, res: Response) =
       return res.status(404).json({ error: true, message: 'Perfil paciente no encontrado' });
     }
 
-    const { professionalId, description, address, commune, city, scheduledAt } = req.body as {
+    const body = req.body as {
       professionalId?: string;
       description?: string;
       address?: string;
       commune?: string;
+      province?: string;
       city?: string;
       scheduledAt?: string;
     };
+    const { professionalId, description, address, commune, scheduledAt } = body;
+    const province = coalesceProvinceFromPayload(body);
 
     if (!professionalId) {
       return res.status(400).json({ error: true, message: 'professionalId requerido' });
@@ -107,6 +111,12 @@ router.post('/book', authorize('PATIENT'), async (req: Request, res: Response) =
       return res.status(400).json({ error: true, message: 'No se pueden agendar horas en el pasado' });
     }
 
+    try {
+      assertBookingSlotAllowed(start, new Date());
+    } catch (err: any) {
+      return res.status(400).json({ error: true, message: err.message || 'Fecha u hora no permitida' });
+    }
+
     const available = await isSlotAvailable(professionalId, start);
     if (!available) {
       return res
@@ -120,12 +130,15 @@ router.post('/book', authorize('PATIENT'), async (req: Request, res: Response) =
       description,
       address,
       commune,
-      city,
+      province: province || undefined,
       doctorId: professionalId,
       scheduledAt: start,
     });
 
-    res.status(201).json({ message: 'Reserva creada correctamente', data: request });
+    res.status(201).json({
+      message: 'Reserva creada correctamente',
+      data: { ...request, city: request.province },
+    });
   } catch (e: any) {
     res.status(400).json({ error: true, message: e.message });
   }

@@ -30,6 +30,7 @@ interface Service {
   description: string;
   address: string;
   commune?: string | null;
+  province?: string | null;
   city?: string | null;
   totalAmount: number;
   doctorNetAmount: number;
@@ -63,6 +64,8 @@ const btnPrimary =
 const btnSecondary =
   'flex min-h-[48px] w-full touch-manipulation items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-800 active:bg-gray-50 sm:w-auto';
 
+const doctorDashDebug = process.env.NEXT_PUBLIC_DEBUG_DOCTOR_DASH === '1';
+
 export default function DoctorDashboard() {
   const { user } = useAuth();
   const doctorRequests = useDoctorRequests();
@@ -79,7 +82,7 @@ export default function DoctorDashboard() {
     try {
       const [p, s, loc] = await Promise.all([
         apiFetch<{ data: DoctorProfile }>('/doctor/me'),
-        apiFetch<{ data: Service[] }>('/services/doctor/me'),
+        apiFetch<{ data: Service[] }>(`/services/doctor/me?_=${Date.now()}`),
         apiFetch<{
           data: {
             effective:
@@ -168,9 +171,26 @@ export default function DoctorDashboard() {
     const avgArrival = services.length ? 15 : 0;
     const avgRating = 4.8;
 
-    const activeService = services.find((s) => s.status === 'IN_PROGRESS') || null;
-    const queuedService = services.find((s) => s.status === 'QUEUED') || null;
-    const acceptedService = services.find((s) => s.status === 'ACCEPTED') || null;
+    /** Solo IN_PROGRESS es “activo”; si hubiera más de uno (dato inconsistente), el más reciente por startedAt. */
+    const inProgressList = services
+      .filter((s) => s.status === 'IN_PROGRESS')
+      .sort((a, b) => {
+        const ta = a.startedAt ? new Date(a.startedAt).getTime() : 0;
+        const tb = b.startedAt ? new Date(b.startedAt).getTime() : 0;
+        return tb - ta;
+      });
+    const activeService = inProgressList[0] ?? null;
+
+    /** FIFO: no mezclar una aceptación vieja con el cierre reciente del listado ordenado desc por createdAt. */
+    const queuedOrdered = [...services]
+      .filter((s) => s.status === 'QUEUED')
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    const queuedService = queuedOrdered[0] ?? null;
+
+    const acceptedOrdered = [...services]
+      .filter((s) => s.status === 'ACCEPTED')
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    const acceptedService = acceptedOrdered[0] ?? null;
 
     type Primary =
       | { kind: 'IN_PROGRESS'; service: Service }
@@ -181,6 +201,20 @@ export default function DoctorDashboard() {
     if (activeService) primaryFocus = { kind: 'IN_PROGRESS', service: activeService };
     else if (acceptedService) primaryFocus = { kind: 'START', service: acceptedService, fromStatus: 'ACCEPTED' };
     else if (queuedService) primaryFocus = { kind: 'START', service: queuedService, fromStatus: 'QUEUED' };
+
+    if (doctorDashDebug) {
+      // eslint-disable-next-line no-console
+      console.log('[doctorDashboard.snapshot]', {
+        serviceCount: services.length,
+        inProgressIds: inProgressList.map((s) => s.id),
+        activeId: activeService?.id ?? null,
+        acceptedId: acceptedService?.id ?? null,
+        queuedId: queuedService?.id ?? null,
+        primaryKind: primaryFocus.kind,
+        primaryServiceId: primaryFocus.kind !== 'NONE' ? primaryFocus.service.id : null,
+        primaryServiceStatus: primaryFocus.kind !== 'NONE' ? primaryFocus.service.status : null,
+      });
+    }
 
     return {
       monthIncome,
@@ -205,11 +239,23 @@ export default function DoctorDashboard() {
     const ok = window.confirm('¿Confirmas que finalizaste la atención?');
     if (!ok) return;
     setFinishingId(serviceId);
+    const before = services.find((s) => s.id === serviceId)?.status ?? null;
+    if (doctorDashDebug) {
+      // eslint-disable-next-line no-console
+      console.log('[doctorDashboard.finishActive]', { serviceId, beforeStatus: before });
+    }
     try {
-      await apiFetch(`/services/${serviceId}/status`, {
+      const res = await apiFetch<{ data: Service }>(`/services/${serviceId}/status`, {
         method: 'PATCH',
         body: JSON.stringify({ status: 'COMPLETED' }),
       });
+      if (doctorDashDebug) {
+        // eslint-disable-next-line no-console
+        console.log('[doctorDashboard.finishActive]', {
+          serviceId,
+          responseStatus: res.data?.status,
+        });
+      }
       await load();
     } catch (e: any) {
       alert(e.message || 'No se pudo finalizar la atención.');
@@ -222,11 +268,23 @@ export default function DoctorDashboard() {
     const ok = window.confirm('¿Iniciar la atención en el domicilio del paciente?');
     if (!ok) return;
     setStartingId(serviceId);
+    const before = services.find((s) => s.id === serviceId)?.status ?? null;
+    if (doctorDashDebug) {
+      // eslint-disable-next-line no-console
+      console.log('[doctorDashboard.startAttention]', { serviceId, beforeStatus: before });
+    }
     try {
-      await apiFetch(`/services/${serviceId}/status`, {
+      const res = await apiFetch<{ data: Service }>(`/services/${serviceId}/status`, {
         method: 'PATCH',
         body: JSON.stringify({ status: 'IN_PROGRESS' }),
       });
+      if (doctorDashDebug) {
+        // eslint-disable-next-line no-console
+        console.log('[doctorDashboard.startAttention]', {
+          serviceId,
+          responseStatus: res.data?.status,
+        });
+      }
       await load();
     } catch (e: any) {
       alert(e.message || 'No se pudo iniciar la atención.');
@@ -263,7 +321,7 @@ export default function DoctorDashboard() {
         <p className="text-sm leading-relaxed text-gray-600 md:text-xs">
           📍 {s.address}
           {s.commune ? `, ${s.commune}` : ''}
-          {s.city ? ` · ${s.city}` : ''}
+          {s.province || s.city ? ` · ${s.province || s.city}` : ''}
         </p>
         {phone ? (
           <a
@@ -341,7 +399,7 @@ export default function DoctorDashboard() {
               <p className="mb-2 text-sm text-gray-600">
                 {primaryFocus.fromStatus === 'ACCEPTED'
                   ? 'Solicitud aceptada: inicia cuando estés en el domicilio.'
-                  : 'Solicitud en cola: puedes iniciarla cuando no tengas otra atención en curso.'}
+                  : 'Siguiente en cola: si no pasó a “en curso” sola, iníciala aquí (solo sin otra atención activa).'}
               </p>
               {renderServiceBody(primaryFocus.service)}
               <button
@@ -350,7 +408,11 @@ export default function DoctorDashboard() {
                 disabled={startingId === primaryFocus.service.id}
                 className={`${btnPrimary} mt-4 bg-sky-600 text-white hover:bg-sky-700`}
               >
-                {startingId === primaryFocus.service.id ? 'Iniciando…' : 'INICIAR ATENCIÓN'}
+                {startingId === primaryFocus.service.id
+                  ? 'Iniciando…'
+                  : primaryFocus.fromStatus === 'ACCEPTED'
+                    ? 'INICIAR ATENCIÓN'
+                    : 'INICIAR ATENCIÓN (COLA)'}
               </button>
             </>
           ) : null}

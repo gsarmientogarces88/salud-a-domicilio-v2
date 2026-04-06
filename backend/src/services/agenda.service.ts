@@ -1,6 +1,6 @@
-import { SlotStatus, AppointmentRequestStatus, AppointmentPaymentStatus } from '@prisma/client';
 import prisma from '../lib/prisma';
 import { haversineDistance } from '../lib/haversine';
+import { assertBookingSlotAllowed } from '../lib/appointmentBookingRules';
 
 const HOLD_MINUTES = 20;
 
@@ -52,13 +52,13 @@ export async function createAppointmentRequest(data: {
   slotId: string;
   addressText: string;
   region: string;
-  city: string;
+  province: string;
   commune: string;
   lat: number;
   lng: number;
   notes?: string;
 }) {
-  const { patientId, professionalId, slotId, addressText, region, city, commune, lat, lng, notes } = data;
+  const { patientId, professionalId, slotId, addressText, region, province, commune, lat, lng, notes } = data;
 
   const [professional, slot] = await Promise.all([
     prisma.doctorProfile.findUnique({ where: { id: professionalId } }),
@@ -69,6 +69,8 @@ export async function createAppointmentRequest(data: {
   if (!slot) throw new Error('Slot no encontrado');
   if (slot.professionalId !== professionalId) throw new Error('Slot no pertenece al profesional');
   if (slot.status !== 'AVAILABLE') throw new Error('El horario ya no está disponible');
+
+  assertBookingSlotAllowed(slot.startAt, new Date());
 
   const validation = validateAddressForProfessional(professional, lat, lng, commune);
   if (!validation.valid) {
@@ -91,12 +93,12 @@ export async function createAppointmentRequest(data: {
         slotId,
         addressText,
         region,
-        city,
+        province,
         commune,
         lat,
         lng,
         notes,
-        status: 'PENDING_PRO_CONFIRMATION',
+        status: 'PENDING',
       },
     });
 
@@ -126,7 +128,7 @@ export async function acceptAppointmentRequest(requestId: string, professionalId
 
   if (!request) throw new Error('Solicitud no encontrada');
   if (request.professionalId !== professionalId) throw new Error('No puedes aceptar esta solicitud');
-  if (request.status !== 'PENDING_PRO_CONFIRMATION') {
+  if (request.status !== 'PENDING') {
     throw new Error(`Solicitud en estado ${request.status}, no puede aceptarse`);
   }
   if (request.slot.status !== 'HELD') throw new Error('El slot ya no está en hold');
@@ -165,7 +167,7 @@ export async function rejectAppointmentRequest(
 
   if (!request) throw new Error('Solicitud no encontrada');
   if (request.professionalId !== professionalId) throw new Error('No puedes rechazar esta solicitud');
-  if (request.status !== 'PENDING_PRO_CONFIRMATION') {
+  if (request.status !== 'PENDING') {
     throw new Error(`Solicitud en estado ${request.status}`);
   }
 
@@ -197,7 +199,7 @@ export async function expireHeldRequests() {
 
   const expired = await prisma.appointmentRequest.findMany({
     where: {
-      status: 'PENDING_PRO_CONFIRMATION',
+      status: 'PENDING',
       slot: {
         heldUntil: { lt: now },
       },

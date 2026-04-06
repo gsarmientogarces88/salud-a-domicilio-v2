@@ -25,7 +25,7 @@ router.post('/', authorize('PATIENT'), async (req: Request, res: Response) => {
       // eslint-disable-next-line no-console
       console.log('[services.create] created:', { id: sr.id, status: sr.status, type: sr.type, expiresAt: sr.expiresAt });
     }
-    res.status(201).json({ message: 'Solicitud creada', data: sr });
+    res.status(201).json({ message: 'Solicitud creada', data: { ...sr, city: sr.province } });
   } catch (e: any) {
     if (e?.code === 'OPEN_SERVICE_EXISTS') {
       return res.status(409).json({
@@ -49,7 +49,7 @@ router.get('/me', authorize('PATIENT'), async (req: Request, res: Response) => {
       orderBy: { createdAt: 'desc' },
       include: { doctor: { include: { user: { select: { firstName: true, lastName: true } } } } },
     });
-    res.json({ data: list });
+    res.json({ data: list.map((row) => ({ ...row, city: row.province })) });
   } catch (e: any) {
     res.status(500).json({ error: true, message: e.message });
   }
@@ -78,7 +78,7 @@ router.get('/available', authorize('DOCTOR'), async (req: Request, res: Response
     }
 
     if (!config.geo.urgentProximityFilterEnabled) {
-      return res.json({ data: list });
+      return res.json({ data: list.map((row) => ({ ...row, city: row.province })) });
     }
 
     const effective = await getEffectiveDoctorLocation(doctor.id);
@@ -139,6 +139,7 @@ router.get('/available', authorize('DOCTOR'), async (req: Request, res: Response
 
       output.push({
         ...sr,
+        city: sr.province,
         distanceKm: computedDistanceKm == null ? null : Math.round(computedDistanceKm * 10) / 10,
         remainingSeconds,
       });
@@ -178,7 +179,9 @@ router.get('/doctor/me', authorize('DOCTOR'), async (req: Request, res: Response
       },
     });
 
-    res.json({ data: list });
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.json({ data: list.map((row) => ({ ...row, city: row.province })) });
   } catch (e: any) {
     res.status(500).json({ error: true, message: e.message });
   }
@@ -200,14 +203,15 @@ router.get('/:id', async (req: Request, res: Response) => {
     // Verificar acceso
     const userId = req.user!.id;
     const role = req.user!.role;
-    if (role === 'ADMIN') return res.json({ data: sr });
+    const withCity = { ...sr, city: sr.province };
+    if (role === 'ADMIN') return res.json({ data: withCity });
 
     const patient = await prisma.patientProfile.findUnique({ where: { userId } });
     const doctor = await prisma.doctorProfile.findUnique({ where: { userId } });
     const isOwner = patient?.id === sr.patientId || doctor?.id === sr.doctorId;
     if (!isOwner) return res.status(403).json({ error: true, message: 'Sin acceso' });
 
-    res.json({ data: sr });
+    res.json({ data: withCity });
   } catch (e: any) {
     res.status(500).json({ error: true, message: e.message });
   }
@@ -405,6 +409,15 @@ router.patch('/:id/status', authorize('DOCTOR'), async (req: Request, res: Respo
 
     const { status, notes } = req.body;
 
+    if (config.debugServiceStateFlow) {
+      // eslint-disable-next-line no-console
+      console.log('[serviceFlow.http.patchStatus]', {
+        serviceId: req.params.id,
+        doctorId: doctor.id,
+        requestedStatus: status,
+      });
+    }
+
     let sr;
     if (status === 'IN_PROGRESS') {
       sr = await svc.startRequest(req.params.id, doctor.id);
@@ -412,6 +425,11 @@ router.patch('/:id/status', authorize('DOCTOR'), async (req: Request, res: Respo
       sr = await svc.completeRequest(req.params.id, doctor.id, notes);
     } else {
       return res.status(400).json({ error: true, message: 'Status no permitido desde esta ruta' });
+    }
+
+    if (config.debugServiceStateFlow) {
+      // eslint-disable-next-line no-console
+      console.log('[serviceFlow.http.patchStatus.result]', { serviceId: sr.id, resultStatus: sr.status });
     }
 
     res.json({ message: `Estado actualizado a ${status}`, data: sr });
@@ -455,7 +473,11 @@ router.get('/', authorize('ADMIN'), async (req: Request, res: Response) => {
       prisma.serviceRequest.findMany({ where, skip, take: parseInt(limit as string), orderBy: { createdAt: 'desc' } }),
       prisma.serviceRequest.count({ where }),
     ]);
-    res.json({ data: list, total, page: parseInt(page as string) });
+    res.json({
+      data: list.map((row) => ({ ...row, city: row.province })),
+      total,
+      page: parseInt(page as string),
+    });
   } catch (e: any) {
     res.status(500).json({ error: true, message: e.message });
   }

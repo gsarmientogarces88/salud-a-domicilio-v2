@@ -5,7 +5,7 @@ const prisma = new PrismaClient();
 
 const PASSWORD = 'profesional123';
 const REGION = 'Biobío';
-const CITY = 'Concepción';
+const PROVINCE = 'Concepción';
 const COMMUNES = ['Concepción', 'Concepción', 'San Pedro de la Paz', 'Talcahuano', 'Concepción'] as const;
 
 // Concepción centro aprox.
@@ -113,7 +113,7 @@ async function main() {
             isVerified: true,
             isAvailable: true,
             region: REGION,
-            city: CITY,
+            province: PROVINCE,
             commune: 'Concepción',
           },
         },
@@ -143,7 +143,7 @@ async function main() {
             isVerified: true,
             isAvailable: true,
             region: REGION,
-            city: CITY,
+            province: PROVINCE,
             commune: 'Concepción',
             baseLat: CONCEPCION_LAT,
             baseLng: CONCEPCION_LNG,
@@ -249,7 +249,7 @@ async function main() {
             isVerified: true,
             isAvailable: true,
             region: REGION,
-            city: CITY,
+            province: PROVINCE,
             commune: p.commune,
             baseLat: CONCEPCION_LAT,
             baseLng: CONCEPCION_LNG,
@@ -397,7 +397,7 @@ async function main() {
           description: `Consulta ${doc.specialty} - cita de prueba`,
           address: 'Rosas 475, Concepción',
           commune: 'Concepción',
-          city: CITY,
+          province: PROVINCE,
           region: REGION,
           totalAmount,
           commissionAmount,
@@ -431,7 +431,7 @@ async function main() {
             phone: '+56 9 8000 1111',
             address: 'Av. Los Carrera 123',
             commune: 'Concepción',
-            city: CITY,
+            province: PROVINCE,
             region: REGION,
           },
         },
@@ -459,7 +459,7 @@ async function main() {
             rut: '77.987.654-3',
             phone: '+56 9 8000 2222',
             commune: 'San Pedro de la Paz',
-            city: CITY,
+            province: PROVINCE,
             region: REGION,
           },
         },
@@ -489,7 +489,7 @@ async function main() {
             name: 'Laboratorio Demo',
             phone: '+56 9 0000 0000',
             commune: 'Concepción',
-            city: CITY,
+            province: PROVINCE,
             region: REGION,
           },
         },

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { apiFetch } from '@/lib/api';
+import StaticPreviewMap from '@/components/maps/StaticPreviewMap';
 
 interface RequestItem {
   id: string;
@@ -9,6 +10,9 @@ interface RequestItem {
   commune: string;
   addressDisplay?: string;
   distanceKm?: string | null;
+  patientLocation?: { lat: number; lng: number };
+  lat?: number;
+  lng?: number;
   notes: string | null;
   createdAt: string;
   slot: { startAt: string; endAt: string };
@@ -29,9 +33,7 @@ export default function AgendaRequestsPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const res = await apiFetch<{ data: RequestItem[] }>(
-        '/agenda/requests?status=PENDING_PRO_CONFIRMATION',
-      );
+      const res = await apiFetch<{ data: RequestItem[] }>('/agenda/requests?status=PENDING');
       setRequests(res.data || []);
     } catch (e) {
       console.error(e);
@@ -125,20 +127,23 @@ export default function AgendaRequestsPage() {
             const isRejecting = rejectingId === r.id;
             const isDisabled = isAccepting || isRejecting;
 
+            const loc = r.patientLocation ?? (r.lat != null && r.lng != null ? { lat: r.lat, lng: r.lng } : null);
+
             return (
               <div
                 key={r.id}
                 className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm"
               >
                 <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <p className="font-medium text-gray-900">
                       {r.patient?.user?.firstName} {r.patient?.user?.lastName}
                     </p>
                     <p className="text-sm text-gray-600">
-                      📍 Comuna {r.commune}
-                      {r.distanceKm != null && ` · ${r.distanceKm} km`}
+                      📍 Comuna {r.addressDisplay || r.commune}
+                      {r.distanceKm != null && ` · ~${r.distanceKm} km (estimado)`}
                     </p>
+                    <p className="text-xs text-gray-500">Ubicación aproximada en mapa para decidir cobertura.</p>
                     <p className="text-sm text-gray-500">{slotTime}</p>
                     {r.notes && (
                       <p className="mt-1 text-xs text-gray-500">Motivo: {r.notes}</p>
@@ -146,6 +151,11 @@ export default function AgendaRequestsPage() {
                     <p className="mt-2 font-semibold text-gray-900">
                       $ {(r.payment?.amount || 0).toLocaleString('es-CL')} CLP
                     </p>
+                    {loc && (
+                      <div className="mt-4 max-w-md">
+                        <StaticPreviewMap position={loc} />
+                      </div>
+                    )}
                   </div>
                   <div className="flex gap-2">
                     <button
