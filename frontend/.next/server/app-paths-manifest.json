@@ -1,8 +1,8 @@
 {
-  "/dashboard/patient/agenda/estado/[id]/page": "app/dashboard/patient/agenda/estado/[id]/page.js",
+  "/page": "app/page.js",
   "/dashboard/patient/medico/page": "app/dashboard/patient/medico/page.js",
-  "/dashboard/doctor/agenda/page": "app/dashboard/doctor/agenda/page.js",
-  "/dashboard/patient/page": "app/dashboard/patient/page.js",
-  "/dashboard/doctor/agenda-requests/page": "app/dashboard/doctor/agenda-requests/page.js",
-  "/dashboard/patient/medico/agendar/page": "app/dashboard/patient/medico/agendar/page.js"
+  "/dashboard/patient/medico/agendar/page": "app/dashboard/patient/medico/agendar/page.js",
+  "/dashboard/patient/inicio/page": "app/dashboard/patient/inicio/page.js",
+  "/dashboard/patient/examenes-domicilio/page": "app/dashboard/patient/examenes-domicilio/page.js",
+  "/dashboard/patient/baja-peso/page": "app/dashboard/patient/baja-peso/page.js"
 }

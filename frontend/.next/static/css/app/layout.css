@@ -1379,6 +1379,9 @@ video {
 .bg-gradient-to-br {
   background-image: linear-gradient(to bottom right, var(--tw-gradient-stops));
 }
+.bg-gradient-to-r {
+  background-image: linear-gradient(to right, var(--tw-gradient-stops));
+}
 .bg-gradient-to-t {
   background-image: linear-gradient(to top, var(--tw-gradient-stops));
 }
@@ -1425,6 +1428,11 @@ video {
   --tw-gradient-to: rgb(240 249 255 / 0) var(--tw-gradient-to-position);
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
 }
+.from-sky-700 {
+  --tw-gradient-from: #0369a1 var(--tw-gradient-from-position);
+  --tw-gradient-to: rgb(3 105 161 / 0) var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
 .from-slate-50 {
   --tw-gradient-from: #f8fafc var(--tw-gradient-from-position);
   --tw-gradient-to: rgb(248 250 252 / 0) var(--tw-gradient-to-position);
@@ -1443,9 +1451,16 @@ video {
   --tw-gradient-to: rgb(224 242 254 / 0)  var(--tw-gradient-to-position);
   --tw-gradient-stops: var(--tw-gradient-from), rgb(224 242 254 / 0.6) var(--tw-gradient-via-position), var(--tw-gradient-to);
 }
+.via-sky-600 {
+  --tw-gradient-to: rgb(2 132 199 / 0)  var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from), #0284c7 var(--tw-gradient-via-position), var(--tw-gradient-to);
+}
 .via-white {
   --tw-gradient-to: rgb(255 255 255 / 0)  var(--tw-gradient-to-position);
   --tw-gradient-stops: var(--tw-gradient-from), #fff var(--tw-gradient-via-position), var(--tw-gradient-to);
+}
+.to-blue-600 {
+  --tw-gradient-to: #2563eb var(--tw-gradient-to-position);
 }
 .to-emerald-100\/70 {
   --tw-gradient-to: rgb(209 250 229 / 0.7) var(--tw-gradient-to-position);
@@ -1577,6 +1592,10 @@ video {
 .py-4 {
   padding-top: 1rem;
   padding-bottom: 1rem;
+}
+.py-5 {
+  padding-top: 1.25rem;
+  padding-bottom: 1.25rem;
 }
 .py-6 {
   padding-top: 1.5rem;
@@ -1898,6 +1917,11 @@ video {
   --tw-shadow-colored: 0 25px 50px -12px var(--tw-shadow-color);
   box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
 }
+.shadow-\[0_4px_18px_-3px_rgba\(2\2c 132\2c 199\2c 0\.55\)\2c 0_0_24px_-8px_rgba\(37\2c 99\2c 235\2c 0\.35\)\] {
+  --tw-shadow: 0 4px 18px -3px rgba(2,132,199,0.55),0 0 24px -8px rgba(37,99,235,0.35);
+  --tw-shadow-colored: 0 4px 18px -3px var(--tw-shadow-color), 0 0 24px -8px var(--tw-shadow-color);
+  box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
+}
 .shadow-inner {
   --tw-shadow: inset 0 2px 4px 0 rgb(0 0 0 / 0.05);
   --tw-shadow-colored: inset 0 2px 4px 0 var(--tw-shadow-color);
@@ -2042,6 +2066,9 @@ video {
 .ring-violet-100 {
   --tw-ring-opacity: 1;
   --tw-ring-color: rgb(237 233 254 / var(--tw-ring-opacity, 1));
+}
+.ring-white\/25 {
+  --tw-ring-color: rgb(255 255 255 / 0.25);
 }
 .ring-offset-1 {
   --tw-ring-offset-width: 1px;

@@ -47,57 +47,37 @@
       "static/css/app/dashboard/patient/medico/page.css",
       "static/chunks/app/dashboard/patient/medico/page.js"
     ],
+    "/dashboard/patient/consultas/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/dashboard/patient/consultas/page.js"
+    ],
+    "/dashboard/patient/resultados-examenes/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/dashboard/patient/resultados-examenes/page.js"
+    ],
+    "/dashboard/patient/examenes-domicilio/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/dashboard/patient/examenes-domicilio/page.js"
+    ],
     "/dashboard/patient/medico/agendar/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/css/app/dashboard/patient/medico/agendar/page.css",
       "static/chunks/app/dashboard/patient/medico/agendar/page.js"
     ],
-    "/dashboard/patient/agenda/estado/[id]/page": [
+    "/dashboard/patient/baja-peso/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/dashboard/patient/agenda/estado/[id]/page.js"
+      "static/css/app/dashboard/patient/baja-peso/page.css",
+      "static/chunks/app/dashboard/patient/baja-peso/page.js"
     ],
-    "/dashboard/doctor/page": [
+    "/dashboard/patient/inicio/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/dashboard/doctor/page.js"
-    ],
-    "/dashboard/doctor/layout": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/dashboard/doctor/layout.js"
-    ],
-    "/dashboard/doctor/requests/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/dashboard/doctor/requests/page.js"
-    ],
-    "/dashboard/patient/agenda/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/dashboard/patient/agenda/page.js"
-    ],
-    "/dashboard/doctor/my-consultations/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/dashboard/doctor/my-consultations/page.js"
-    ],
-    "/dashboard/doctor/settings/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/dashboard/doctor/settings/page.js"
-    ],
-    "/dashboard/doctor/agenda/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/dashboard/doctor/agenda/page.js"
-    ],
-    "/dashboard/doctor/agenda-requests/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/css/app/dashboard/doctor/agenda-requests/page.css",
-      "static/chunks/app/dashboard/doctor/agenda-requests/page.js"
+      "static/chunks/app/dashboard/patient/inicio/page.js"
     ]
   }
 }

@@ -7,8 +7,10 @@ import { useDoctorRequests } from '@/context/DoctorRequestsContext';
 
 const LINKS: Record<string, { href: string; label: string; icon: string }[]> = {
   PATIENT: [
-    { href: '/dashboard/patient', label: 'Inicio', icon: '🏠' },
-    { href: '/dashboard/patient/agenda', label: 'Agenda a Domicilio', icon: '📅' },
+    { href: '/dashboard/patient/inicio', label: 'Inicio', icon: '🏠' },
+    { href: '/dashboard/patient/medico', label: 'Médico a Domicilio Inmediato', icon: '🚨' },
+    { href: '/dashboard/patient/medico/agendar', label: 'Agenda Médico a Domicilio', icon: '📅' },
+    { href: '/dashboard/patient/baja-peso', label: 'Programa Médico Baja de Peso', icon: '⚖️' },
     { href: '/dashboard/patient/examenes-domicilio', label: 'Exámenes a Domicilio', icon: '🧪' },
     { href: '/dashboard/patient/consultas', label: 'Consultas', icon: '👥' },
     { href: '/dashboard/patient/resultados-examenes', label: 'Resultados de Exámenes', icon: '🔬' },
@@ -74,11 +76,15 @@ export default function Sidebar() {
       </div>
       <ul className="relative z-10 flex-1 space-y-1">
         {links.map((l) => {
+          const patientMedicoExactOnly = l.href === '/dashboard/patient/medico';
+          const patientInicioExactOnly = l.href === '/dashboard/patient/inicio';
           const isActive =
             pathname === l.href ||
-            (l.href !== '/dashboard/patient' &&
+            ((!patientMedicoExactOnly &&
+              !patientInicioExactOnly &&
               l.href !== '/dashboard/laboratorio' &&
-              pathname.startsWith(l.href));
+              pathname.startsWith(l.href)));
+          const isPatientHomeUrgent = isPatient && l.href === '/dashboard/patient/medico';
           const isDoctorRequestsLink =
             user?.role === 'DOCTOR' &&
             doctorRequests.enabled &&
@@ -96,7 +102,9 @@ export default function Sidebar() {
                 } ${
                   isActive
                     ? isPatient
-                      ? 'bg-sky-600 text-white'
+                      ? isPatientHomeUrgent
+                        ? 'bg-gradient-to-r from-sky-700 via-sky-600 to-blue-600 text-white font-semibold shadow-[0_4px_18px_-3px_rgba(2,132,199,0.55),0_0_24px_-8px_rgba(37,99,235,0.35)] ring-1 ring-white/25'
+                        : 'bg-sky-600 text-white'
                       : 'bg-primary text-white'
                     : isPatient
                     ? 'text-sky-800 hover:bg-sky-200/60'

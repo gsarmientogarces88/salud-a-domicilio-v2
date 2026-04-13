@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 
 const ROLE_ROUTES: Record<string, string> = {
-  PATIENT: '/dashboard/patient',
+  PATIENT: '/dashboard/patient/inicio',
   DOCTOR: '/dashboard/doctor',
   ADMIN: '/dashboard/admin',
   LABORATORY: '/dashboard/laboratorio',
@@ -40,7 +40,7 @@ export default function LoginPage() {
       await login(email, password);
       const stored = localStorage.getItem('user');
       const role = stored ? JSON.parse(stored).role : 'PATIENT';
-      router.push(ROLE_ROUTES[role] || '/dashboard/patient');
+      router.push(ROLE_ROUTES[role] || '/dashboard/patient/inicio');
     } catch (err: any) {
       setError(err.message || 'Error al iniciar sesión');
     } finally {

@@ -65,14 +65,8 @@ export default function AgendarPage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="mb-1 text-2xl font-bold text-gray-900">Agendar médico y hora</h1>
-          <p className="max-w-xl text-sm text-gray-600">
-            Marketplace de visitas a domicilio. El horario queda solicitado; el médico debe aceptar. No es atención
-            inmediata: para hoy usa el flujo de urgencia.
-          </p>
-        </div>
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
+        <h1 className="text-2xl font-bold text-gray-900">Agenda Médico a Domicilio</h1>
         <div className="flex items-center gap-3">
           <span className="text-sm font-medium text-gray-700">
             {user?.firstName} {user?.lastName}
@@ -81,6 +75,18 @@ export default function AgendarPage() {
             👤
           </span>
         </div>
+      </div>
+
+      <div className="mb-6 w-full rounded-xl border border-sky-100 bg-sky-50/80 px-5 py-5 text-sm leading-relaxed text-gray-700">
+        <p className="mb-2 font-semibold text-gray-900">Profesionales disponibles</p>
+        <p className="mb-3">
+          En nuestra plataforma podrás encontrar médicos generales, médicos especialistas y profesionales con
+          formación complementaria (magíster, diplomados o amplia experiencia clínica en áreas específicas).
+        </p>
+        <p>
+          Toda la información sobre la formación, experiencia y trayectoria profesional de cada médico se encuentra
+          disponible en su perfil, para que puedas elegir con confianza según tus necesidades.
+        </p>
       </div>
 
       <div className="flex flex-1 flex-col gap-6 lg:flex-row lg:items-start">

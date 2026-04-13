@@ -15,7 +15,7 @@ export default function MedicoPage() {
             Pedir Médico a Domicilio
           </h1>
           <p className="text-gray-600">
-            Elige cómo deseas solicitar tu consulta médica a domicilio.
+            Solicitud de urgencia leve: un médico general puede acudir a tu domicilio lo antes posible.
           </p>
         </div>
         <div className="flex items-center gap-4">

@@ -1,12 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import UrgentRequestModal from './UrgentRequestModal';
 import SymptomsInfo from './symptoms-info';
 
 export default function MedicalServiceLanding() {
-  const router = useRouter();
   const [showUrgentModal, setShowUrgentModal] = useState(false);
 
   return (
@@ -37,9 +35,8 @@ export default function MedicalServiceLanding() {
 
         <SymptomsInfo />
 
-        {/* Dos opciones en cards */}
-        <div className="grid gap-6 md:grid-cols-2">
-          {/* Pedir Médico Ahora */}
+        {/* Urgencia inmediata (agenda programada: menú Agenda Médico a Domicilio) */}
+        <div className="mx-auto max-w-md">
           <div className="rounded-xl border-2 border-gray-100 bg-white p-6 shadow-sm transition-all hover:shadow-md">
             <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-lg bg-green-50 text-3xl">
               ⏱️
@@ -49,6 +46,7 @@ export default function MedicalServiceLanding() {
               Consigue un doctor lo antes posible
             </p>
             <button
+              type="button"
               onClick={() => setShowUrgentModal(true)}
               className="w-full rounded-xl bg-green-500 py-4 font-semibold text-white shadow-md transition-all hover:bg-green-600 hover:shadow-lg"
             >
@@ -57,23 +55,6 @@ export default function MedicalServiceLanding() {
             <p className="mt-3 flex items-center justify-center gap-1 text-sm text-green-600">
               ✓ Médico en 15 minutos aprox.
             </p>
-          </div>
-
-          {/* Elegir Médico y Hora */}
-          <div className="rounded-xl border-2 border-gray-100 bg-white p-6 shadow-sm transition-all hover:shadow-md">
-            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-lg bg-sky-50 text-3xl">
-              📅
-            </div>
-            <h3 className="mb-2 text-lg font-bold text-gray-900">Elegir Médico y Hora</h3>
-            <p className="mb-4 text-sm text-gray-600">
-              Selecciona un médico específico y elige un horario.
-            </p>
-            <button
-              onClick={() => router.push('/dashboard/patient/medico/agendar')}
-              className="w-full rounded-xl bg-sky-600 py-4 font-semibold text-white shadow-md transition-all hover:bg-sky-700 hover:shadow-lg"
-            >
-              Elegir médico y agendar
-            </button>
           </div>
         </div>
       </div>

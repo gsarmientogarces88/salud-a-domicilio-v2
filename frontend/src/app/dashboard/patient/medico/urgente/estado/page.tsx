@@ -227,7 +227,7 @@ export default function UrgentStatusPage() {
             <p className="text-center text-gray-600">Vuelve a crear tu solicitud urgente para iniciar el seguimiento.</p>
             <div className="mt-6 flex justify-center">
               <button
-                onClick={() => router.push('/dashboard/patient')}
+                onClick={() => router.push('/dashboard/patient/inicio')}
                 className="rounded-xl bg-sky-600 px-6 py-3 font-semibold text-white hover:bg-sky-700"
               >
                 Volver al inicio
@@ -258,7 +258,7 @@ export default function UrgentStatusPage() {
 
             <div className="mt-6 flex flex-wrap justify-center gap-3">
               <button
-                onClick={() => router.push('/dashboard/patient')}
+                onClick={() => router.push('/dashboard/patient/inicio')}
                 className="rounded-xl bg-sky-600 px-6 py-3 font-semibold text-white hover:bg-sky-700"
               >
                 Volver al inicio
@@ -296,7 +296,7 @@ export default function UrgentStatusPage() {
                 Intentar nuevamente
               </button>
               <button
-                onClick={() => router.push('/dashboard/patient')}
+                onClick={() => router.push('/dashboard/patient/inicio')}
                 className="rounded-xl border border-gray-200 bg-white px-6 py-3 font-semibold text-gray-700 hover:bg-gray-50"
               >
                 Volver al inicio
@@ -322,7 +322,7 @@ export default function UrgentStatusPage() {
                 Solicitar nuevamente
               </button>
               <button
-                onClick={() => router.push('/dashboard/patient')}
+                onClick={() => router.push('/dashboard/patient/inicio')}
                 className="rounded-xl border border-gray-200 bg-white px-6 py-3 font-semibold text-gray-700 hover:bg-gray-50"
               >
                 Volver al inicio
@@ -348,7 +348,7 @@ export default function UrgentStatusPage() {
                 Solicitar nuevamente
               </button>
               <button
-                onClick={() => router.push('/dashboard/patient')}
+                onClick={() => router.push('/dashboard/patient/inicio')}
                 className="rounded-xl border border-gray-200 bg-white px-6 py-3 font-semibold text-gray-700 hover:bg-gray-50"
               >
                 Volver al inicio
@@ -464,7 +464,7 @@ export default function UrgentStatusPage() {
             <div className="mt-6 flex flex-wrap justify-center gap-3">
               <button
                 type="button"
-                onClick={() => router.push('/dashboard/patient')}
+                onClick={() => router.push('/dashboard/patient/inicio')}
                 className="rounded-xl bg-sky-600 px-6 py-3 font-semibold text-white hover:bg-sky-700"
               >
                 Volver al inicio

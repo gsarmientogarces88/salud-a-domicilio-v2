@@ -181,7 +181,7 @@ export default function AgendaEstadoPage() {
               : 'Nueva solicitud'}
           </Link>
           <Link
-            href="/dashboard/patient"
+            href="/dashboard/patient/inicio"
             className="rounded-xl border border-gray-300 px-6 py-3 font-medium text-gray-700 hover:bg-gray-50"
           >
             Volver al inicio
