@@ -7,6 +7,7 @@ import prisma from '../lib/prisma';
 import { orderUpload } from '../lib/upload';
 import { addLabEvent, formatLabDisplayId, getPatientUserId } from '../services/labExamHelpers';
 import { notifyUser } from '../services/labNotifications.service';
+import { config } from '../config';
 
 const router = Router();
 
@@ -21,14 +22,23 @@ async function getPatientProfileId(req: Request): Promise<string | null> {
 }
 
 function mapRequest(r: any) {
-  const quote = r.quote
+  const selectedQuote = r.selectedQuote
     ? {
-        id: r.quote.id,
-        priceClp: r.quote.priceClp,
-        proposedVisitAt: r.quote.proposedVisitAt,
-        proposedVisitEndAt: r.quote.proposedVisitEndAt,
-        labObservations: r.quote.labObservations,
-        estimatedResultsHours: r.quote.estimatedResultsHours,
+        id: r.selectedQuote.id,
+        status: r.selectedQuote.status,
+        laboratory: r.selectedQuote.laboratory
+          ? {
+              id: r.selectedQuote.laboratory.id,
+              name: r.selectedQuote.laboratory.name,
+              phone: r.selectedQuote.laboratory.phone,
+            }
+          : null,
+        priceClp: r.selectedQuote.priceClp,
+        proposedDate: r.selectedQuote.proposedDate,
+        proposedTimeRange: r.selectedQuote.proposedTimeRange,
+        comment: r.selectedQuote.comment,
+        estimatedResultsHours: r.selectedQuote.estimatedResultsHours,
+        createdAt: r.selectedQuote.createdAt,
       }
     : null;
 
@@ -59,14 +69,33 @@ function mapRequest(r: any) {
     commune: r.commune,
     phone: r.phone,
     observationsPatient: r.observationsPatient,
-    preferredTime: r.preferredTime,
+    region: r.region,
+    province: r.province,
+    email: r.email,
+    preferredDate: r.preferredDate,
+    preferredTimeRange: r.preferredTimeRange,
+    latitude: r.latitude,
+    longitude: r.longitude,
+    quoteDeadlineAt: r.quoteDeadlineAt,
+    selectedQuoteId: r.selectedQuoteId,
     orderFileUrl: r.orderFileUrl,
     orderFileName: r.orderFileName,
     labRejectionReason: r.labRejectionReason,
-    laboratory: r.laboratory
-      ? { id: r.laboratory.id, name: r.laboratory.name, phone: r.laboratory.phone }
-      : null,
-    quote,
+    selectedQuote,
+    quotes: (r.quotes || []).map((q: any) => ({
+      id: q.id,
+      status: q.status,
+      laboratory: q.laboratory
+        ? { id: q.laboratory.id, name: q.laboratory.name, phone: q.laboratory.phone }
+        : null,
+      priceClp: q.priceClp,
+      proposedDate: q.proposedDate,
+      proposedTimeRange: q.proposedTimeRange,
+      comment: q.comment,
+      estimatedResultsHours: q.estimatedResultsHours,
+      createdAt: q.createdAt,
+      updatedAt: q.updatedAt,
+    })),
     appointments,
     results,
     events: (r.events || []).map((e: any) => ({
@@ -90,8 +119,8 @@ router.get('/', async (req: Request, res: Response) => {
       where: { patientId },
       orderBy: { createdAt: 'desc' },
       include: {
-        laboratory: { select: { id: true, name: true, phone: true } },
-        quote: true,
+        selectedQuote: { include: { laboratory: { select: { id: true, name: true, phone: true } } } },
+        quotes: { include: { laboratory: { select: { id: true, name: true, phone: true } } }, orderBy: { createdAt: 'asc' } },
         appointments: { orderBy: { startAt: 'desc' } },
         results: true,
         events: { orderBy: { createdAt: 'asc' } },
@@ -112,8 +141,8 @@ router.get('/:id', async (req: Request, res: Response) => {
     const r = await prisma.labExamRequest.findFirst({
       where: { id: req.params.id, patientId },
       include: {
-        laboratory: { select: { id: true, name: true, phone: true, commune: true } },
-        quote: true,
+        selectedQuote: { include: { laboratory: { select: { id: true, name: true, phone: true, commune: true } } } },
+        quotes: { include: { laboratory: { select: { id: true, name: true, phone: true, commune: true } } }, orderBy: { createdAt: 'asc' } },
         appointments: { orderBy: { startAt: 'desc' } },
         results: true,
         events: { orderBy: { createdAt: 'asc' } },
@@ -139,25 +168,33 @@ router.post(
       if (!file) return res.status(400).json({ error: true, message: 'Debes adjuntar la orden médica' });
 
       const {
-        laboratoryId,
         patientName,
         examRequested,
         address,
+        region,
+        province,
         commune,
         phone,
+        email,
         observationsPatient,
-        preferredTime,
+        preferredDate,
+        preferredTimeRange,
+        latitude,
+        longitude,
       } = req.body;
 
-      if (!laboratoryId || !patientName || !examRequested || !address || !commune || !phone) {
+      if (!patientName || !examRequested || !address || !region || !province || !commune || !phone || !email) {
         return res.status(400).json({
           error: true,
-          message: 'Campos requeridos: laboratoryId, patientName, examRequested, address, commune, phone',
+          message:
+            'Campos requeridos: patientName, examRequested, address, region, province, commune, phone, email',
         });
       }
-
-      const lab = await prisma.laboratory.findUnique({ where: { id: laboratoryId } });
-      if (!lab) return res.status(400).json({ error: true, message: 'Laboratorio no válido' });
+      const lat = latitude != null && String(latitude).trim() ? Number(latitude) : null;
+      const lng = longitude != null && String(longitude).trim() ? Number(longitude) : null;
+      if ((lat != null && !Number.isFinite(lat)) || (lng != null && !Number.isFinite(lng))) {
+        return res.status(400).json({ error: true, message: 'Coordenadas inválidas' });
+      }
 
       const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
       const resolvedName =
@@ -168,31 +205,52 @@ router.post(
       const relative = `orders/${file.filename}`;
       const orderFileUrl = `/uploads/lab/${relative}`;
 
+      const quoteDeadlineMinutes = Math.max(1, config.labExams.quoteDeadlineMinutes);
+      const quoteDeadlineAt = new Date(Date.now() + quoteDeadlineMinutes * 60 * 1000);
+
       const created = await prisma.labExamRequest.create({
         data: {
           patientId,
-          laboratoryId,
+          status: 'PENDING_QUOTES',
           patientName: resolvedName,
           examRequested: String(examRequested).trim(),
           address: String(address).trim(),
+          region: String(region).trim(),
+          province: String(province).trim(),
           commune: String(commune).trim(),
           phone: String(phone).trim(),
+          email: String(email).trim().toLowerCase(),
           observationsPatient: observationsPatient ? String(observationsPatient).trim() : null,
-          preferredTime: preferredTime ? String(preferredTime).trim() : null,
+          preferredDate: preferredDate ? new Date(String(preferredDate)) : null,
+          preferredTimeRange: preferredTimeRange ? String(preferredTimeRange).trim() : null,
+          latitude: lat,
+          longitude: lng,
           orderFileUrl,
           orderFileName: file.originalname,
+          quoteDeadlineAt,
         },
-        include: { laboratory: true },
+      });
+
+      const compatibleLabs = await prisma.laboratory.findMany({
+        where: {
+          OR: [{ commune: String(commune).trim() }, { province: String(province).trim() }, { region: String(region).trim() }],
+        },
+        select: { id: true },
       });
 
       await addLabEvent(created.id, 'REQUEST_CREATED', 'Solicitud enviada');
       await addLabEvent(created.id, 'ORDER_RECEIVED', 'Orden médica recibida');
+      await addLabEvent(
+        created.id,
+        'QUOTE_WINDOW_OPEN',
+        `Cotizaciones abiertas por ${quoteDeadlineMinutes} minutos (${compatibleLabs.length} laboratorio(s) compatible(s)).`
+      );
 
       const full = await prisma.labExamRequest.findUnique({
         where: { id: created.id },
         include: {
-          laboratory: { select: { id: true, name: true, phone: true } },
-          quote: true,
+          selectedQuote: { include: { laboratory: { select: { id: true, name: true, phone: true } } } },
+          quotes: { include: { laboratory: { select: { id: true, name: true, phone: true } } }, orderBy: { createdAt: 'asc' } },
           appointments: true,
           results: true,
           events: { orderBy: { createdAt: 'asc' } },
@@ -212,18 +270,42 @@ router.post('/:id/accept-quote', async (req: Request, res: Response) => {
     const patientId = await getPatientProfileId(req);
     if (!patientId) return res.status(400).json({ error: true, message: 'Perfil de paciente no encontrado' });
 
+    const quoteId = String(req.body?.quoteId || '').trim();
+    if (!quoteId) return res.status(400).json({ error: true, message: 'quoteId es requerido' });
+
     const r = await prisma.labExamRequest.findFirst({
       where: { id: req.params.id, patientId },
-      include: { quote: true },
+      include: { quotes: true },
     });
     if (!r) return res.status(404).json({ error: true, message: 'Solicitud no encontrada' });
-    if (r.status !== 'QUOTED' || !r.quote) {
-      return res.status(400).json({ error: true, message: 'No hay cotización activa para aceptar' });
+    if (!['PENDING_QUOTES', 'QUOTED'].includes(r.status)) {
+      return res.status(400).json({ error: true, message: 'La solicitud no está en etapa de cotizaciones' });
+    }
+    if (r.selectedQuoteId) {
+      return res.status(400).json({ error: true, message: 'Ya existe una cotización seleccionada' });
+    }
+    if (new Date(r.quoteDeadlineAt).getTime() < Date.now() && r.quotes.length === 0) {
+      return res.status(400).json({ error: true, message: 'El plazo de cotización ya expiró' });
     }
 
-    await prisma.labExamRequest.update({
-      where: { id: r.id },
-      data: { status: 'PATIENT_ACCEPTED' },
+    const selected = r.quotes.find((q) => q.id === quoteId);
+    if (!selected || selected.status !== 'SENT') {
+      return res.status(400).json({ error: true, message: 'Cotización no válida para aceptar' });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.labExamRequest.update({
+        where: { id: r.id },
+        data: { status: 'LAB_SELECTED', selectedQuoteId: selected.id },
+      });
+      await tx.labQuote.update({
+        where: { id: selected.id },
+        data: { status: 'ACCEPTED' },
+      });
+      await tx.labQuote.updateMany({
+        where: { requestId: r.id, id: { not: selected.id }, status: 'SENT' },
+        data: { status: 'REJECTED' },
+      });
     });
     await addLabEvent(r.id, 'QUOTE_ACCEPTED', 'Cotización aceptada por el paciente');
 
@@ -233,7 +315,7 @@ router.post('/:id/accept-quote', async (req: Request, res: Response) => {
         uid,
         'LAB_QUOTE',
         'Cotización aceptada',
-        `Aceptaste la cotización ${formatLabDisplayId(r.displayNumber)}. El laboratorio coordinará la visita.`,
+        `Aceptaste una cotización de ${formatLabDisplayId(r.displayNumber)}. El laboratorio coordinará la visita.`,
         `/dashboard/patient/examenes-domicilio`
       );
     }
@@ -241,8 +323,8 @@ router.post('/:id/accept-quote', async (req: Request, res: Response) => {
     const full = await prisma.labExamRequest.findUnique({
       where: { id: r.id },
       include: {
-        laboratory: { select: { id: true, name: true, phone: true } },
-        quote: true,
+        selectedQuote: { include: { laboratory: { select: { id: true, name: true, phone: true } } } },
+        quotes: { include: { laboratory: { select: { id: true, name: true, phone: true } } }, orderBy: { createdAt: 'asc' } },
         appointments: true,
         results: true,
         events: { orderBy: { createdAt: 'asc' } },
@@ -264,21 +346,21 @@ router.post('/:id/reject-quote', async (req: Request, res: Response) => {
       where: { id: req.params.id, patientId },
     });
     if (!r) return res.status(404).json({ error: true, message: 'Solicitud no encontrada' });
-    if (r.status !== 'QUOTED') {
-      return res.status(400).json({ error: true, message: 'Solo puedes rechazar cuando hay cotización' });
+    if (!['PENDING_QUOTES', 'QUOTED'].includes(r.status)) {
+      return res.status(400).json({ error: true, message: 'No hay cotizaciones en curso para rechazar' });
     }
 
-    await prisma.labExamRequest.update({
-      where: { id: r.id },
-      data: { status: 'CANCELLED' },
+    await prisma.labQuote.updateMany({
+      where: { requestId: r.id, status: 'SENT' },
+      data: { status: 'REJECTED' },
     });
-    await addLabEvent(r.id, 'QUOTE_REJECTED', 'Cotización rechazada por el paciente');
+    await addLabEvent(r.id, 'QUOTE_REJECTED', 'Cotizaciones rechazadas por el paciente');
 
     const full = await prisma.labExamRequest.findUnique({
       where: { id: r.id },
       include: {
-        laboratory: { select: { id: true, name: true, phone: true } },
-        quote: true,
+        selectedQuote: { include: { laboratory: { select: { id: true, name: true, phone: true } } } },
+        quotes: { include: { laboratory: { select: { id: true, name: true, phone: true } } }, orderBy: { createdAt: 'asc' } },
         appointments: true,
         results: true,
         events: { orderBy: { createdAt: 'asc' } },
@@ -300,21 +382,27 @@ router.post('/:id/cancel', async (req: Request, res: Response) => {
       where: { id: req.params.id, patientId },
     });
     if (!r) return res.status(404).json({ error: true, message: 'Solicitud no encontrada' });
-    if (['COMPLETED', 'CANCELLED', 'REJECTED'].includes(r.status)) {
+    if (['COMPLETED', 'CANCELLED', 'EXPIRED'].includes(r.status)) {
       return res.status(400).json({ error: true, message: 'No se puede cancelar en este estado' });
     }
 
-    await prisma.labExamRequest.update({
-      where: { id: r.id },
-      data: { status: 'CANCELLED' },
+    await prisma.$transaction(async (tx) => {
+      await tx.labExamRequest.update({
+        where: { id: r.id },
+        data: { status: 'CANCELLED' },
+      });
+      await tx.labQuote.updateMany({
+        where: { requestId: r.id, status: 'SENT' },
+        data: { status: 'EXPIRED' },
+      });
     });
     await addLabEvent(r.id, 'CANCELLED', req.body?.reason ? `Cancelada: ${req.body.reason}` : 'Solicitud cancelada por el paciente');
 
     const full = await prisma.labExamRequest.findUnique({
       where: { id: r.id },
       include: {
-        laboratory: { select: { id: true, name: true, phone: true } },
-        quote: true,
+        selectedQuote: { include: { laboratory: { select: { id: true, name: true, phone: true } } } },
+        quotes: { include: { laboratory: { select: { id: true, name: true, phone: true } } }, orderBy: { createdAt: 'asc' } },
         appointments: true,
         results: true,
         events: { orderBy: { createdAt: 'asc' } },

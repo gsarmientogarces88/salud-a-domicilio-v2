@@ -10,6 +10,7 @@ exports.rejectAppointmentRequest = rejectAppointmentRequest;
 exports.expireHeldRequests = expireHeldRequests;
 const prisma_1 = __importDefault(require("../lib/prisma"));
 const haversine_1 = require("../lib/haversine");
+const appointmentBookingRules_1 = require("../lib/appointmentBookingRules");
 const HOLD_MINUTES = 20;
 function getHoldUntil() {
     const d = new Date();
@@ -43,7 +44,7 @@ function validateAddressForProfessional(professional, lat, lng, commune) {
     return { valid: true };
 }
 async function createAppointmentRequest(data) {
-    const { patientId, professionalId, slotId, addressText, region, city, commune, lat, lng, notes } = data;
+    const { patientId, professionalId, slotId, addressText, region, province, commune, lat, lng, notes } = data;
     const [professional, slot] = await Promise.all([
         prisma_1.default.doctorProfile.findUnique({ where: { id: professionalId } }),
         prisma_1.default.availabilitySlot.findUnique({ where: { id: slotId }, include: { professional: true } }),
@@ -56,6 +57,7 @@ async function createAppointmentRequest(data) {
         throw new Error('Slot no pertenece al profesional');
     if (slot.status !== 'AVAILABLE')
         throw new Error('El horario ya no está disponible');
+    (0, appointmentBookingRules_1.assertBookingSlotAllowed)(slot.startAt, new Date());
     const validation = validateAddressForProfessional(professional, lat, lng, commune);
     if (!validation.valid) {
         throw new Error(validation.error);
@@ -74,12 +76,12 @@ async function createAppointmentRequest(data) {
                 slotId,
                 addressText,
                 region,
-                city,
+                province,
                 commune,
                 lat,
                 lng,
                 notes,
-                status: 'PENDING_PRO_CONFIRMATION',
+                status: 'PENDING',
             },
         });
         await tx.appointmentPayment.create({
@@ -106,7 +108,7 @@ async function acceptAppointmentRequest(requestId, professionalId) {
         throw new Error('Solicitud no encontrada');
     if (request.professionalId !== professionalId)
         throw new Error('No puedes aceptar esta solicitud');
-    if (request.status !== 'PENDING_PRO_CONFIRMATION') {
+    if (request.status !== 'PENDING') {
         throw new Error(`Solicitud en estado ${request.status}, no puede aceptarse`);
     }
     if (request.slot.status !== 'HELD')
@@ -139,7 +141,7 @@ async function rejectAppointmentRequest(requestId, professionalId, reason, comme
         throw new Error('Solicitud no encontrada');
     if (request.professionalId !== professionalId)
         throw new Error('No puedes rechazar esta solicitud');
-    if (request.status !== 'PENDING_PRO_CONFIRMATION') {
+    if (request.status !== 'PENDING') {
         throw new Error(`Solicitud en estado ${request.status}`);
     }
     await prisma_1.default.$transaction(async (tx) => {
@@ -167,7 +169,7 @@ async function expireHeldRequests() {
     const now = new Date();
     const expired = await prisma_1.default.appointmentRequest.findMany({
         where: {
-            status: 'PENDING_PRO_CONFIRMATION',
+            status: 'PENDING',
             slot: {
                 heldUntil: { lt: now },
             },

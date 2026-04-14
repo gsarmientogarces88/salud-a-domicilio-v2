@@ -26,10 +26,15 @@
       "static/chunks/main-app.js",
       "static/chunks/app/auth/login/page.js"
     ],
-    "/dashboard/patient/page": [
+    "/auth/laboratorio/login/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/dashboard/patient/page.js"
+      "static/chunks/app/auth/laboratorio/login/page.js"
+    ],
+    "/dashboard/patient/inicio/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/dashboard/patient/inicio/page.js"
     ],
     "/dashboard/patient/layout": [
       "static/chunks/webpack.js",
@@ -40,6 +45,54 @@
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/dashboard/layout.js"
+    ],
+    "/dashboard/patient/examenes-domicilio/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/css/app/dashboard/patient/examenes-domicilio/page.css",
+      "static/chunks/app/dashboard/patient/examenes-domicilio/page.js"
+    ],
+    "/dashboard/laboratorio/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/dashboard/laboratorio/page.js"
+    ],
+    "/dashboard/laboratorio/layout": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/dashboard/laboratorio/layout.js"
+    ],
+    "/dashboard/laboratorio/solicitudes/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/dashboard/laboratorio/solicitudes/page.js"
+    ],
+    "/dashboard/laboratorio/agenda/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/dashboard/laboratorio/agenda/page.js"
+    ],
+    "/dashboard/laboratorio/resultados/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/dashboard/laboratorio/resultados/page.js"
+    ],
+    "/dashboard/laboratorio/solicitudes/[id]/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/dashboard/laboratorio/solicitudes/[id]/page.js"
+    ],
+    "/dashboard/patient/baja-peso/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/css/app/dashboard/patient/baja-peso/page.css",
+      "static/chunks/app/dashboard/patient/baja-peso/page.js"
+    ],
+    "/dashboard/patient/medico/agendar/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/css/app/dashboard/patient/medico/agendar/page.css",
+      "static/chunks/app/dashboard/patient/medico/agendar/page.js"
     ],
     "/dashboard/patient/medico/page": [
       "static/chunks/webpack.js",
@@ -56,28 +109,6 @@
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/dashboard/patient/resultados-examenes/page.js"
-    ],
-    "/dashboard/patient/examenes-domicilio/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/dashboard/patient/examenes-domicilio/page.js"
-    ],
-    "/dashboard/patient/medico/agendar/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/css/app/dashboard/patient/medico/agendar/page.css",
-      "static/chunks/app/dashboard/patient/medico/agendar/page.js"
-    ],
-    "/dashboard/patient/baja-peso/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/css/app/dashboard/patient/baja-peso/page.css",
-      "static/chunks/app/dashboard/patient/baja-peso/page.js"
-    ],
-    "/dashboard/patient/inicio/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/dashboard/patient/inicio/page.js"
     ]
   }
 }

@@ -5,15 +5,15 @@ import Link from 'next/link';
 import { fetchLabRequests } from '@/lib/laboratoryApi';
 
 const STATUS_LABEL: Record<string, string> = {
-  PENDING: 'Pendiente',
-  IN_REVIEW: 'En revisión',
+  DRAFT: 'Borrador',
+  PENDING_QUOTES: 'Pendiente de cotización',
   QUOTED: 'Cotizada',
-  REJECTED: 'Rechazada',
-  PATIENT_ACCEPTED: 'Aceptada por paciente',
+  LAB_SELECTED: 'Elegida por paciente',
   SCHEDULED: 'Agendada',
   SAMPLE_COLLECTED: 'Muestra tomada',
   RESULTS_READY: 'Resultados listos',
   COMPLETED: 'Completada',
+  EXPIRED: 'Sin cotizaciones',
   CANCELLED: 'Cancelada',
 };
 

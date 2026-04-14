@@ -29,8 +29,10 @@ export declare function markAsPaid(serviceRequestId: string, providerRef?: strin
     updatedAt: Date;
     address: string;
     commune: string | null;
-    city: string | null;
+    province: string | null;
     region: string | null;
+    patientId: string;
+    doctorId: string | null;
     type: import(".prisma/client").$Enums.ServiceType;
     status: import(".prisma/client").$Enums.ServiceStatus;
     description: string;
@@ -54,13 +56,13 @@ export declare function markAsPaid(serviceRequestId: string, providerRef?: strin
     urgentFixedPrice: number | null;
     scheduledAt: Date | null;
     expiresAt: Date | null;
+    acceptedAt: Date | null;
+    queuedAt: Date | null;
     startedAt: Date | null;
     completedAt: Date | null;
     cancelledAt: Date | null;
     cancelReason: string | null;
     notes: string | null;
-    patientId: string;
-    doctorId: string | null;
 }]>;
 export declare function refund(serviceRequestId: string): Promise<[{
     id: string;
@@ -68,8 +70,10 @@ export declare function refund(serviceRequestId: string): Promise<[{
     updatedAt: Date;
     address: string;
     commune: string | null;
-    city: string | null;
+    province: string | null;
     region: string | null;
+    patientId: string;
+    doctorId: string | null;
     type: import(".prisma/client").$Enums.ServiceType;
     status: import(".prisma/client").$Enums.ServiceStatus;
     description: string;
@@ -93,11 +97,11 @@ export declare function refund(serviceRequestId: string): Promise<[{
     urgentFixedPrice: number | null;
     scheduledAt: Date | null;
     expiresAt: Date | null;
+    acceptedAt: Date | null;
+    queuedAt: Date | null;
     startedAt: Date | null;
     completedAt: Date | null;
     cancelledAt: Date | null;
     cancelReason: string | null;
     notes: string | null;
-    patientId: string;
-    doctorId: string | null;
 }, import(".prisma/client").Prisma.BatchPayload]>;

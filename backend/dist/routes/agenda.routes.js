@@ -41,7 +41,11 @@ const auth_1 = require("../middleware/auth");
 const roles_1 = require("../middleware/roles");
 const prisma_1 = __importDefault(require("../lib/prisma"));
 const agenda = __importStar(require("../services/agenda.service"));
-const haversine_1 = require("../lib/haversine");
+const date_fns_1 = require("date-fns");
+const date_fns_tz_1 = require("date-fns-tz");
+const appointmentBookingRules_1 = require("../lib/appointmentBookingRules");
+const geo = __importStar(require("../services/geo.service"));
+const territoryCompat_1 = require("../lib/territoryCompat");
 const router = (0, express_1.Router)();
 router.use(auth_1.authenticate);
 // POST /agenda/requests — Paciente crea solicitud de agenda
@@ -50,11 +54,13 @@ router.post('/requests', (0, roles_1.authorize)('PATIENT'), async (req, res) => 
         const patient = await prisma_1.default.patientProfile.findUnique({ where: { userId: req.user.id } });
         if (!patient)
             return res.status(404).json({ error: true, message: 'Perfil paciente no encontrado' });
-        const { professionalId, slotId, addressText, region, city, commune, lat, lng, notes, } = req.body;
-        if (!professionalId || !slotId || !addressText || !region || !city || !commune) {
+        const body = req.body;
+        const { professionalId, slotId, addressText, region, commune, lat, lng, notes, } = body;
+        const province = (0, territoryCompat_1.coalesceProvinceFromPayload)(body);
+        if (!professionalId || !slotId || !addressText || !region || !province || !commune) {
             return res.status(400).json({
                 error: true,
-                message: 'Faltan campos: professionalId, slotId, addressText, region, city, commune',
+                message: 'Faltan campos: professionalId, slotId, addressText, region, province (o city legacy), commune',
             });
         }
         const latNum = typeof lat === 'number' ? lat : parseFloat(String(lat));
@@ -68,14 +74,14 @@ router.post('/requests', (0, roles_1.authorize)('PATIENT'), async (req, res) => 
             slotId,
             addressText,
             region,
-            city,
+            province,
             commune,
             lat: latNum,
             lng: lngNum,
             notes,
         });
         res.status(201).json({
-            message: 'Solicitud enviada. Esperando confirmación del profesional (máx. 20 min).',
+            message: 'Solicitud enviada, esperando confirmación del médico.',
             data: { id: request.id, status: request.status },
         });
     }
@@ -106,14 +112,23 @@ router.get('/requests', async (req, res) => {
                 },
             });
             // Para el profesional: no exponer addressText completo; solo comuna + distancia
-            const safe = list.map((r) => {
+            const safe = await Promise.all(list.map(async (r) => {
                 const { addressText: _at, ...rest } = r;
-                const prof = r.professional;
-                const dist = prof?.baseLat != null && prof?.baseLng != null
-                    ? (0, haversine_1.haversineDistance)(prof.baseLat, prof.baseLng, r.lat, r.lng).toFixed(1)
-                    : null;
-                return { ...rest, addressDisplay: r.commune, distanceKm: dist };
-            });
+                const eff = await geo.getEffectiveDoctorLocation(r.professionalId);
+                let distanceKm = null;
+                if (eff.kind !== 'UNKNOWN') {
+                    distanceKm = geo
+                        .distanceKm({ lat: eff.lat, lng: eff.lng }, { lat: r.lat, lng: r.lng })
+                        .toFixed(1);
+                }
+                return {
+                    ...rest,
+                    city: r.province,
+                    addressDisplay: r.commune,
+                    distanceKm,
+                    patientLocation: { lat: r.lat, lng: r.lng },
+                };
+            }));
             return res.json({ data: safe });
         }
         if (patient) {
@@ -129,7 +144,9 @@ router.get('/requests', async (req, res) => {
                     professional: { include: { user: { select: { firstName: true, lastName: true } } } },
                 },
             });
-            return res.json({ data: list });
+            return res.json({
+                data: list.map((row) => ({ ...row, city: row.province })),
+            });
         }
         return res.status(403).json({ error: true, message: 'Sin perfil' });
     }
@@ -162,7 +179,7 @@ router.get('/requests/:id', async (req, res) => {
         const out = isDoctor && r.status !== 'CONFIRMED'
             ? { ...r, addressText: undefined, addressDisplay: `${r.commune}` }
             : r;
-        res.json({ data: out });
+        res.json({ data: { ...out, city: out.province } });
     }
     catch (e) {
         res.status(500).json({ error: true, message: e.message });
@@ -206,25 +223,24 @@ router.get('/slots', async (req, res) => {
         if (!professionalId || !date || typeof professionalId !== 'string' || typeof date !== 'string') {
             return res.status(400).json({ error: true, message: 'professionalId y date requeridos' });
         }
-        const target = new Date(date);
-        if (Number.isNaN(target.getTime())) {
-            return res.status(400).json({ error: true, message: 'Fecha inválida' });
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+            return res.status(400).json({ error: true, message: 'date debe ser YYYY-MM-DD' });
         }
-        const startOfDay = new Date(target);
-        startOfDay.setHours(0, 0, 0, 0);
-        const endOfDay = new Date(target);
-        endOfDay.setHours(23, 59, 59, 999);
+        const dayStart = (0, date_fns_tz_1.fromZonedTime)(`${date}T00:00:00`, appointmentBookingRules_1.BOOKING_TIMEZONE);
+        const dayEndExclusive = (0, date_fns_1.addDays)(dayStart, 1);
         const slots = await prisma_1.default.availabilitySlot.findMany({
             where: {
                 professionalId,
-                startAt: { gte: startOfDay, lte: endOfDay },
+                startAt: { gte: dayStart, lt: dayEndExclusive },
                 status: 'AVAILABLE',
                 OR: [{ heldUntil: null }, { heldUntil: { gt: new Date() } }],
             },
             orderBy: { startAt: 'asc' },
         });
+        const now = new Date();
+        const allowed = slots.filter((s) => (0, appointmentBookingRules_1.evaluateBookingSlot)(s.startAt, now).ok);
         res.json({
-            data: slots.map((s) => ({
+            data: allowed.map((s) => ({
                 id: s.id,
                 startAt: s.startAt,
                 endAt: s.endAt,

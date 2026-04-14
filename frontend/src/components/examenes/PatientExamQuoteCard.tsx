@@ -11,7 +11,7 @@ export default function PatientExamQuoteCard({
   disabled,
 }: {
   request: PatientLabExamRequestDto;
-  quote: NonNullable<PatientLabExamRequestDto['quote']>;
+  quote: NonNullable<PatientLabExamRequestDto['quotes']>[number];
   onAccept: () => void;
   onReject: () => void;
   disabled?: boolean;
@@ -22,7 +22,7 @@ export default function PatientExamQuoteCard({
         <div>
           <h3 className="text-lg font-semibold text-gray-900">Cotización del laboratorio</h3>
           <p className="mt-1 text-sm text-gray-600">
-            <span className="font-medium text-gray-800">{request.laboratory?.name ?? 'Laboratorio'}</span>
+            <span className="font-medium text-gray-800">{quote.laboratory?.name ?? 'Laboratorio'}</span>
           </p>
         </div>
         <div className="rounded-2xl bg-sky-50 px-4 py-3 text-right ring-1 ring-sky-100">
@@ -36,7 +36,7 @@ export default function PatientExamQuoteCard({
         <div className="rounded-2xl bg-gray-50 p-4 ring-1 ring-gray-100">
           <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">Fecha propuesta (visita)</p>
           <p className="mt-2 text-sm font-medium text-gray-900">
-            {quote.proposedVisitAt ? formatExamDateTime(quote.proposedVisitAt) : 'A coordinar'}
+            {quote.proposedDate ? formatExamDateTime(quote.proposedDate) : 'A coordinar'}
           </p>
         </div>
         <div className="rounded-2xl bg-gray-50 p-4 ring-1 ring-gray-100">
@@ -49,11 +49,11 @@ export default function PatientExamQuoteCard({
         </div>
       </div>
 
-      {quote.labObservations && (
+      {quote.comment && (
         <div className="mt-4 rounded-2xl bg-white p-4 ring-1 ring-sky-100">
           <p className="text-sm text-gray-700">
             <span className="font-semibold text-gray-900">Observaciones del laboratorio:</span>{' '}
-            {quote.labObservations}
+            {quote.comment}
           </p>
         </div>
       )}

@@ -1,4 +1,4 @@
-// File: C:\Users\Gerardo\OneDrive\Escritorio\salud-a-domicilio-v2\frontend\src\app\dashboard\patient\medico\agendar\page.tsx
+// File: C:\dev\salud-a-domicilio-v2\frontend\src\app\dashboard\patient\medico\agendar\page.tsx
 import * as entry from '../../../../../../../src/app/dashboard/patient/medico/agendar/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

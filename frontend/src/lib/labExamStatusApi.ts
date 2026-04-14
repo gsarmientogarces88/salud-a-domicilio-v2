@@ -4,15 +4,13 @@ type Tone = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
 
 export function getLabApiStatusLabel(status: LabExamRequestStatusApi): string {
   switch (status) {
-    case 'PENDING':
+    case 'DRAFT':
+      return 'Borrador';
+    case 'PENDING_QUOTES':
       return 'Solicitud enviada';
-    case 'IN_REVIEW':
-      return 'En revisión';
     case 'QUOTED':
       return 'Cotización disponible';
-    case 'REJECTED':
-      return 'Rechazada por laboratorio';
-    case 'PATIENT_ACCEPTED':
+    case 'LAB_SELECTED':
       return 'Cotización aceptada';
     case 'SCHEDULED':
       return 'Visita agendada';
@@ -24,6 +22,8 @@ export function getLabApiStatusLabel(status: LabExamRequestStatusApi): string {
       return 'Completado';
     case 'CANCELLED':
       return 'Cancelada';
+    case 'EXPIRED':
+      return 'Sin cotizaciones';
     default:
       return status;
   }
@@ -31,16 +31,16 @@ export function getLabApiStatusLabel(status: LabExamRequestStatusApi): string {
 
 export function getLabApiStatusTone(status: LabExamRequestStatusApi): Tone {
   switch (status) {
-    case 'PENDING':
-    case 'IN_REVIEW':
+    case 'DRAFT':
+    case 'PENDING_QUOTES':
       return 'info';
     case 'QUOTED':
       return 'warning';
-    case 'PATIENT_ACCEPTED':
+    case 'LAB_SELECTED':
     case 'RESULTS_READY':
     case 'COMPLETED':
       return 'success';
-    case 'REJECTED':
+    case 'EXPIRED':
     case 'CANCELLED':
       return 'danger';
     case 'SCHEDULED':

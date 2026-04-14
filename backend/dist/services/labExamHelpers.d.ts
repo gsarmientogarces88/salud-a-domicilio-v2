@@ -8,4 +8,4 @@ export declare function addLabEvent(requestId: string, kind: string, message: st
     requestId: string;
 }>;
 export declare function getPatientUserId(patientProfileId: string): Promise<string | null>;
-export declare function isTerminalPatientStatus(s: LabExamRequestStatus): s is "COMPLETED" | "CANCELLED" | "REJECTED";
+export declare function isTerminalPatientStatus(s: LabExamRequestStatus): s is "COMPLETED" | "CANCELLED" | "EXPIRED";

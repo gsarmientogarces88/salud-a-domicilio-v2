@@ -155,9 +155,9 @@ router.get('/lab-exams', async (req, res) => {
                 take: parseInt(limit, 10),
                 orderBy: { createdAt: 'desc' },
                 include: {
-                    laboratory: { select: { id: true, name: true } },
                     patient: { include: { user: { select: { email: true, firstName: true, lastName: true } } } },
-                    quote: true,
+                    selectedQuote: { include: { laboratory: { select: { id: true, name: true } } } },
+                    quotes: { include: { laboratory: { select: { id: true, name: true } } }, orderBy: { createdAt: 'asc' } },
                 },
             }),
             prisma_1.default.labExamRequest.count({ where }),

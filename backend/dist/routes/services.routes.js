@@ -61,9 +61,16 @@ router.post('/', (0, roles_1.authorize)('PATIENT'), async (req, res) => {
             // eslint-disable-next-line no-console
             console.log('[services.create] created:', { id: sr.id, status: sr.status, type: sr.type, expiresAt: sr.expiresAt });
         }
-        res.status(201).json({ message: 'Solicitud creada', data: sr });
+        res.status(201).json({ message: 'Solicitud creada', data: { ...sr, city: sr.province } });
     }
     catch (e) {
+        if (e?.code === 'OPEN_SERVICE_EXISTS') {
+            return res.status(409).json({
+                error: true,
+                message: e.message,
+                data: { openService: e.openService },
+            });
+        }
         res.status(400).json({ error: true, message: e.message });
     }
 });
@@ -78,7 +85,7 @@ router.get('/me', (0, roles_1.authorize)('PATIENT'), async (req, res) => {
             orderBy: { createdAt: 'desc' },
             include: { doctor: { include: { user: { select: { firstName: true, lastName: true } } } } },
         });
-        res.json({ data: list });
+        res.json({ data: list.map((row) => ({ ...row, city: row.province })) });
     }
     catch (e) {
         res.status(500).json({ error: true, message: e.message });
@@ -106,25 +113,73 @@ router.get('/available', (0, roles_1.authorize)('DOCTOR'), async (req, res) => {
             console.log('[services.available] list count:', list.length, { doctorId: doctor.id });
         }
         if (!config_1.config.geo.urgentProximityFilterEnabled) {
-            return res.json({ data: list });
+            return res.json({ data: list.map((row) => ({ ...row, city: row.province })) });
         }
         const effective = await (0, geo_service_1.getEffectiveDoctorLocation)(doctor.id);
-        const filtered = list.filter((sr) => {
-            if (sr.type !== 'URGENT')
-                return true; // no aplicar radio a agendadas/programadas
-            const r = (0, geo_service_1.isUrgentRequestEligibleByDistance)({
-                doctorLocation: effective,
-                requestLat: sr.requestLat,
-                requestLng: sr.requestLng,
-                radiusKm: config_1.config.geo.urgentRadiusKm,
+        const now = new Date();
+        const urgentTtlMs = Math.max(1, config_1.config.serviceRequests.urgentPendingTtlMinutes) * 60 * 1000;
+        const scheduledTtlMs = Math.max(1, config_1.config.serviceRequests.scheduledPendingTtlMinutes) * 60 * 1000;
+        const output = [];
+        for (const sr of list) {
+            const excluded = [];
+            // Expiración por tiempo (robusto incluso si hay data vieja sin expiresAt correcto)
+            const ttlMs = sr.type === 'URGENT' ? urgentTtlMs : scheduledTtlMs;
+            const cutoff = new Date(now.getTime() - ttlMs);
+            const isExpiredByCreatedAt = sr.createdAt <= cutoff;
+            const isExpiredByExpiresAt = sr.expiresAt != null && sr.expiresAt <= now;
+            if (isExpiredByCreatedAt || isExpiredByExpiresAt)
+                excluded.push('EXPIRATION');
+            // Distancia solo para urgentes
+            let computedDistanceKm = null;
+            if (sr.type === 'URGENT') {
+                if (sr.requestLat == null || sr.requestLng == null) {
+                    excluded.push('DISTANCE_LOCATION_MISSING');
+                }
+                else if (effective.kind === 'UNKNOWN') {
+                    excluded.push('DISTANCE_DOCTOR_LOCATION_MISSING');
+                }
+                else {
+                    computedDistanceKm = (0, geo_service_1.distanceKm)({ lat: effective.lat, lng: effective.lng }, { lat: sr.requestLat, lng: sr.requestLng });
+                    if (computedDistanceKm > config_1.config.geo.urgentRadiusKm)
+                        excluded.push('DISTANCE');
+                }
+            }
+            if (config_1.config.isDev) {
+                // eslint-disable-next-line no-console
+                console.log('[services.available.debug]', {
+                    id: sr.id,
+                    status: sr.status,
+                    createdAt: sr.createdAt,
+                    expiresAt: sr.expiresAt,
+                    type: sr.type,
+                    distanceKm: computedDistanceKm == null ? null : Math.round(computedDistanceKm * 10) / 10,
+                    excludedByDistance: excluded.includes('DISTANCE'),
+                    excludedByDistanceMissing: excluded.includes('DISTANCE_LOCATION_MISSING') || excluded.includes('DISTANCE_DOCTOR_LOCATION_MISSING'),
+                    excludedByExpiration: excluded.includes('EXPIRATION'),
+                    excludedByRejection: false, // ya excluida en query (rejections: none)
+                    excludedByAccepted: false, // ya excluida por status=PENDING y doctorId null/assigned se valida en accept/reject
+                });
+            }
+            if (excluded.length > 0)
+                continue;
+            const expiresAtMs = sr.expiresAt?.getTime() ?? sr.createdAt.getTime() + (ttlMs > 0 ? ttlMs : urgentTtlMs);
+            const remainingSeconds = Math.max(0, Math.floor((expiresAtMs - now.getTime()) / 1000));
+            output.push({
+                ...sr,
+                city: sr.province,
+                distanceKm: computedDistanceKm == null ? null : Math.round(computedDistanceKm * 10) / 10,
+                remainingSeconds,
             });
-            return r.eligible;
-        });
+        }
         if (config_1.config.isDev) {
             // eslint-disable-next-line no-console
-            console.log('[services.available] filtered count:', filtered.length, { geoFilter: true });
+            console.log('[services.available] filtered count:', output.length, {
+                geoFilter: true,
+                urgentTtlMin: config_1.config.serviceRequests.urgentPendingTtlMinutes,
+                scheduledTtlMin: config_1.config.serviceRequests.scheduledPendingTtlMinutes,
+            });
         }
-        res.json({ data: filtered });
+        res.json({ data: output });
     }
     catch (e) {
         res.status(500).json({ error: true, message: e.message });
@@ -148,7 +203,9 @@ router.get('/doctor/me', (0, roles_1.authorize)('DOCTOR'), async (req, res) => {
                 transactions: true,
             },
         });
-        res.json({ data: list });
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.json({ data: list.map((row) => ({ ...row, city: row.province })) });
     }
     catch (e) {
         res.status(500).json({ error: true, message: e.message });
@@ -170,14 +227,91 @@ router.get('/:id', async (req, res) => {
         // Verificar acceso
         const userId = req.user.id;
         const role = req.user.role;
+        const withCity = { ...sr, city: sr.province };
         if (role === 'ADMIN')
-            return res.json({ data: sr });
+            return res.json({ data: withCity });
         const patient = await prisma_1.default.patientProfile.findUnique({ where: { userId } });
         const doctor = await prisma_1.default.doctorProfile.findUnique({ where: { userId } });
         const isOwner = patient?.id === sr.patientId || doctor?.id === sr.doctorId;
         if (!isOwner)
             return res.status(403).json({ error: true, message: 'Sin acceso' });
-        res.json({ data: sr });
+        res.json({ data: withCity });
+    }
+    catch (e) {
+        res.status(500).json({ error: true, message: e.message });
+    }
+});
+// 5c) Chat: GET /services/:id/chat — mensajes del chat (solo paciente dueño o médico asignado)
+router.get('/:id/chat', async (req, res) => {
+    try {
+        const sr = await prisma_1.default.serviceRequest.findUnique({
+            where: { id: req.params.id },
+            select: { id: true, status: true, patientId: true, doctorId: true },
+        });
+        if (!sr)
+            return res.status(404).json({ error: true, message: 'Solicitud no encontrada' });
+        // Permisos: paciente dueño o doctor asignado
+        const userId = req.user.id;
+        const role = req.user.role;
+        const patient = role === 'PATIENT' ? await prisma_1.default.patientProfile.findUnique({ where: { userId } }) : null;
+        const doctor = role === 'DOCTOR' ? await prisma_1.default.doctorProfile.findUnique({ where: { userId } }) : null;
+        const allowed = patient?.id === sr.patientId || (doctor?.id && sr.doctorId === doctor.id);
+        if (!allowed)
+            return res.status(403).json({ error: true, message: 'Sin acceso al chat' });
+        // Chat solo visible cuando ya hay aceptación o atención en curso; en COMPLETED lo dejamos solo lectura
+        if (!['ACCEPTED', 'QUEUED', 'IN_PROGRESS', 'COMPLETED'].includes(sr.status)) {
+            return res.status(400).json({ error: true, message: 'Chat no disponible en este estado' });
+        }
+        const messages = await prisma_1.default.serviceChatMessage.findMany({
+            where: { serviceRequestId: sr.id },
+            orderBy: { createdAt: 'asc' },
+            take: 200,
+        });
+        res.json({ data: { messages, canWrite: ['ACCEPTED', 'QUEUED', 'IN_PROGRESS'].includes(sr.status) } });
+    }
+    catch (e) {
+        res.status(500).json({ error: true, message: e.message });
+    }
+});
+const sendChatSchema = zod_1.z.object({
+    message: zod_1.z.string().trim().min(1).max(1000),
+});
+// 5d) Chat: POST /services/:id/chat — enviar mensaje (solo paciente dueño o médico asignado)
+router.post('/:id/chat', async (req, res) => {
+    try {
+        const parsed = sendChatSchema.safeParse(req.body ?? {});
+        if (!parsed.success)
+            return res.status(400).json({ error: true, message: parsed.error.message });
+        const sr = await prisma_1.default.serviceRequest.findUnique({
+            where: { id: req.params.id },
+            select: { id: true, status: true, patientId: true, doctorId: true },
+        });
+        if (!sr)
+            return res.status(404).json({ error: true, message: 'Solicitud no encontrada' });
+        if (!['ACCEPTED', 'QUEUED', 'IN_PROGRESS'].includes(sr.status)) {
+            return res.status(400).json({ error: true, message: 'Chat no disponible para enviar mensajes en este estado' });
+        }
+        const userId = req.user.id;
+        const role = req.user.role;
+        const patient = role === 'PATIENT' ? await prisma_1.default.patientProfile.findUnique({ where: { userId } }) : null;
+        const doctor = role === 'DOCTOR' ? await prisma_1.default.doctorProfile.findUnique({ where: { userId } }) : null;
+        const isPatient = patient?.id === sr.patientId;
+        const isDoctor = doctor?.id != null && sr.doctorId === doctor.id;
+        if (!isPatient && !isDoctor)
+            return res.status(403).json({ error: true, message: 'Sin acceso al chat' });
+        const created = await prisma_1.default.serviceChatMessage.create({
+            data: {
+                serviceRequestId: sr.id,
+                senderType: isDoctor ? 'DOCTOR' : 'PATIENT',
+                senderUserId: userId,
+                message: parsed.data.message,
+            },
+        });
+        if (config_1.config.isDev) {
+            // eslint-disable-next-line no-console
+            console.log('[services.chat.send]', { requestId: sr.id, senderType: created.senderType, senderUserId: userId, createdAt: created.createdAt });
+        }
+        res.status(201).json({ data: created });
     }
     catch (e) {
         res.status(500).json({ error: true, message: e.message });
@@ -256,8 +390,15 @@ router.post('/:id/reject', (0, roles_1.authorize)('DOCTOR'), async (req, res) =>
         if (sr.status !== 'PENDING') {
             return res.status(400).json({ error: true, message: 'Solo se pueden rechazar solicitudes en estado PENDING' });
         }
+        if (sr.expiresAt && sr.expiresAt < new Date()) {
+            return res.status(400).json({ error: true, message: 'Solicitud expirada' });
+        }
         if (sr.doctorId && sr.doctorId !== doctor.id) {
             return res.status(400).json({ error: true, message: 'La solicitud ya fue tomada por otro médico' });
+        }
+        if (config_1.config.isDev) {
+            // eslint-disable-next-line no-console
+            console.log('[services.reject] attempt:', { serviceId: sr.id, doctorId: doctor.id, status: sr.status, createdAt: sr.createdAt, expiresAt: sr.expiresAt });
         }
         const parsed = rejectSchema.safeParse(req.body ?? {});
         if (!parsed.success)
@@ -280,6 +421,14 @@ router.patch('/:id/status', (0, roles_1.authorize)('DOCTOR'), async (req, res) =
         if (!doctor)
             return res.status(404).json({ error: true, message: 'Perfil médico no encontrado' });
         const { status, notes } = req.body;
+        if (config_1.config.debugServiceStateFlow) {
+            // eslint-disable-next-line no-console
+            console.log('[serviceFlow.http.patchStatus]', {
+                serviceId: req.params.id,
+                doctorId: doctor.id,
+                requestedStatus: status,
+            });
+        }
         let sr;
         if (status === 'IN_PROGRESS') {
             sr = await svc.startRequest(req.params.id, doctor.id);
@@ -289,6 +438,10 @@ router.patch('/:id/status', (0, roles_1.authorize)('DOCTOR'), async (req, res) =
         }
         else {
             return res.status(400).json({ error: true, message: 'Status no permitido desde esta ruta' });
+        }
+        if (config_1.config.debugServiceStateFlow) {
+            // eslint-disable-next-line no-console
+            console.log('[serviceFlow.http.patchStatus.result]', { serviceId: sr.id, resultStatus: sr.status });
         }
         res.json({ message: `Estado actualizado a ${status}`, data: sr });
     }
@@ -330,7 +483,11 @@ router.get('/', (0, roles_1.authorize)('ADMIN'), async (req, res) => {
             prisma_1.default.serviceRequest.findMany({ where, skip, take: parseInt(limit), orderBy: { createdAt: 'desc' } }),
             prisma_1.default.serviceRequest.count({ where }),
         ]);
-        res.json({ data: list, total, page: parseInt(page) });
+        res.json({
+            data: list.map((row) => ({ ...row, city: row.province })),
+            total,
+            page: parseInt(page),
+        });
     }
     catch (e) {
         res.status(500).json({ error: true, message: e.message });

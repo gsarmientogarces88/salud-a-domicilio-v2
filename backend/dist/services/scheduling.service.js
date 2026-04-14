@@ -7,16 +7,16 @@ exports.getScheduleForProfessional = getScheduleForProfessional;
 exports.setScheduleForProfessional = setScheduleForProfessional;
 exports.getAvailableSlotsForDate = getAvailableSlotsForDate;
 exports.isSlotAvailable = isSlotAvailable;
+const date_fns_1 = require("date-fns");
+const date_fns_tz_1 = require("date-fns-tz");
 const prisma_1 = __importDefault(require("../lib/prisma"));
+const appointmentBookingRules_1 = require("../lib/appointmentBookingRules");
 function parseTimeToMinutes(time) {
     const [h, m] = time.split(':').map((v) => parseInt(v, 10));
     if (Number.isNaN(h) || Number.isNaN(m)) {
         throw new Error(`Hora inválida: ${time}`);
     }
     return h * 60 + m;
-}
-function sameDate(a, b) {
-    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 async function getScheduleForProfessional(professionalId) {
     const [availability, blockedSlots] = await Promise.all([
@@ -32,7 +32,6 @@ async function getScheduleForProfessional(professionalId) {
     return { availability, blockedSlots };
 }
 async function setScheduleForProfessional(professionalId, availability, blockedSlots) {
-    // Validaciones mínimas
     availability.forEach((a) => {
         if (a.dayOfWeek < 0 || a.dayOfWeek > 6) {
             throw new Error('dayOfWeek debe estar entre 0 (Domingo) y 6 (Sábado)');
@@ -88,27 +87,21 @@ async function setScheduleForProfessional(professionalId, availability, blockedS
     });
     return getScheduleForProfessional(professionalId);
 }
-async function getAvailableSlotsForDate(professionalId, date) {
-    const dayOfWeek = date.getDay(); // 0-6
+/**
+ * @param ymd Fecha calendario en Chile `YYYY-MM-DD` (la misma que envía el frontend con fecha local del paciente).
+ */
+async function getAvailableSlotsForDate(professionalId, ymd) {
+    const dayOfWeek = (0, appointmentBookingRules_1.jsWeekdayFromYmdChile)(ymd);
+    const dayStart = (0, date_fns_tz_1.fromZonedTime)(`${ymd}T00:00:00`, appointmentBookingRules_1.BOOKING_TIMEZONE);
+    const dayEndExclusive = (0, date_fns_1.addDays)(dayStart, 1);
     const [availability, blockedSlots, existingAppointments] = await Promise.all([
         prisma_1.default.availability.findMany({ where: { professionalId, dayOfWeek } }),
-        prisma_1.default.blockedSlot.findMany({
-            where: {
-                professionalId,
-                date: {
-                    gte: new Date(date.getFullYear(), date.getMonth(), date.getDate()),
-                    lt: new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1),
-                },
-            },
-        }),
+        prisma_1.default.blockedSlot.findMany({ where: { professionalId } }),
         prisma_1.default.serviceRequest.findMany({
             where: {
                 doctorId: professionalId,
                 type: 'SCHEDULED',
-                scheduledAt: {
-                    gte: new Date(date.getFullYear(), date.getMonth(), date.getDate()),
-                    lt: new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1),
-                },
+                scheduledAt: { gte: dayStart, lt: dayEndExclusive },
                 status: {
                     in: ['PENDING', 'ACCEPTED', 'IN_PROGRESS', 'COMPLETED'],
                 },
@@ -116,18 +109,20 @@ async function getAvailableSlotsForDate(professionalId, date) {
             select: { scheduledAt: true },
         }),
     ]);
+    const blockedForDay = blockedSlots.filter((b) => (0, appointmentBookingRules_1.calendarDateKeyInChile)(b.date) === ymd);
     const occupiedMinutes = new Set();
     existingAppointments.forEach((a) => {
-        if (a.scheduledAt && sameDate(a.scheduledAt, date)) {
-            const m = a.scheduledAt.getHours() * 60 + a.scheduledAt.getMinutes();
-            occupiedMinutes.add(m);
+        if (a.scheduledAt && (0, appointmentBookingRules_1.calendarDateKeyInChile)(a.scheduledAt) === ymd) {
+            const hm = (0, date_fns_tz_1.formatInTimeZone)(a.scheduledAt, appointmentBookingRules_1.BOOKING_TIMEZONE, 'HH:mm');
+            occupiedMinutes.add(parseTimeToMinutes(hm));
         }
     });
-    const blockedRanges = blockedSlots.map((b) => ({
+    const blockedRanges = blockedForDay.map((b) => ({
         start: parseTimeToMinutes(b.startTime),
         end: parseTimeToMinutes(b.endTime),
     }));
     const slots = [];
+    const now = new Date();
     availability.forEach((rule) => {
         const start = parseTimeToMinutes(rule.startTime);
         const end = parseTimeToMinutes(rule.endTime);
@@ -135,7 +130,6 @@ async function getAvailableSlotsForDate(professionalId, date) {
         while (current + rule.slotDuration <= end) {
             const slotStart = current;
             const slotEnd = current + rule.slotDuration;
-            // Verificar bloqueos
             const overlapsBlocked = blockedRanges.some((b) => !(slotEnd <= b.start || slotStart >= b.end));
             if (!overlapsBlocked && !occupiedMinutes.has(slotStart)) {
                 slots.push(slotStart);
@@ -143,23 +137,19 @@ async function getAvailableSlotsForDate(professionalId, date) {
             current = slotEnd + rule.bufferMinutes;
         }
     });
-    // Ordenar y convertir a "HH:MM"
     slots.sort((a, b) => a - b);
-    return slots.map((m) => {
+    const timeStrings = slots.map((m) => {
         const h = Math.floor(m / 60)
             .toString()
             .padStart(2, '0');
         const mm = (m % 60).toString().padStart(2, '0');
         return `${h}:${mm}`;
     });
+    return timeStrings.filter((t) => (0, appointmentBookingRules_1.evaluateBookingSlot)((0, appointmentBookingRules_1.zonedSlotStartUtc)(ymd, t), now).ok);
 }
 async function isSlotAvailable(professionalId, dateTime) {
-    const date = new Date(dateTime);
-    date.setHours(0, 0, 0, 0);
-    const time = `${dateTime.getHours().toString().padStart(2, '0')}:${dateTime
-        .getMinutes()
-        .toString()
-        .padStart(2, '0')}`;
-    const slots = await getAvailableSlotsForDate(professionalId, date);
+    const ymd = (0, appointmentBookingRules_1.calendarDateKeyInChile)(dateTime);
+    const time = (0, date_fns_tz_1.formatInTimeZone)(dateTime, appointmentBookingRules_1.BOOKING_TIMEZONE, 'HH:mm');
+    const slots = await getAvailableSlotsForDate(professionalId, ymd);
     return slots.includes(time);
 }

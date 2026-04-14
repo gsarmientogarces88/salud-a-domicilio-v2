@@ -55,6 +55,9 @@ export declare function setScheduleForProfessional(professionalId: string, avail
         date: Date;
     }[];
 }>;
-export declare function getAvailableSlotsForDate(professionalId: string, date: Date): Promise<string[]>;
+/**
+ * @param ymd Fecha calendario en Chile `YYYY-MM-DD` (la misma que envía el frontend con fecha local del paciente).
+ */
+export declare function getAvailableSlotsForDate(professionalId: string, ymd: string): Promise<string[]>;
 export declare function isSlotAvailable(professionalId: string, dateTime: Date): Promise<boolean>;
 export {};

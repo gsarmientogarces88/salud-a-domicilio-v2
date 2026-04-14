@@ -27,9 +27,15 @@ export default function MapaDireccion({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markerRef = useRef<mapboxgl.Marker | null>(null);
+  const onChangeCoordsRef = useRef(onChangeCoords);
   const [error, setError] = useState<string | null>(null);
 
   const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+
+  useEffect(() => {
+    onChangeCoordsRef.current = onChangeCoords;
+  }, [onChangeCoords]);
+
   if (process.env.NODE_ENV === 'development') {
     // Depuración: mostrar si el token está disponible (solo en dev, sin exponerlo completo)
     // eslint-disable-next-line no-console
@@ -65,7 +71,7 @@ export default function MapaDireccion({
 
       marker.on('dragend', () => {
         const lngLat = marker.getLngLat();
-        onChangeCoords({ lat: lngLat.lat, lng: lngLat.lng });
+        onChangeCoordsRef.current({ lat: lngLat.lat, lng: lngLat.lng });
       });
     } catch (e) {
       console.error('Error inicializando Mapbox', e);
@@ -77,7 +83,7 @@ export default function MapaDireccion({
       mapRef.current = null;
       markerRef.current = null;
     };
-  }, [token, onChangeCoords]);
+  }, [token]);
 
   // Centrar mapa / mover marker solo cuando cambia `position`
   useEffect(() => {
@@ -96,9 +102,9 @@ export default function MapaDireccion({
     markerRef.current = new mapboxgl.Marker({ draggable: true }).setLngLat([lng, lat]).addTo(mapRef.current);
     markerRef.current.on('dragend', () => {
       const lngLat = markerRef.current!.getLngLat();
-      onChangeCoords({ lat: lngLat.lat, lng: lngLat.lng });
+      onChangeCoordsRef.current({ lat: lngLat.lat, lng: lngLat.lng });
     });
-  }, [position, onChangeCoords]);
+  }, [position]);
 
   if (!token) {
     return (

@@ -7,25 +7,22 @@ import { addLabEvent, formatLabDisplayId, getPatientUserId } from '../services/l
 import { notifyUser } from '../services/labNotifications.service';
 
 const router = Router();
-
 router.use(authenticate, authorize('LABORATORY'));
 
 async function labFromReq(req: Request) {
   return prisma.laboratory.findUnique({ where: { userId: req.user!.id } });
 }
 
-function mapLabRequest(r: any) {
-  const quote = r.quote
-    ? {
-        id: r.quote.id,
-        priceClp: r.quote.priceClp,
-        proposedVisitAt: r.quote.proposedVisitAt,
-        proposedVisitEndAt: r.quote.proposedVisitEndAt,
-        labObservations: r.quote.labObservations,
-        estimatedResultsHours: r.quote.estimatedResultsHours,
-      }
-    : null;
+function buildCoverageWhere(lab: { commune: string | null; province: string | null; region: string | null }) {
+  return {
+    OR: [{ commune: lab.commune ?? undefined }, { province: lab.province ?? undefined }, { region: lab.region ?? undefined }].filter(
+      (x) => Object.values(x)[0]
+    ),
+  };
+}
 
+function mapLabRequest(r: any) {
+  const ownQuote = (r.quotes || [])[0] || null;
   return {
     id: r.id,
     displayId: formatLabDisplayId(r.displayNumber),
@@ -33,14 +30,21 @@ function mapLabRequest(r: any) {
     patientName: r.patientName,
     examRequested: r.examRequested,
     address: r.address,
+    region: r.region,
+    province: r.province,
     commune: r.commune,
     phone: r.phone,
+    email: r.email,
     observationsPatient: r.observationsPatient,
-    preferredTime: r.preferredTime,
+    preferredDate: r.preferredDate,
+    preferredTimeRange: r.preferredTimeRange,
+    latitude: r.latitude,
+    longitude: r.longitude,
+    quoteDeadlineAt: r.quoteDeadlineAt,
+    selectedQuoteId: r.selectedQuoteId,
     orderFileUrl: r.orderFileUrl,
     orderFileName: r.orderFileName,
-    labRejectionReason: r.labRejectionReason,
-    quote,
+    ownQuote,
     appointments: (r.appointments || []).map((a: any) => ({
       id: a.id,
       startAt: a.startAt,
@@ -74,47 +78,54 @@ function mapLabRequest(r: any) {
   };
 }
 
-// GET /laboratory/dashboard
-router.get('/dashboard', async (req: Request, res: Response) => {
+router.get('/dashboard', async (req, res) => {
   try {
     const lab = await labFromReq(req);
     if (!lab) return res.status(400).json({ error: true, message: 'Perfil de laboratorio no encontrado' });
-
-    const [pending, inReview, quoted, scheduled, resultsReady] = await Promise.all([
-      prisma.labExamRequest.count({ where: { laboratoryId: lab.id, status: 'PENDING' } }),
-      prisma.labExamRequest.count({ where: { laboratoryId: lab.id, status: 'IN_REVIEW' } }),
-      prisma.labExamRequest.count({ where: { laboratoryId: lab.id, status: 'QUOTED' } }),
-      prisma.labExamRequest.count({ where: { laboratoryId: lab.id, status: 'SCHEDULED' } }),
-      prisma.labExamRequest.count({ where: { laboratoryId: lab.id, status: 'RESULTS_READY' } }),
+    const coverageWhere: any = buildCoverageWhere(lab);
+    const [pendingQuotes, quotedByMe, selectedByMe, scheduled, resultsReady] = await Promise.all([
+      prisma.labExamRequest.count({ where: { ...coverageWhere, status: 'PENDING_QUOTES' } }),
+      prisma.labQuote.count({ where: { laboratoryId: lab.id, status: 'SENT' } }),
+      prisma.labQuote.count({ where: { laboratoryId: lab.id, status: 'ACCEPTED' } }),
+      prisma.labAppointment.count({ where: { laboratoryId: lab.id, request: { status: 'SCHEDULED' } } }),
+      prisma.labAppointment.count({ where: { laboratoryId: lab.id, request: { status: 'RESULTS_READY' } } }),
     ]);
-
-    res.json({
-      data: {
-        counts: { pending, inReview, quoted, scheduled, resultsReady },
-        laboratory: { id: lab.id, name: lab.name },
-      },
-    });
+    res.json({ data: { counts: { pendingQuotes, quotedByMe, selectedByMe, scheduled, resultsReady }, laboratory: { id: lab.id, name: lab.name } } });
   } catch (e: any) {
     res.status(500).json({ error: true, message: e.message });
   }
 });
 
-// GET /laboratory/requests
-router.get('/requests', async (req: Request, res: Response) => {
+router.get('/requests', async (req, res) => {
   try {
     const lab = await labFromReq(req);
     if (!lab) return res.status(400).json({ error: true, message: 'Perfil de laboratorio no encontrado' });
-
     const status = req.query.status as string | undefined;
-    const where: any = { laboratoryId: lab.id };
-    if (status) where.status = status;
-
+    const coverageWhere: any = buildCoverageWhere(lab);
     const list = await prisma.labExamRequest.findMany({
-      where,
+      where: {
+        ...(status ? { status: status as any } : {}),
+        AND: [
+          {
+            OR: [
+              { quotes: { some: { laboratoryId: lab.id } } },
+              { selectedQuote: { laboratoryId: lab.id } },
+              { appointments: { some: { laboratoryId: lab.id } } },
+              {
+                AND: [
+                  coverageWhere,
+                  { status: { in: ['PENDING_QUOTES', 'QUOTED'] } },
+                ],
+              },
+            ],
+          },
+        ],
+      },
       orderBy: { createdAt: 'desc' },
       include: {
-        quote: true,
-        appointments: { orderBy: { startAt: 'desc' }, take: 1 },
+        quotes: { where: { laboratoryId: lab.id }, orderBy: { createdAt: 'desc' }, take: 1 },
+        selectedQuote: true,
+        appointments: { where: { laboratoryId: lab.id }, orderBy: { startAt: 'desc' }, take: 1 },
         results: true,
         patient: { include: { user: { select: { email: true, firstName: true, lastName: true } } } },
       },
@@ -125,17 +136,25 @@ router.get('/requests', async (req: Request, res: Response) => {
   }
 });
 
-// GET /laboratory/requests/:id
-router.get('/requests/:id', async (req: Request, res: Response) => {
+router.get('/requests/:id', async (req, res) => {
   try {
     const lab = await labFromReq(req);
     if (!lab) return res.status(400).json({ error: true, message: 'Perfil de laboratorio no encontrado' });
-
+    const coverageWhere: any = buildCoverageWhere(lab);
     const r = await prisma.labExamRequest.findFirst({
-      where: { id: req.params.id, laboratoryId: lab.id },
+      where: {
+        id: req.params.id,
+        OR: [
+          { quotes: { some: { laboratoryId: lab.id } } },
+          { selectedQuote: { laboratoryId: lab.id } },
+          { appointments: { some: { laboratoryId: lab.id } } },
+          coverageWhere,
+        ],
+      },
       include: {
-        quote: true,
-        appointments: { orderBy: { startAt: 'desc' } },
+        quotes: { where: { laboratoryId: lab.id }, orderBy: { createdAt: 'desc' }, take: 1 },
+        selectedQuote: true,
+        appointments: { where: { laboratoryId: lab.id }, orderBy: { startAt: 'desc' } },
         results: true,
         events: { orderBy: { createdAt: 'asc' } },
         patient: { include: { user: { select: { email: true, firstName: true, lastName: true } } } },
@@ -148,167 +167,56 @@ router.get('/requests/:id', async (req: Request, res: Response) => {
   }
 });
 
-// POST /laboratory/requests/:id/review — pasa a IN_REVIEW
-router.post('/requests/:id/review', async (req: Request, res: Response) => {
+router.post('/requests/:id/quote', async (req, res) => {
   try {
     const lab = await labFromReq(req);
     if (!lab) return res.status(400).json({ error: true, message: 'Perfil de laboratorio no encontrado' });
+    const { priceClp, proposedDate, proposedTimeRange, comment, estimatedResultsHours } = req.body;
+    if (typeof priceClp !== 'number' || priceClp <= 0) return res.status(400).json({ error: true, message: 'Precio inválido' });
 
     const r = await prisma.labExamRequest.findFirst({
-      where: { id: req.params.id, laboratoryId: lab.id },
+      where: { id: req.params.id, ...buildCoverageWhere(lab), status: { in: ['PENDING_QUOTES', 'QUOTED'] } },
+      include: { quotes: { where: { laboratoryId: lab.id } } },
     });
-    if (!r) return res.status(404).json({ error: true, message: 'Solicitud no encontrada' });
-    if (r.status !== 'PENDING') {
-      return res.status(400).json({ error: true, message: 'Solo se puede marcar revisión desde PENDING' });
-    }
-
-    await prisma.labExamRequest.update({
-      where: { id: r.id },
-      data: { status: 'IN_REVIEW' },
-    });
-    await addLabEvent(r.id, 'IN_REVIEW', 'Solicitud en revisión');
-
-    const full = await prisma.labExamRequest.findFirst({
-      where: { id: r.id },
-      include: {
-        quote: true,
-        appointments: true,
-        results: true,
-        events: { orderBy: { createdAt: 'asc' } },
-        patient: { include: { user: { select: { email: true, firstName: true, lastName: true } } } },
-      },
-    });
-    res.json({ data: mapLabRequest(full!) });
-  } catch (e: any) {
-    res.status(500).json({ error: true, message: e.message });
-  }
-});
-
-// POST /laboratory/requests/:id/reject
-router.post('/requests/:id/reject', async (req: Request, res: Response) => {
-  try {
-    const lab = await labFromReq(req);
-    if (!lab) return res.status(400).json({ error: true, message: 'Perfil de laboratorio no encontrado' });
-
-    const reason = String(req.body?.reason || '').trim();
-    if (!reason) return res.status(400).json({ error: true, message: 'Indica el motivo de rechazo' });
-
-    const r = await prisma.labExamRequest.findFirst({
-      where: { id: req.params.id, laboratoryId: lab.id },
-    });
-    if (!r) return res.status(404).json({ error: true, message: 'Solicitud no encontrada' });
-    if (!['PENDING', 'IN_REVIEW'].includes(r.status)) {
-      return res.status(400).json({ error: true, message: 'No se puede rechazar en este estado' });
-    }
-
-    await prisma.labExamRequest.update({
-      where: { id: r.id },
-      data: { status: 'REJECTED', labRejectionReason: reason },
-    });
-    await addLabEvent(r.id, 'REJECTED', `Solicitud rechazada: ${reason}`);
-
-    const uid = await getPatientUserId(r.patientId);
-    if (uid) {
-      await notifyUser(
-        uid,
-        'LAB_REJECTED',
-        'Solicitud de exámenes rechazada',
-        `El laboratorio rechazó la solicitud ${formatLabDisplayId(r.displayNumber)}: ${reason}`,
-        `/dashboard/patient/examenes-domicilio`
-      );
-    }
-
-    const full = await prisma.labExamRequest.findFirst({
-      where: { id: r.id },
-      include: {
-        quote: true,
-        appointments: true,
-        results: true,
-        events: { orderBy: { createdAt: 'asc' } },
-        patient: { include: { user: { select: { email: true, firstName: true, lastName: true } } } },
-      },
-    });
-    res.json({ data: mapLabRequest(full!) });
-  } catch (e: any) {
-    res.status(500).json({ error: true, message: e.message });
-  }
-});
-
-// POST /laboratory/requests/:id/quote
-router.post('/requests/:id/quote', async (req: Request, res: Response) => {
-  try {
-    const lab = await labFromReq(req);
-    if (!lab) return res.status(400).json({ error: true, message: 'Perfil de laboratorio no encontrado' });
-
-    const {
-      priceClp,
-      proposedVisitAt,
-      proposedVisitEndAt,
-      labObservations,
-      estimatedResultsHours,
-    } = req.body;
-
-    if (typeof priceClp !== 'number' || priceClp < 0) {
-      return res.status(400).json({ error: true, message: 'Precio inválido' });
-    }
-
-    const r = await prisma.labExamRequest.findFirst({
-      where: { id: req.params.id, laboratoryId: lab.id },
-      include: { quote: true },
-    });
-    if (!r) return res.status(404).json({ error: true, message: 'Solicitud no encontrada' });
-    if (!['PENDING', 'IN_REVIEW'].includes(r.status)) {
-      return res.status(400).json({ error: true, message: 'No se puede cotizar en este estado' });
-    }
-
-    const visitAt = proposedVisitAt ? new Date(proposedVisitAt) : null;
-    const visitEnd = proposedVisitEndAt ? new Date(proposedVisitEndAt) : null;
+    if (!r) return res.status(404).json({ error: true, message: 'Solicitud no encontrada o no disponible para cotizar' });
+    if (r.quoteDeadlineAt.getTime() < Date.now()) return res.status(400).json({ error: true, message: 'Plazo de cotización vencido' });
+    if (r.selectedQuoteId) return res.status(400).json({ error: true, message: 'La solicitud ya tiene laboratorio seleccionado' });
 
     await prisma.$transaction(async (tx) => {
       await tx.labQuote.upsert({
-        where: { requestId: r.id },
+        where: { requestId_laboratoryId: { requestId: r.id, laboratoryId: lab.id } },
         create: {
           requestId: r.id,
+          laboratoryId: lab.id,
+          status: 'SENT',
           priceClp,
-          proposedVisitAt: visitAt,
-          proposedVisitEndAt: visitEnd,
-          labObservations: labObservations ? String(labObservations) : null,
-          estimatedResultsHours:
-            typeof estimatedResultsHours === 'number' ? estimatedResultsHours : null,
+          proposedDate: proposedDate ? new Date(proposedDate) : null,
+          proposedTimeRange: proposedTimeRange ? String(proposedTimeRange) : null,
+          comment: comment ? String(comment) : null,
+          estimatedResultsHours: typeof estimatedResultsHours === 'number' ? estimatedResultsHours : null,
         },
         update: {
+          status: 'SENT',
           priceClp,
-          proposedVisitAt: visitAt,
-          proposedVisitEndAt: visitEnd,
-          labObservations: labObservations ? String(labObservations) : null,
-          estimatedResultsHours:
-            typeof estimatedResultsHours === 'number' ? estimatedResultsHours : null,
+          proposedDate: proposedDate ? new Date(proposedDate) : null,
+          proposedTimeRange: proposedTimeRange ? String(proposedTimeRange) : null,
+          comment: comment ? String(comment) : null,
+          estimatedResultsHours: typeof estimatedResultsHours === 'number' ? estimatedResultsHours : null,
         },
       });
-      await tx.labExamRequest.update({
-        where: { id: r.id },
-        data: { status: 'QUOTED' },
-      });
+      await tx.labExamRequest.update({ where: { id: r.id }, data: { status: 'QUOTED' } });
     });
 
-    await addLabEvent(r.id, 'QUOTED', `Cotización emitida: $${priceClp.toLocaleString('es-CL')} CLP`);
-
+    await addLabEvent(r.id, 'QUOTE_SENT', `${lab.name} envió cotización por $${priceClp.toLocaleString('es-CL')} CLP`);
     const uid = await getPatientUserId(r.patientId);
-    if (uid) {
-      await notifyUser(
-        uid,
-        'LAB_QUOTED',
-        'Cotización disponible',
-        `Tienes una cotización para ${formatLabDisplayId(r.displayNumber)}. Revisa precio y fecha propuesta.`,
-        `/dashboard/patient/examenes-domicilio`
-      );
-    }
+    if (uid) await notifyUser(uid, 'LAB_QUOTED', 'Nueva cotización disponible', `Recibiste una cotización para ${formatLabDisplayId(r.displayNumber)}.`, `/dashboard/patient/examenes-domicilio`);
 
-    const full = await prisma.labExamRequest.findFirst({
+    const full = await prisma.labExamRequest.findUnique({
       where: { id: r.id },
       include: {
-        quote: true,
-        appointments: true,
+        quotes: { where: { laboratoryId: lab.id }, orderBy: { createdAt: 'desc' }, take: 1 },
+        selectedQuote: true,
+        appointments: { where: { laboratoryId: lab.id }, orderBy: { startAt: 'desc' } },
         results: true,
         events: { orderBy: { createdAt: 'asc' } },
         patient: { include: { user: { select: { email: true, firstName: true, lastName: true } } } },
@@ -320,68 +228,33 @@ router.post('/requests/:id/quote', async (req: Request, res: Response) => {
   }
 });
 
-// POST /laboratory/requests/:id/schedule — requiere PATIENT_ACCEPTED
-router.post('/requests/:id/schedule', async (req: Request, res: Response) => {
+router.post('/requests/:id/schedule', async (req, res) => {
   try {
     const lab = await labFromReq(req);
     if (!lab) return res.status(400).json({ error: true, message: 'Perfil de laboratorio no encontrado' });
-
     const { startAt, endAt, notes } = req.body;
     if (!startAt) return res.status(400).json({ error: true, message: 'startAt requerido' });
 
     const r = await prisma.labExamRequest.findFirst({
-      where: { id: req.params.id, laboratoryId: lab.id },
+      where: { id: req.params.id, selectedQuote: { laboratoryId: lab.id }, status: 'LAB_SELECTED' },
     });
-    if (!r) return res.status(404).json({ error: true, message: 'Solicitud no encontrada' });
-    if (r.status !== 'PATIENT_ACCEPTED' && r.status !== 'QUOTED') {
-      return res.status(400).json({
-        error: true,
-        message: 'Agenda solo con cotización aceptada o tras cotización (flujo flexible)',
-      });
-    }
-
-    // Si aún está QUOTED pero paciente no aceptó, no agendar — exigir PATIENT_ACCEPTED
-    if (r.status === 'QUOTED') {
-      return res.status(400).json({ error: true, message: 'El paciente debe aceptar la cotización antes de agendar' });
-    }
+    if (!r) return res.status(404).json({ error: true, message: 'Solicitud no encontrada o no seleccionada para tu laboratorio' });
 
     const start = new Date(startAt);
     const end = endAt ? new Date(endAt) : new Date(start.getTime() + 60 * 60 * 1000);
-
     await prisma.$transaction(async (tx) => {
-      await tx.labAppointment.create({
-        data: {
-          requestId: r.id,
-          laboratoryId: lab.id,
-          startAt: start,
-          endAt: end,
-          notes: notes ? String(notes) : null,
-        },
-      });
-      await tx.labExamRequest.update({
-        where: { id: r.id },
-        data: { status: 'SCHEDULED' },
-      });
+      await tx.labAppointment.create({ data: { requestId: r.id, laboratoryId: lab.id, startAt: start, endAt: end, notes: notes ? String(notes) : null } });
+      await tx.labExamRequest.update({ where: { id: r.id }, data: { status: 'SCHEDULED' } });
     });
-
     await addLabEvent(r.id, 'SCHEDULED', `Visita agendada: ${start.toISOString()}`);
-
     const uid = await getPatientUserId(r.patientId);
-    if (uid) {
-      await notifyUser(
-        uid,
-        'LAB_SCHEDULED',
-        'Visita agendada',
-        `Se agendó la toma de muestras para ${formatLabDisplayId(r.displayNumber)}.`,
-        `/dashboard/patient/examenes-domicilio`
-      );
-    }
-
-    const full = await prisma.labExamRequest.findFirst({
+    if (uid) await notifyUser(uid, 'LAB_SCHEDULED', 'Visita agendada', `Se agendó la toma de muestras para ${formatLabDisplayId(r.displayNumber)}.`, `/dashboard/patient/examenes-domicilio`);
+    const full = await prisma.labExamRequest.findUnique({
       where: { id: r.id },
       include: {
-        quote: true,
-        appointments: true,
+        quotes: { where: { laboratoryId: lab.id }, orderBy: { createdAt: 'desc' }, take: 1 },
+        selectedQuote: true,
+        appointments: { where: { laboratoryId: lab.id }, orderBy: { startAt: 'desc' } },
         results: true,
         events: { orderBy: { createdAt: 'asc' } },
         patient: { include: { user: { select: { email: true, firstName: true, lastName: true } } } },
@@ -393,294 +266,136 @@ router.post('/requests/:id/schedule', async (req: Request, res: Response) => {
   }
 });
 
-// PATCH /laboratory/appointments/:appointmentId
-router.patch('/appointments/:appointmentId', async (req: Request, res: Response) => {
+router.patch('/appointments/:appointmentId', async (req, res) => {
   try {
     const lab = await labFromReq(req);
     if (!lab) return res.status(400).json({ error: true, message: 'Perfil de laboratorio no encontrado' });
-
-    const ap = await prisma.labAppointment.findFirst({
-      where: { id: req.params.appointmentId, laboratoryId: lab.id },
-    });
+    const ap = await prisma.labAppointment.findFirst({ where: { id: req.params.appointmentId, laboratoryId: lab.id } });
     if (!ap) return res.status(404).json({ error: true, message: 'Cita no encontrada' });
-
     const { startAt, endAt, notes, status } = req.body;
     const data: any = {};
     if (startAt) data.startAt = new Date(startAt);
     if (endAt) data.endAt = new Date(endAt);
     if (notes !== undefined) data.notes = String(notes);
     if (status && ['SCHEDULED', 'COMPLETED', 'CANCELLED'].includes(status)) data.status = status;
-
     await prisma.labAppointment.update({ where: { id: ap.id }, data });
-
     await addLabEvent(ap.requestId, 'RESCHEDULED', 'Cita actualizada');
-
-    const full = await prisma.labExamRequest.findFirst({
-      where: { id: ap.requestId },
-      include: {
-        quote: true,
-        appointments: true,
-        results: true,
-        events: { orderBy: { createdAt: 'asc' } },
-        patient: { include: { user: { select: { email: true, firstName: true, lastName: true } } } },
-      },
-    });
-    res.json({ data: mapLabRequest(full!) });
+    res.json({ data: { ok: true } });
   } catch (e: any) {
     res.status(500).json({ error: true, message: e.message });
   }
 });
 
-// POST /laboratory/requests/:id/sample-collected
-router.post('/requests/:id/sample-collected', async (req: Request, res: Response) => {
+router.post('/requests/:id/sample-collected', async (req, res) => {
   try {
     const lab = await labFromReq(req);
     if (!lab) return res.status(400).json({ error: true, message: 'Perfil de laboratorio no encontrado' });
-
-    const r = await prisma.labExamRequest.findFirst({
-      where: { id: req.params.id, laboratoryId: lab.id },
-    });
+    const r = await prisma.labExamRequest.findFirst({ where: { id: req.params.id, selectedQuote: { laboratoryId: lab.id } } });
     if (!r) return res.status(404).json({ error: true, message: 'Solicitud no encontrada' });
-    if (r.status !== 'SCHEDULED') {
-      return res.status(400).json({ error: true, message: 'La muestra solo se registra con visita agendada' });
-    }
-
-    await prisma.labExamRequest.update({
-      where: { id: r.id },
-      data: { status: 'SAMPLE_COLLECTED' },
-    });
+    if (r.status !== 'SCHEDULED') return res.status(400).json({ error: true, message: 'La muestra solo se registra con visita agendada' });
+    await prisma.labExamRequest.update({ where: { id: r.id }, data: { status: 'SAMPLE_COLLECTED' } });
     await addLabEvent(r.id, 'SAMPLE_COLLECTED', 'Muestra tomada');
-
-    const full = await prisma.labExamRequest.findFirst({
-      where: { id: r.id },
-      include: {
-        quote: true,
-        appointments: true,
-        results: true,
-        events: { orderBy: { createdAt: 'asc' } },
-        patient: { include: { user: { select: { email: true, firstName: true, lastName: true } } } },
-      },
-    });
-    res.json({ data: mapLabRequest(full!) });
+    res.json({ data: { ok: true } });
   } catch (e: any) {
     res.status(500).json({ error: true, message: e.message });
   }
 });
 
-// POST /laboratory/requests/:id/results — multipart + publicar
-router.post(
-  '/requests/:id/results',
-  resultUpload.single('file'),
-  async (req: Request, res: Response) => {
-    try {
-      const lab = await labFromReq(req);
-      if (!lab) return res.status(400).json({ error: true, message: 'Perfil de laboratorio no encontrado' });
-
-      const file = req.file;
-      if (!file) return res.status(400).json({ error: true, message: 'Archivo requerido' });
-
-      const observations = req.body?.observations ? String(req.body.observations) : null;
-      const publish = req.body?.publish === 'true' || req.body?.publish === true;
-
-      const r = await prisma.labExamRequest.findFirst({
-        where: { id: req.params.id, laboratoryId: lab.id },
-      });
-      if (!r) return res.status(404).json({ error: true, message: 'Solicitud no encontrada' });
-      if (!['SCHEDULED', 'SAMPLE_COLLECTED'].includes(r.status)) {
-        return res.status(400).json({ error: true, message: 'Resultados solo tras visita o muestra' });
-      }
-
-      const relative = `results/${file.filename}`;
-      const fileUrl = `/uploads/lab/${relative}`;
-
-      const created = await prisma.labResult.create({
-        data: {
-          requestId: r.id,
-          fileUrl,
-          fileName: file.originalname,
-          mimeType: file.mimetype,
-          observations,
-          published: publish,
-          publishedAt: publish ? new Date() : null,
-        },
-      });
-
-      if (publish) {
-        await prisma.labExamRequest.update({
-          where: { id: r.id },
-          data: { status: 'RESULTS_READY' },
-        });
-        await addLabEvent(r.id, 'RESULTS_READY', 'Resultados publicados');
-        const uid = await getPatientUserId(r.patientId);
-        if (uid) {
-          await notifyUser(
-            uid,
-            'LAB_RESULTS',
-            'Resultados disponibles',
-            `Ya puedes descargar los resultados de ${formatLabDisplayId(r.displayNumber)}.`,
-            `/dashboard/patient/examenes-domicilio`
-          );
-        }
-      } else {
-        await addLabEvent(r.id, 'RESULT_UPLOADED', 'Resultado cargado (borrador)');
-      }
-
-      const full = await prisma.labExamRequest.findFirst({
-        where: { id: r.id },
-        include: {
-          quote: true,
-          appointments: true,
-          results: true,
-          events: { orderBy: { createdAt: 'asc' } },
-          patient: { include: { user: { select: { email: true, firstName: true, lastName: true } } } },
-        },
-      });
-      res.status(201).json({ data: { request: mapLabRequest(full!), result: created } });
-    } catch (e: any) {
-      res.status(500).json({ error: true, message: e.message });
-    }
-  }
-);
-
-// POST /laboratory/results/:resultId/publish
-router.post('/results/:resultId/publish', async (req: Request, res: Response) => {
+router.post('/requests/:id/results', resultUpload.single('file'), async (req, res) => {
   try {
     const lab = await labFromReq(req);
     if (!lab) return res.status(400).json({ error: true, message: 'Perfil de laboratorio no encontrado' });
+    const file = req.file;
+    if (!file) return res.status(400).json({ error: true, message: 'Archivo requerido' });
+    const observations = req.body?.observations ? String(req.body.observations) : null;
+    const publish = req.body?.publish === 'true' || req.body?.publish === true;
+    const r = await prisma.labExamRequest.findFirst({ where: { id: req.params.id, selectedQuote: { laboratoryId: lab.id } } });
+    if (!r) return res.status(404).json({ error: true, message: 'Solicitud no encontrada' });
+    if (!['SCHEDULED', 'SAMPLE_COLLECTED'].includes(r.status)) return res.status(400).json({ error: true, message: 'Resultados solo tras visita o muestra' });
+    const fileUrl = `/uploads/lab/results/${file.filename}`;
+    const created = await prisma.labResult.create({
+      data: { requestId: r.id, fileUrl, fileName: file.originalname, mimeType: file.mimetype, observations, published: publish, publishedAt: publish ? new Date() : null },
+    });
+    if (publish) {
+      await prisma.labExamRequest.update({ where: { id: r.id }, data: { status: 'RESULTS_READY' } });
+      await addLabEvent(r.id, 'RESULTS_READY', 'Resultados publicados');
+      const uid = await getPatientUserId(r.patientId);
+      if (uid) await notifyUser(uid, 'LAB_RESULTS', 'Resultados disponibles', `Ya puedes descargar los resultados de ${formatLabDisplayId(r.displayNumber)}.`, `/dashboard/patient/examenes-domicilio`);
+    } else {
+      await addLabEvent(r.id, 'RESULT_UPLOADED', 'Resultado cargado (borrador)');
+    }
+    res.status(201).json({ data: { result: created } });
+  } catch (e: any) {
+    res.status(500).json({ error: true, message: e.message });
+  }
+});
 
+router.post('/results/:resultId/publish', async (req, res) => {
+  try {
+    const lab = await labFromReq(req);
+    if (!lab) return res.status(400).json({ error: true, message: 'Perfil de laboratorio no encontrado' });
     const result = await prisma.labResult.findFirst({
-      where: { id: req.params.resultId, request: { laboratoryId: lab.id } },
+      where: { id: req.params.resultId, request: { selectedQuote: { laboratoryId: lab.id } } },
       include: { request: { select: { id: true, patientId: true, displayNumber: true } } },
     });
     if (!result) return res.status(404).json({ error: true, message: 'Resultado no encontrado' });
-
-    await prisma.labResult.update({
-      where: { id: result.id },
-      data: { published: true, publishedAt: new Date() },
-    });
-    await prisma.labExamRequest.update({
-      where: { id: result.requestId },
-      data: { status: 'RESULTS_READY' },
-    });
+    await prisma.labResult.update({ where: { id: result.id }, data: { published: true, publishedAt: new Date() } });
+    await prisma.labExamRequest.update({ where: { id: result.requestId }, data: { status: 'RESULTS_READY' } });
     await addLabEvent(result.requestId, 'RESULTS_READY', 'Resultados publicados');
-
     const uid = await getPatientUserId(result.request.patientId);
-    if (uid) {
-      await notifyUser(
-        uid,
-        'LAB_RESULTS',
-        'Resultados disponibles',
-        `Ya puedes descargar tus exámenes (${formatLabDisplayId(result.request.displayNumber)}).`,
-        `/dashboard/patient/examenes-domicilio`
-      );
-    }
-
-    const full = await prisma.labExamRequest.findFirst({
-      where: { id: result.requestId },
-      include: {
-        quote: true,
-        appointments: true,
-        results: true,
-        events: { orderBy: { createdAt: 'asc' } },
-        patient: { include: { user: { select: { email: true, firstName: true, lastName: true } } } },
-      },
-    });
-    res.json({ data: mapLabRequest(full!) });
+    if (uid) await notifyUser(uid, 'LAB_RESULTS', 'Resultados disponibles', `Ya puedes descargar tus exámenes (${formatLabDisplayId(result.request.displayNumber)}).`, `/dashboard/patient/examenes-domicilio`);
+    res.json({ data: { ok: true } });
   } catch (e: any) {
     res.status(500).json({ error: true, message: e.message });
   }
 });
 
-// POST /laboratory/requests/:id/complete
-router.post('/requests/:id/complete', async (req: Request, res: Response) => {
+router.post('/requests/:id/complete', async (req, res) => {
   try {
     const lab = await labFromReq(req);
     if (!lab) return res.status(400).json({ error: true, message: 'Perfil de laboratorio no encontrado' });
-
-    const r = await prisma.labExamRequest.findFirst({
-      where: { id: req.params.id, laboratoryId: lab.id },
-    });
+    const r = await prisma.labExamRequest.findFirst({ where: { id: req.params.id, selectedQuote: { laboratoryId: lab.id } } });
     if (!r) return res.status(404).json({ error: true, message: 'Solicitud no encontrada' });
-    if (r.status !== 'RESULTS_READY') {
-      return res.status(400).json({ error: true, message: 'Solo se completa tras resultados listos' });
-    }
-
-    await prisma.labExamRequest.update({
-      where: { id: r.id },
-      data: { status: 'COMPLETED' },
-    });
+    if (r.status !== 'RESULTS_READY') return res.status(400).json({ error: true, message: 'Solo se completa tras resultados listos' });
+    await prisma.labExamRequest.update({ where: { id: r.id }, data: { status: 'COMPLETED' } });
     await addLabEvent(r.id, 'COMPLETED', 'Atención completada');
-
-    const full = await prisma.labExamRequest.findFirst({
-      where: { id: r.id },
-      include: {
-        quote: true,
-        appointments: true,
-        results: true,
-        events: { orderBy: { createdAt: 'asc' } },
-        patient: { include: { user: { select: { email: true, firstName: true, lastName: true } } } },
-      },
-    });
-    res.json({ data: mapLabRequest(full!) });
+    res.json({ data: { ok: true } });
   } catch (e: any) {
     res.status(500).json({ error: true, message: e.message });
   }
 });
 
-// GET /laboratory/calendar?from=&to=
-router.get('/calendar', async (req: Request, res: Response) => {
+router.get('/calendar', async (req, res) => {
   try {
     const lab = await labFromReq(req);
     if (!lab) return res.status(400).json({ error: true, message: 'Perfil de laboratorio no encontrado' });
-
     const from = req.query.from ? new Date(String(req.query.from)) : new Date();
     const to = req.query.to ? new Date(String(req.query.to)) : new Date(from.getTime() + 30 * 24 * 60 * 60 * 1000);
-
     const [appointments, blocked] = await Promise.all([
       prisma.labAppointment.findMany({
-        where: {
-          laboratoryId: lab.id,
-          startAt: { gte: from, lte: to },
-        },
+        where: { laboratoryId: lab.id, startAt: { gte: from, lte: to } },
         orderBy: { startAt: 'asc' },
-        include: {
-          request: { select: { id: true, displayNumber: true, patientName: true, status: true } },
-        },
+        include: { request: { select: { id: true, displayNumber: true, patientName: true, status: true } } },
       }),
       prisma.labBlockedSlot.findMany({
-        where: {
-          laboratoryId: lab.id,
-          date: { gte: from, lte: to },
-        },
+        where: { laboratoryId: lab.id, date: { gte: from, lte: to } },
         orderBy: { date: 'asc' },
       }),
     ]);
-
     res.json({ data: { appointments, blocked } });
   } catch (e: any) {
     res.status(500).json({ error: true, message: e.message });
   }
 });
 
-// POST /laboratory/blocked-slots
-router.post('/blocked-slots', async (req: Request, res: Response) => {
+router.post('/blocked-slots', async (req, res) => {
   try {
     const lab = await labFromReq(req);
     if (!lab) return res.status(400).json({ error: true, message: 'Perfil de laboratorio no encontrado' });
-
     const { date, startTime, endTime, reason } = req.body;
-    if (!date || !startTime || !endTime) {
-      return res.status(400).json({ error: true, message: 'date, startTime y endTime requeridos' });
-    }
-
+    if (!date || !startTime || !endTime) return res.status(400).json({ error: true, message: 'date, startTime y endTime requeridos' });
     const created = await prisma.labBlockedSlot.create({
-      data: {
-        laboratoryId: lab.id,
-        date: new Date(date),
-        startTime: String(startTime),
-        endTime: String(endTime),
-        reason: reason ? String(reason) : null,
-      },
+      data: { laboratoryId: lab.id, date: new Date(date), startTime: String(startTime), endTime: String(endTime), reason: reason ? String(reason) : null },
     });
     res.status(201).json({ data: created });
   } catch (e: any) {
@@ -688,15 +403,11 @@ router.post('/blocked-slots', async (req: Request, res: Response) => {
   }
 });
 
-// DELETE /laboratory/blocked-slots/:id
-router.delete('/blocked-slots/:id', async (req: Request, res: Response) => {
+router.delete('/blocked-slots/:id', async (req, res) => {
   try {
     const lab = await labFromReq(req);
     if (!lab) return res.status(400).json({ error: true, message: 'Perfil de laboratorio no encontrado' });
-
-    const del = await prisma.labBlockedSlot.deleteMany({
-      where: { id: req.params.id, laboratoryId: lab.id },
-    });
+    const del = await prisma.labBlockedSlot.deleteMany({ where: { id: req.params.id, laboratoryId: lab.id } });
     if (del.count === 0) return res.status(404).json({ error: true, message: 'Bloqueo no encontrado' });
     res.json({ message: 'Eliminado' });
   } catch (e: any) {

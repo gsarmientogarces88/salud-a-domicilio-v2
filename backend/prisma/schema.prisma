@@ -414,15 +414,15 @@ model AppointmentPayment {
 // ========== LABORATORIOS Y EXÁMENES A DOMICILIO ==========
 
 enum LabExamRequestStatus {
-  PENDING
-  IN_REVIEW
+  DRAFT
+  PENDING_QUOTES
   QUOTED
-  REJECTED
-  PATIENT_ACCEPTED
+  LAB_SELECTED
   SCHEDULED
   SAMPLE_COLLECTED
   RESULTS_READY
   COMPLETED
+  EXPIRED
   CANCELLED
 }
 
@@ -430,6 +430,13 @@ enum LabAppointmentStatus {
   SCHEDULED
   COMPLETED
   CANCELLED
+}
+
+enum LabQuoteStatus {
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
 }
 
 model Laboratory {
@@ -446,7 +453,7 @@ model Laboratory {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  labExamRequests LabExamRequest[]
+  quotes          LabQuote[]
   blockedSlots    LabBlockedSlot[]
   appointments    LabAppointment[]
 
@@ -458,45 +465,61 @@ model LabExamRequest {
   displayNumber         Int                  @unique @default(autoincrement())
   patientId             String
   patient               PatientProfile       @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  laboratoryId          String
-  laboratory            Laboratory           @relation(fields: [laboratoryId], references: [id], onDelete: Cascade)
-  status                LabExamRequestStatus @default(PENDING)
+  status                LabExamRequestStatus @default(PENDING_QUOTES)
   patientName           String
   examRequested         String
   address               String
+  region                String
+  province              String               @map("city")
   commune               String
   phone                 String
+  email                 String
   observationsPatient   String?
-  preferredTime         String?
+  preferredDate         DateTime?
+  preferredTimeRange    String?
+  latitude              Float?
+  longitude             Float?
   orderFileUrl          String?
   orderFileName         String?
+  quoteDeadlineAt       DateTime
+  selectedQuoteId       String?
   labRejectionReason    String?
   createdAt             DateTime             @default(now())
   updatedAt             DateTime             @updatedAt
 
-  quote         LabQuote?
+  selectedQuote LabQuote?            @relation("SelectedLabQuote", fields: [selectedQuoteId], references: [id])
+  quotes        LabQuote[]
   appointments  LabAppointment[]
   results       LabResult[]
   events        LabExamEvent[]
 
-  @@index([laboratoryId, status])
   @@index([patientId])
   @@index([status])
+  @@index([quoteDeadlineAt])
+  @@index([commune, status])
+  @@index([province, status])
   @@map("lab_exam_requests")
 }
 
 model LabQuote {
   id                    String   @id @default(cuid())
-  requestId             String   @unique
+  requestId             String
   request               LabExamRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  laboratoryId          String
+  laboratory            Laboratory     @relation(fields: [laboratoryId], references: [id], onDelete: Cascade)
+  status                LabQuoteStatus @default(SENT)
   priceClp              Int
-  proposedVisitAt       DateTime?
-  proposedVisitEndAt    DateTime?
-  labObservations       String?
+  proposedDate          DateTime?
+  proposedTimeRange     String?
+  comment               String?
   estimatedResultsHours Int?
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
+  selectedByRequest     LabExamRequest[] @relation("SelectedLabQuote")
 
+  @@unique([requestId, laboratoryId])
+  @@index([requestId, status])
+  @@index([laboratoryId, status])
   @@map("lab_quotes")
 }
 

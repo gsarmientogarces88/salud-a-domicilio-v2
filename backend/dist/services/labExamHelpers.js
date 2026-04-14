@@ -24,5 +24,5 @@ async function getPatientUserId(patientProfileId) {
     return p?.userId ?? null;
 }
 function isTerminalPatientStatus(s) {
-    return s === 'REJECTED' || s === 'CANCELLED' || s === 'COMPLETED';
+    return s === 'EXPIRED' || s === 'CANCELLED' || s === 'COMPLETED';
 }

@@ -1,24 +1,28 @@
 /** Tipos alineados con GET /api/patient/lab-exams */
 
 export type LabExamRequestStatusApi =
-  | 'PENDING'
-  | 'IN_REVIEW'
+  | 'DRAFT'
+  | 'PENDING_QUOTES'
   | 'QUOTED'
-  | 'REJECTED'
-  | 'PATIENT_ACCEPTED'
+  | 'LAB_SELECTED'
   | 'SCHEDULED'
   | 'SAMPLE_COLLECTED'
   | 'RESULTS_READY'
   | 'COMPLETED'
+  | 'EXPIRED'
   | 'CANCELLED';
 
 export interface LabQuoteApi {
   id: string;
+  status: 'SENT' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED';
+  laboratory: { id: string; name: string; phone?: string | null } | null;
   priceClp: number;
-  proposedVisitAt: string | null;
-  proposedVisitEndAt: string | null;
-  labObservations: string | null;
+  proposedDate: string | null;
+  proposedTimeRange: string | null;
+  comment: string | null;
   estimatedResultsHours: number | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface LabResultApi {
@@ -44,15 +48,23 @@ export interface PatientLabExamRequestDto {
   patientName: string;
   examRequested: string;
   address: string;
+  region: string;
+  province: string;
   commune: string;
   phone: string;
+  email: string;
   observationsPatient?: string | null;
-  preferredTime?: string | null;
+  preferredDate?: string | null;
+  preferredTimeRange?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  quoteDeadlineAt: string;
+  selectedQuoteId?: string | null;
   orderFileUrl?: string | null;
   orderFileName?: string | null;
   labRejectionReason?: string | null;
-  laboratory?: { id: string; name: string; phone?: string | null } | null;
-  quote: LabQuoteApi | null;
+  selectedQuote?: LabQuoteApi | null;
+  quotes: LabQuoteApi[];
   appointments: { id: string; startAt: string; endAt: string | null; status: string; notes?: string | null }[];
   results: LabResultApi[];
   events: LabExamEventApi[];

@@ -2009,6 +2009,10 @@ video {
 .ring-emerald-200\/80 {
   --tw-ring-color: rgb(167 243 208 / 0.8);
 }
+.ring-emerald-50 {
+  --tw-ring-opacity: 1;
+  --tw-ring-color: rgb(236 253 245 / var(--tw-ring-opacity, 1));
+}
 .ring-gray-100 {
   --tw-ring-opacity: 1;
   --tw-ring-color: rgb(243 244 246 / var(--tw-ring-opacity, 1));
@@ -2054,10 +2058,6 @@ video {
 .ring-teal-100 {
   --tw-ring-opacity: 1;
   --tw-ring-color: rgb(204 251 241 / var(--tw-ring-opacity, 1));
-}
-.ring-teal-200 {
-  --tw-ring-opacity: 1;
-  --tw-ring-color: rgb(153 246 228 / var(--tw-ring-opacity, 1));
 }
 .ring-teal-50 {
   --tw-ring-opacity: 1;

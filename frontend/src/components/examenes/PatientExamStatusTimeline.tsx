@@ -4,10 +4,9 @@ import type { LabExamRequestStatusApi } from '@/lib/labExamTypes';
 import { getLabApiStatusLabel } from '@/lib/labExamStatusApi';
 
 const FLOW: LabExamRequestStatusApi[] = [
-  'PENDING',
-  'IN_REVIEW',
+  'PENDING_QUOTES',
   'QUOTED',
-  'PATIENT_ACCEPTED',
+  'LAB_SELECTED',
   'SCHEDULED',
   'SAMPLE_COLLECTED',
   'RESULTS_READY',
@@ -17,7 +16,7 @@ const FLOW: LabExamRequestStatusApi[] = [
 function stepIndex(
   current: LabExamRequestStatusApi
 ): 'branch' | number {
-  if (current === 'REJECTED' || current === 'CANCELLED') return 'branch';
+  if (current === 'EXPIRED' || current === 'CANCELLED') return 'branch';
   const i = FLOW.indexOf(current);
   return i >= 0 ? i : 0;
 }
@@ -30,8 +29,8 @@ export default function PatientExamStatusTimeline({ currentStatus }: { currentSt
       <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-sky-100">
         <h3 className="text-sm font-semibold uppercase tracking-wide text-sky-700">Estado de tu solicitud</h3>
         <p className="mt-2 text-sm text-gray-700">
-          {currentStatus === 'REJECTED'
-            ? 'El laboratorio rechazó esta solicitud. Puedes iniciar una nueva cuando corresponda.'
+          {currentStatus === 'EXPIRED'
+            ? 'No se recibieron cotizaciones dentro del plazo. Puedes iniciar una nueva solicitud.'
             : 'Esta solicitud fue cancelada.'}
         </p>
       </div>

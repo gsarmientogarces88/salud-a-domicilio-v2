@@ -19,7 +19,7 @@ export declare function createAppointmentRequest(data: {
     slotId: string;
     addressText: string;
     region: string;
-    city: string;
+    province: string;
     commune: string;
     lat: number;
     lng: number;
@@ -29,11 +29,11 @@ export declare function createAppointmentRequest(data: {
     createdAt: Date;
     updatedAt: Date;
     commune: string;
-    city: string;
+    province: string;
     region: string;
+    patientId: string;
     status: import(".prisma/client").$Enums.AppointmentRequestStatus;
     notes: string | null;
-    patientId: string;
     lat: number;
     lng: number;
     professionalId: string;

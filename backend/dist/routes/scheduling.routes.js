@@ -42,6 +42,8 @@ const roles_1 = require("../middleware/roles");
 const prisma_1 = __importDefault(require("../lib/prisma"));
 const scheduling_service_1 = require("../services/scheduling.service");
 const svc = __importStar(require("../services/serviceRequests.service"));
+const appointmentBookingRules_1 = require("../lib/appointmentBookingRules");
+const territoryCompat_1 = require("../lib/territoryCompat");
 const router = (0, express_1.Router)();
 // Todas las rutas requieren usuario autenticado
 router.use(auth_1.authenticate);
@@ -82,11 +84,10 @@ router.get('/slots/:professionalId', async (req, res) => {
         if (!date || typeof date !== 'string') {
             return res.status(400).json({ error: true, message: 'Parámetro date requerido (YYYY-MM-DD)' });
         }
-        const target = new Date(date);
-        if (Number.isNaN(target.getTime())) {
-            return res.status(400).json({ error: true, message: 'Fecha inválida' });
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+            return res.status(400).json({ error: true, message: 'date debe ser YYYY-MM-DD' });
         }
-        const slots = await (0, scheduling_service_1.getAvailableSlotsForDate)(professionalId, target);
+        const slots = await (0, scheduling_service_1.getAvailableSlotsForDate)(professionalId, date);
         res.json({ data: { slots } });
     }
     catch (e) {
@@ -100,7 +101,9 @@ router.post('/book', (0, roles_1.authorize)('PATIENT'), async (req, res) => {
         if (!patient) {
             return res.status(404).json({ error: true, message: 'Perfil paciente no encontrado' });
         }
-        const { professionalId, description, address, commune, city, scheduledAt } = req.body;
+        const body = req.body;
+        const { professionalId, description, address, commune, scheduledAt } = body;
+        const province = (0, territoryCompat_1.coalesceProvinceFromPayload)(body);
         if (!professionalId) {
             return res.status(400).json({ error: true, message: 'professionalId requerido' });
         }
@@ -117,6 +120,12 @@ router.post('/book', (0, roles_1.authorize)('PATIENT'), async (req, res) => {
         if (start.getTime() <= Date.now()) {
             return res.status(400).json({ error: true, message: 'No se pueden agendar horas en el pasado' });
         }
+        try {
+            (0, appointmentBookingRules_1.assertBookingSlotAllowed)(start, new Date());
+        }
+        catch (err) {
+            return res.status(400).json({ error: true, message: err.message || 'Fecha u hora no permitida' });
+        }
         const available = await (0, scheduling_service_1.isSlotAvailable)(professionalId, start);
         if (!available) {
             return res
@@ -129,11 +138,14 @@ router.post('/book', (0, roles_1.authorize)('PATIENT'), async (req, res) => {
             description,
             address,
             commune,
-            city,
+            province: province || undefined,
             doctorId: professionalId,
             scheduledAt: start,
         });
-        res.status(201).json({ message: 'Reserva creada correctamente', data: request });
+        res.status(201).json({
+            message: 'Reserva creada correctamente',
+            data: { ...request, city: request.province },
+        });
     }
     catch (e) {
         res.status(400).json({ error: true, message: e.message });

@@ -15,12 +15,12 @@ router.get('/', async (_req, res) => {
                 id: true,
                 name: true,
                 commune: true,
-                city: true,
+                province: true,
                 region: true,
                 phone: true,
             },
         });
-        res.json({ data: labs });
+        res.json({ data: labs.map((l) => ({ ...l, city: l.province })) });
     }
     catch (e) {
         res.status(500).json({ error: true, message: e.message });

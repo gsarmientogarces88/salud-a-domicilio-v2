@@ -1,9 +1,17 @@
+/** Prefijo en `notes` para cierres automáticos por tiempo en IN_PROGRESS (auditoría / soporte). */
+export declare const AUTO_COMPLETED_IN_PROGRESS_MARKER = "[AUTO_COMPLETED_TIMEOUT]";
+/** Prefijos históricos en cancelReason/notes si en el pasado hubo autocancelación; el job ya no las aplica. */
+export declare const AUTO_CANCELLED_ACCEPTED_TIMEOUT_MARKER = "[AUTO_CANCELLED_ACCEPTED_TIMEOUT]";
+export declare const AUTO_CANCELLED_QUEUED_TIMEOUT_MARKER = "[AUTO_CANCELLED_QUEUED_TIMEOUT]";
 export declare function createRequest(data: {
     patientId: string;
     type: 'URGENT' | 'SCHEDULED';
     description: string;
     address: string;
     commune?: string;
+    /** Provincia (canónico). */
+    province?: string;
+    /** @deprecated usar province; se mapea a la misma columna. */
     city?: string;
     region?: string;
     referencias?: string;
@@ -21,8 +29,10 @@ export declare function createRequest(data: {
     updatedAt: Date;
     address: string;
     commune: string | null;
-    city: string | null;
+    province: string | null;
     region: string | null;
+    patientId: string;
+    doctorId: string | null;
     type: import(".prisma/client").$Enums.ServiceType;
     status: import(".prisma/client").$Enums.ServiceStatus;
     description: string;
@@ -46,13 +56,13 @@ export declare function createRequest(data: {
     urgentFixedPrice: number | null;
     scheduledAt: Date | null;
     expiresAt: Date | null;
+    acceptedAt: Date | null;
+    queuedAt: Date | null;
     startedAt: Date | null;
     completedAt: Date | null;
     cancelledAt: Date | null;
     cancelReason: string | null;
     notes: string | null;
-    patientId: string;
-    doctorId: string | null;
 }>;
 export declare function acceptRequest(serviceId: string, doctorId: string): Promise<{
     id: string;
@@ -60,8 +70,10 @@ export declare function acceptRequest(serviceId: string, doctorId: string): Prom
     updatedAt: Date;
     address: string;
     commune: string | null;
-    city: string | null;
+    province: string | null;
     region: string | null;
+    patientId: string;
+    doctorId: string | null;
     type: import(".prisma/client").$Enums.ServiceType;
     status: import(".prisma/client").$Enums.ServiceStatus;
     description: string;
@@ -85,13 +97,13 @@ export declare function acceptRequest(serviceId: string, doctorId: string): Prom
     urgentFixedPrice: number | null;
     scheduledAt: Date | null;
     expiresAt: Date | null;
+    acceptedAt: Date | null;
+    queuedAt: Date | null;
     startedAt: Date | null;
     completedAt: Date | null;
     cancelledAt: Date | null;
     cancelReason: string | null;
     notes: string | null;
-    patientId: string;
-    doctorId: string | null;
 }>;
 export declare function startRequest(serviceId: string, doctorId: string): Promise<{
     id: string;
@@ -99,8 +111,10 @@ export declare function startRequest(serviceId: string, doctorId: string): Promi
     updatedAt: Date;
     address: string;
     commune: string | null;
-    city: string | null;
+    province: string | null;
     region: string | null;
+    patientId: string;
+    doctorId: string | null;
     type: import(".prisma/client").$Enums.ServiceType;
     status: import(".prisma/client").$Enums.ServiceStatus;
     description: string;
@@ -124,13 +138,13 @@ export declare function startRequest(serviceId: string, doctorId: string): Promi
     urgentFixedPrice: number | null;
     scheduledAt: Date | null;
     expiresAt: Date | null;
+    acceptedAt: Date | null;
+    queuedAt: Date | null;
     startedAt: Date | null;
     completedAt: Date | null;
     cancelledAt: Date | null;
     cancelReason: string | null;
     notes: string | null;
-    patientId: string;
-    doctorId: string | null;
 }>;
 export declare function completeRequest(serviceId: string, doctorId: string, notes?: string): Promise<{
     id: string;
@@ -138,8 +152,10 @@ export declare function completeRequest(serviceId: string, doctorId: string, not
     updatedAt: Date;
     address: string;
     commune: string | null;
-    city: string | null;
+    province: string | null;
     region: string | null;
+    patientId: string;
+    doctorId: string | null;
     type: import(".prisma/client").$Enums.ServiceType;
     status: import(".prisma/client").$Enums.ServiceStatus;
     description: string;
@@ -163,22 +179,30 @@ export declare function completeRequest(serviceId: string, doctorId: string, not
     urgentFixedPrice: number | null;
     scheduledAt: Date | null;
     expiresAt: Date | null;
+    acceptedAt: Date | null;
+    queuedAt: Date | null;
     startedAt: Date | null;
     completedAt: Date | null;
     cancelledAt: Date | null;
     cancelReason: string | null;
     notes: string | null;
-    patientId: string;
-    doctorId: string | null;
 }>;
+/**
+ * Cierra IN_PROGRESS que superaron el límite desde `startedAt` (no usa createdAt).
+ * Idempotente: `updateMany` con status IN_PROGRESS evita doble cierre si el médico ya finalizó.
+ * También promueve QUEUED igual que un cierre manual.
+ */
+export declare function autoCompleteStaleInProgressServices(): Promise<number>;
 export declare function cancelRequest(serviceId: string, userId: string, reason?: string): Promise<{
     id: string;
     createdAt: Date;
     updatedAt: Date;
     address: string;
     commune: string | null;
-    city: string | null;
+    province: string | null;
     region: string | null;
+    patientId: string;
+    doctorId: string | null;
     type: import(".prisma/client").$Enums.ServiceType;
     status: import(".prisma/client").$Enums.ServiceStatus;
     description: string;
@@ -202,13 +226,13 @@ export declare function cancelRequest(serviceId: string, userId: string, reason?
     urgentFixedPrice: number | null;
     scheduledAt: Date | null;
     expiresAt: Date | null;
+    acceptedAt: Date | null;
+    queuedAt: Date | null;
     startedAt: Date | null;
     completedAt: Date | null;
     cancelledAt: Date | null;
     cancelReason: string | null;
     notes: string | null;
-    patientId: string;
-    doctorId: string | null;
 }>;
 export declare function cancelByDoctor(serviceId: string, doctorId: string, reason?: string): Promise<{
     id: string;
@@ -216,8 +240,10 @@ export declare function cancelByDoctor(serviceId: string, doctorId: string, reas
     updatedAt: Date;
     address: string;
     commune: string | null;
-    city: string | null;
+    province: string | null;
     region: string | null;
+    patientId: string;
+    doctorId: string | null;
     type: import(".prisma/client").$Enums.ServiceType;
     status: import(".prisma/client").$Enums.ServiceStatus;
     description: string;
@@ -241,11 +267,11 @@ export declare function cancelByDoctor(serviceId: string, doctorId: string, reas
     urgentFixedPrice: number | null;
     scheduledAt: Date | null;
     expiresAt: Date | null;
+    acceptedAt: Date | null;
+    queuedAt: Date | null;
     startedAt: Date | null;
     completedAt: Date | null;
     cancelledAt: Date | null;
     cancelReason: string | null;
     notes: string | null;
-    patientId: string;
-    doctorId: string | null;
 }>;

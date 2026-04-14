@@ -1,4 +1,4 @@
-// File: C:\Users\Gerardo\OneDrive\Escritorio\salud-a-domicilio-v2\frontend\src\app\dashboard\patient\examenes-domicilio\page.tsx
+// File: C:\dev\salud-a-domicilio-v2\frontend\src\app\dashboard\patient\examenes-domicilio\page.tsx
 import * as entry from '../../../../../../src/app/dashboard/patient/examenes-domicilio/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

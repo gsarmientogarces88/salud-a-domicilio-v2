@@ -505,29 +505,41 @@ async function main() {
     const visit = new Date();
     visit.setDate(visit.getDate() + 2);
     visit.setHours(10, 0, 0, 0);
+    const quoteDeadlineAt = new Date(Date.now() + 90 * 60 * 1000);
 
     const r1 = await prisma.labExamRequest.create({
       data: {
         patientId: patientProfileId,
-        laboratoryId: lab1.id,
         status: 'QUOTED',
         patientName: 'Juan Paciente',
         examRequested: 'Hemograma, perfil bioquímico, TSH',
         address: 'Calle Falsa 123',
+        region: REGION,
+        province: PROVINCE,
         commune: 'Concepción',
         phone: '+56 9 1111 2222',
+        email: 'juan.paciente@example.com',
         observationsPatient: 'Portón verde',
+        preferredDate: visit,
+        preferredTimeRange: '10:00 - 12:00',
+        latitude: -36.82699,
+        longitude: -73.04977,
         orderFileUrl: '/uploads/lab/orders/seed_order.pdf',
         orderFileName: 'orden_seed.pdf',
-        quote: {
+        quoteDeadlineAt,
+        quotes: {
           create: {
+            laboratoryId: lab1.id,
+            status: 'SENT',
             priceClp: 45990,
-            proposedVisitAt: visit,
-            labObservations: 'Incluye toma a domicilio en Concepción centro.',
+            proposedDate: visit,
+            proposedTimeRange: '10:00 - 12:00',
+            comment: 'Incluye toma a domicilio en Concepción centro.',
             estimatedResultsHours: 48,
           },
         },
       },
+      include: { quotes: true },
     });
     await prisma.labExamEvent.createMany({
       data: [
@@ -539,22 +551,40 @@ async function main() {
     const r2 = await prisma.labExamRequest.create({
       data: {
         patientId: patientProfileId,
-        laboratoryId: lab2.id,
-        status: 'SCHEDULED',
+        status: 'LAB_SELECTED',
         patientName: 'Juan Paciente',
         examRequested: 'PCR COVID + panel respiratorio',
         address: 'Los Aromos 456',
+        region: REGION,
+        province: PROVINCE,
         commune: 'San Pedro de la Paz',
         phone: '+56 9 3333 4444',
+        email: 'juan.paciente@example.com',
+        preferredDate: visit,
+        preferredTimeRange: '09:00 - 11:00',
+        latitude: -36.84091,
+        longitude: -73.10361,
         orderFileUrl: '/uploads/lab/orders/seed_order2.pdf',
         orderFileName: 'orden2.pdf',
-        quote: {
+        quoteDeadlineAt,
+        quotes: {
           create: {
+            laboratoryId: lab2.id,
+            status: 'ACCEPTED',
             priceClp: 29900,
-            proposedVisitAt: visit,
+            proposedDate: visit,
+            proposedTimeRange: '09:30 - 10:30',
             estimatedResultsHours: 24,
           },
         },
+      },
+      include: { quotes: true },
+    });
+    await prisma.labExamRequest.update({
+      where: { id: r2.id },
+      data: {
+        status: 'SCHEDULED',
+        selectedQuoteId: r2.quotes[0]?.id ?? null,
         appointments: {
           create: {
             laboratoryId: lab2.id,
