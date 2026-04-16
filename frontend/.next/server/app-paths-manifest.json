@@ -1,9 +1,7 @@
 {
-  "/dashboard/patient/inicio/page": "app/dashboard/patient/inicio/page.js",
   "/dashboard/patient/consultas/page": "app/dashboard/patient/consultas/page.js",
   "/dashboard/patient/perfil/page": "app/dashboard/patient/perfil/page.js",
   "/dashboard/patient/resultados-examenes/page": "app/dashboard/patient/resultados-examenes/page.js",
   "/dashboard/patient/examenes-domicilio/page": "app/dashboard/patient/examenes-domicilio/page.js",
-  "/dashboard/patient/medico/page": "app/dashboard/patient/medico/page.js",
   "/dashboard/patient/medico/urgente/estado/page": "app/dashboard/patient/medico/urgente/estado/page.js"
 }

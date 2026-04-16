@@ -1,4 +1,14 @@
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
+/**
+ * Origen de la API, siempre con sufijo `/api` (sin barra final).
+ * Acepta `NEXT_PUBLIC_API_URL` con o sin `/api` para evitar llamadas a rutas como `/auth/login` en el puerto del backend.
+ */
+export function getApiBaseUrl(): string {
+  const trimmed = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/\/+$/, '');
+  if (trimmed.toLowerCase().endsWith('/api')) return trimmed;
+  return `${trimmed}/api`;
+}
+
+const BASE_URL = getApiBaseUrl();
 
 export class ApiError extends Error {
   status: number;
