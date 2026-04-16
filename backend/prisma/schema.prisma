@@ -31,6 +31,12 @@ enum ServiceType {
   SCHEDULED
 }
 
+enum ServiceRequestServiceType {
+  IMMEDIATE
+  SCHEDULED
+  WEIGHT_PROGRAM
+}
+
 enum TransactionStatus {
   PENDING
   COMPLETED
@@ -153,15 +159,22 @@ model PatientProfile {
   userId    String   @unique
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   rut       String?  @unique
+  birthDate DateTime?
   address   String?
   commune   String?
+  region    String?
   province  String?  @map("city")
+  addressReference String?
   addressLat Float?
   addressLng Float?
   addressGeocodedAt DateTime?
   addressGeocodeSource LocationSource? @default(UNKNOWN)
   addressGeocodePrecision LocationPrecision? @default(UNKNOWN)
   addressGeocodeConfidence Float?
+  chronicConditions   String?
+  currentMedications  String?
+  allergies           String?
+  previousSurgeries   String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -181,6 +194,7 @@ model ServiceRequest {
   doctorId         String?
   doctor           DoctorProfile? @relation(fields: [doctorId], references: [id])
   type             ServiceType
+  serviceType      ServiceRequestServiceType @default(IMMEDIATE)
   status           ServiceStatus @default(PENDING)
   description      String
   address          String
@@ -213,6 +227,10 @@ model ServiceRequest {
   queuedAt         DateTime?
   startedAt        DateTime?
   completedAt      DateTime?
+  receiptUrl       String?
+  receiptFileName  String?
+  receiptMimeType  String?
+  receiptUploadedAt DateTime?
   cancelledAt      DateTime?
   cancelReason     String?
   notes            String?

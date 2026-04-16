@@ -82,6 +82,7 @@ async function getConfig() {
 export async function createRequest(data: {
   patientId: string;
   type: 'URGENT' | 'SCHEDULED';
+  serviceType?: 'IMMEDIATE' | 'SCHEDULED' | 'WEIGHT_PROGRAM';
   description: string;
   address: string;
   commune?: string;
@@ -166,12 +167,20 @@ export async function createRequest(data: {
   const doctorNetAmount = totalAmount - commissionAmount;
 
   const province = data.province ?? data.city;
+  const inferredServiceType =
+    data.serviceType ??
+    (data.description.toLowerCase().includes('baja de peso')
+      ? 'WEIGHT_PROGRAM'
+      : data.type === 'SCHEDULED'
+        ? 'SCHEDULED'
+        : 'IMMEDIATE');
 
   return prisma.serviceRequest.create({
     data: {
       patientId: data.patientId,
       doctorId: data.type === 'SCHEDULED' ? data.doctorId : null,
       type: data.type,
+      serviceType: inferredServiceType,
       status: 'PENDING',
       description: data.description,
       address: data.address,
