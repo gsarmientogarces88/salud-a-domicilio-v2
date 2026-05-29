@@ -4,5 +4,5 @@ export function isValidAgendaBaseFee(fee?: number | null): boolean {
 
 export function formatAgendaHomeVisitFeeClp(fee?: number | null): string {
   if (!isValidAgendaBaseFee(fee)) return '';
-  return `$${fee.toLocaleString('es-CL')}`;
+  return `$${(fee as number).toLocaleString('es-CL')}`;
 }

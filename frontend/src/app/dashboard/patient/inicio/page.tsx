@@ -6,8 +6,8 @@ import { useAuth } from '@/context/AuthContext';
 const MAIN_ACTIONS = [
   {
     icon: '🚨',
-    title: 'Pedir Médico Ahora',
-    desc: 'Solicita atención médica a domicilio de forma inmediata.',
+    title: 'Urgencia a Domicilio',
+    desc: 'Atención médica rápida y confiable sin salir de tu hogar.',
     cta: 'Solicitar ahora',
     href: '/dashboard/patient/medico',
   },
