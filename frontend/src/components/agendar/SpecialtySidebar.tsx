@@ -10,7 +10,9 @@ interface SpecialtySidebarProps {
 export default function SpecialtySidebar({ active, onSelect }: SpecialtySidebarProps) {
   return (
     <aside className="w-full shrink-0 rounded-2xl border border-gray-100 bg-white p-3 shadow-sm lg:w-56">
-      <p className="mb-3 px-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Especialidad</p>
+      <p className="mb-3 px-2 text-[11px] font-semibold uppercase leading-snug tracking-wide text-gray-400">
+        Especialidad o área de conocimiento
+      </p>
       <nav className="flex flex-col gap-0.5">
         {MEDICAL_SPECIALTIES.map((s) => {
           const isActive = active === s;
