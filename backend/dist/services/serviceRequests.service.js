@@ -136,11 +136,18 @@ async function createRequest(data) {
     const commissionAmount = Math.round(totalAmount * (cfg.percentage / 100));
     const doctorNetAmount = totalAmount - commissionAmount;
     const province = data.province ?? data.city;
+    const inferredServiceType = data.serviceType ??
+        (data.description.toLowerCase().includes('baja de peso')
+            ? 'WEIGHT_PROGRAM'
+            : data.type === 'SCHEDULED'
+                ? 'SCHEDULED'
+                : 'IMMEDIATE');
     return prisma_1.default.serviceRequest.create({
         data: {
             patientId: data.patientId,
             doctorId: data.type === 'SCHEDULED' ? data.doctorId : null,
             type: data.type,
+            serviceType: inferredServiceType,
             status: 'PENDING',
             description: data.description,
             address: data.address,

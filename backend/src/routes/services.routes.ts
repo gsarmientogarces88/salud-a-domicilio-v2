@@ -51,6 +51,25 @@ function mapServiceTypeLabel(serviceType: 'IMMEDIATE' | 'SCHEDULED' | 'WEIGHT_PR
   return 'Médico a Domicilio Inmediato';
 }
 
+/** Alinea estados de cita (agenda) a los que usa el listado y filtros del paciente. */
+function mapAppointmentRequestToHistoryStatus(status: 'PENDING' | 'CONFIRMED' | 'REJECTED' | 'EXPIRED'): {
+  status: 'PENDING' | 'ACCEPTED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'QUEUED';
+  statusDisplay: string;
+} {
+  switch (status) {
+    case 'PENDING':
+      return { status: 'PENDING', statusDisplay: 'Pendiente de confirmación' };
+    case 'CONFIRMED':
+      return { status: 'COMPLETED', statusDisplay: 'Cita confirmada' };
+    case 'REJECTED':
+    case 'EXPIRED':
+      return {
+        status: 'CANCELLED',
+        statusDisplay: status === 'REJECTED' ? 'Solicitud rechazada' : 'Solicitud expirada',
+      };
+  }
+}
+
 /**
  * Columnas de `service_requests` alineadas a una BD “legacy” (sin `serviceType`, sin boleta, etc.).
  * Evita que Prisma proyecte columnas que existen en el schema pero no en la tabla física.
@@ -166,7 +185,7 @@ router.get('/me', authorize('PATIENT'), async (req: Request, res: Response) => {
       },
     });
 
-    const data = list.map((row) => {
+    const serviceItems = list.map((row) => {
       const doctorName = row.doctor?.user
         ? `Dr. ${row.doctor.user.firstName} ${row.doctor.user.lastName}`
         : null;
@@ -182,6 +201,7 @@ router.get('/me', authorize('PATIENT'), async (req: Request, res: Response) => {
 
       return {
         ...row,
+        recordKind: 'service' as const,
         city: row.province,
         doctorName,
         doctorSpecialtyLabel,
@@ -197,8 +217,61 @@ router.get('/me', authorize('PATIENT'), async (req: Request, res: Response) => {
         serviceTypeLabel: mapServiceTypeLabel(inferredServiceType),
         // Sin columnas de boleta en BD antigua: siempre pendiente desde el punto de vista del paciente.
         receiptStatus: 'PENDING' as const,
+        statusDisplay: null as null,
       };
     });
+
+    const agendaList = await prisma.appointmentRequest.findMany({
+      where: { patientId: patient.id },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        professional: { select: { ...DOCTOR_FOR_HISTORY_SELECT, baseFee: true } },
+        slot: { select: { startAt: true, endAt: true } },
+        payment: { select: { amount: true, status: true, provider: true } },
+      },
+    });
+
+    const agendaItems = agendaList.map((ar) => {
+      const { status, statusDisplay } = mapAppointmentRequestToHistoryStatus(ar.status);
+      const u = ar.professional.user;
+      const doctorName = u ? `Dr. ${u.firstName} ${u.lastName}` : null;
+      const doctorSpecialtyLabel = buildDoctorSpecialtyLabel(ar.professional.specialty);
+      const pay = ar.payment;
+      const total = pay?.amount ?? ar.professional.baseFee ?? 0;
+      return {
+        id: ar.id,
+        recordKind: 'agenda' as const,
+        type: 'SCHEDULED' as const,
+        status,
+        statusDisplay,
+        description: 'Agenda Médico a Domicilio',
+        address: ar.addressText,
+        commune: ar.commune,
+        province: ar.province,
+        region: ar.region,
+        totalAmount: total,
+        notes: ar.notes,
+        createdAt: ar.createdAt,
+        city: ar.province,
+        doctorName,
+        doctorSpecialtyLabel,
+        doctor: { user: { firstName: u.firstName, lastName: u.lastName } },
+        requestedAt: ar.createdAt,
+        estimatedArrivalAt: ar.slot?.startAt ?? ar.createdAt,
+        arrivedAt: null,
+        serviceType: 'SCHEDULED' as const,
+        serviceTypeLabel: 'Agenda Médico a Domicilio',
+        paymentMethod: pay ? mapPaymentMethod(pay.provider) : 'Pendiente',
+        receiptStatus: 'PENDING' as const,
+        appointmentStatus: ar.status,
+        distanceKm: null as null,
+        allowedRadiusKm: null as null,
+      };
+    });
+
+    const data = [...serviceItems, ...agendaItems].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
 
     res.json({ data });
   } catch (e: any) {

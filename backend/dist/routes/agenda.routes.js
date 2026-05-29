@@ -41,11 +41,11 @@ const auth_1 = require("../middleware/auth");
 const roles_1 = require("../middleware/roles");
 const prisma_1 = __importDefault(require("../lib/prisma"));
 const agenda = __importStar(require("../services/agenda.service"));
-const date_fns_1 = require("date-fns");
-const date_fns_tz_1 = require("date-fns-tz");
 const appointmentBookingRules_1 = require("../lib/appointmentBookingRules");
+const date_fns_tz_1 = require("date-fns-tz");
 const geo = __importStar(require("../services/geo.service"));
 const territoryCompat_1 = require("../lib/territoryCompat");
+const scheduling_service_1 = require("../services/scheduling.service");
 const router = (0, express_1.Router)();
 router.use(auth_1.authenticate);
 // POST /agenda/requests — Paciente crea solicitud de agenda
@@ -226,28 +226,37 @@ router.get('/slots', async (req, res) => {
         if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
             return res.status(400).json({ error: true, message: 'date debe ser YYYY-MM-DD' });
         }
-        const dayStart = (0, date_fns_tz_1.fromZonedTime)(`${date}T00:00:00`, appointmentBookingRules_1.BOOKING_TIMEZONE);
-        const dayEndExclusive = (0, date_fns_1.addDays)(dayStart, 1);
-        const slots = await prisma_1.default.availabilitySlot.findMany({
-            where: {
+        const pro = await prisma_1.default.doctorProfile.findFirst({
+            where: { id: professionalId },
+            include: { user: { select: { firstName: true, lastName: true, email: true } } },
+        });
+        if (!pro) {
+            // eslint-disable-next-line no-console
+            console.warn('[AGENDA SLOTS] professionalId no encontrado (doctorProfile.id distinto a lo que envía el front?)', {
                 professionalId,
-                startAt: { gte: dayStart, lt: dayEndExclusive },
-                status: 'AVAILABLE',
-                OR: [{ heldUntil: null }, { heldUntil: { gt: new Date() } }],
-            },
-            orderBy: { startAt: 'asc' },
-        });
-        const now = new Date();
-        const allowed = slots.filter((s) => (0, appointmentBookingRules_1.evaluateBookingSlot)(s.startAt, now).ok);
-        res.json({
-            data: allowed.map((s) => ({
-                id: s.id,
-                startAt: s.startAt,
-                endAt: s.endAt,
-            })),
-        });
+                date,
+            });
+            return res.status(404).json({ error: true, message: 'Profesional no encontrado' });
+        }
+        const debug = process.env.NODE_ENV !== 'production';
+        const { slots, debug: stats } = await (0, scheduling_service_1.listMaterializedAgendaSlotsForDate)(pro.id, date, { debug });
+        if (debug) {
+            const now = new Date();
+            // eslint-disable-next-line no-console
+            console.log('[AGENDA SLOTS DEBUG]', JSON.stringify({
+                professionalId: pro.id,
+                proLabel: `${pro.user.firstName} ${pro.user.lastName} <${pro.user.email}>`,
+                dateReceived: date,
+                nowChile: (0, date_fns_tz_1.formatInTimeZone)(now, appointmentBookingRules_1.BOOKING_TIMEZONE, "yyyy-MM-dd'T'HH:mm"),
+                ...stats,
+                finalReturned: slots.length,
+            }, null, 0));
+        }
+        res.json({ data: slots });
     }
     catch (e) {
+        // eslint-disable-next-line no-console
+        console.error('[AGENDA SLOTS] error', e);
         res.status(500).json({ error: true, message: e.message });
     }
 });

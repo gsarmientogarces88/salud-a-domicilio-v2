@@ -20,6 +20,7 @@ const agenda_routes_1 = __importDefault(require("./routes/agenda.routes"));
 const laboratories_public_routes_1 = __importDefault(require("./routes/laboratories.public.routes"));
 const patientLab_routes_1 = __importDefault(require("./routes/patientLab.routes"));
 const patientNotifications_routes_1 = __importDefault(require("./routes/patientNotifications.routes"));
+const patientProfile_routes_1 = __importDefault(require("./routes/patientProfile.routes"));
 const laboratory_routes_1 = __importDefault(require("./routes/laboratory.routes"));
 const app = (0, express_1.default)();
 app.use((0, helmet_1.default)());
@@ -42,6 +43,7 @@ app.use('/api/professionals', professionals_routes_1.default);
 app.use('/api/agenda', agenda_routes_1.default);
 app.use('/api/laboratories', laboratories_public_routes_1.default);
 app.use('/api/patient/lab-exams', patientLab_routes_1.default);
+app.use('/api/patient', patientProfile_routes_1.default);
 app.use('/api/patient', patientNotifications_routes_1.default);
 app.use('/api/laboratory', laboratory_routes_1.default);
 // Error handler global

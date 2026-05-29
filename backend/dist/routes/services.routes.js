@@ -37,19 +37,142 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
+const fs_1 = __importDefault(require("fs"));
+const path_1 = __importDefault(require("path"));
 const auth_1 = require("../middleware/auth");
 const roles_1 = require("../middleware/roles");
 const prisma_1 = __importDefault(require("../lib/prisma"));
 const svc = __importStar(require("../services/serviceRequests.service"));
 const config_1 = require("../config");
 const geo_service_1 = require("../services/geo.service");
+const upload_1 = require("../lib/upload");
 const zod_1 = require("zod");
 const router = (0, express_1.Router)();
 router.use(auth_1.authenticate);
+function buildDoctorSpecialtyLabel(specialty) {
+    const raw = (specialty || '').trim();
+    if (!raw)
+        return 'No informado';
+    const lower = raw.toLowerCase();
+    if (lower.includes('general'))
+        return 'Médico General';
+    if (lower.includes('experiencia'))
+        return `Médico con experiencia en ${raw}`;
+    if (lower.includes('formación') || lower.includes('formacion')) {
+        return `Médico con formación complementaria en ${raw}`;
+    }
+    return `Médico con formación complementaria en ${raw}`;
+}
+/** Compatibilidad con BD sin columna `serviceType`: inferir desde `type` + descripción. */
+function inferServiceRequestServiceType(row) {
+    if (row.type === 'SCHEDULED')
+        return 'SCHEDULED';
+    const d = (row.description || '').toLowerCase();
+    if (d.includes('baja de peso'))
+        return 'WEIGHT_PROGRAM';
+    return 'IMMEDIATE';
+}
+function mapPaymentMethod(provider) {
+    const p = (provider || '').toLowerCase();
+    if (!p)
+        return 'Pendiente';
+    if (p.includes('webpay'))
+        return 'Webpay';
+    if (p.includes('mercadopago'))
+        return 'Webpay';
+    if (p.includes('isapre') || p.includes('bono'))
+        return 'Bono / Isapre';
+    return 'Otro';
+}
+function mapServiceTypeLabel(serviceType) {
+    if (serviceType === 'WEIGHT_PROGRAM')
+        return 'Programa Médico Baja de Peso';
+    if (serviceType === 'SCHEDULED')
+        return 'Agenda Médico a Domicilio';
+    return 'Médico a Domicilio Inmediato';
+}
+/** Alinea estados de cita (agenda) a los que usa el listado y filtros del paciente. */
+function mapAppointmentRequestToHistoryStatus(status) {
+    switch (status) {
+        case 'PENDING':
+            return { status: 'PENDING', statusDisplay: 'Pendiente de confirmación' };
+        case 'CONFIRMED':
+            return { status: 'COMPLETED', statusDisplay: 'Cita confirmada' };
+        case 'REJECTED':
+        case 'EXPIRED':
+            return {
+                status: 'CANCELLED',
+                statusDisplay: status === 'REJECTED' ? 'Solicitud rechazada' : 'Solicitud expirada',
+            };
+    }
+}
+/**
+ * Columnas de `service_requests` alineadas a una BD “legacy” (sin `serviceType`, sin boleta, etc.).
+ * Evita que Prisma proyecte columnas que existen en el schema pero no en la tabla física.
+ */
+const SERVICE_REQUEST_DB_SCALAR_SELECT = {
+    id: true,
+    patientId: true,
+    doctorId: true,
+    type: true,
+    status: true,
+    description: true,
+    address: true,
+    commune: true,
+    province: true,
+    region: true,
+    referencias: true,
+    sexo: true,
+    telefono: true,
+    edadPaciente: true,
+    esMenorEdad: true,
+    tieneFiebre: true,
+    dificultadRespiratoria: true,
+    requestLat: true,
+    requestLng: true,
+    requestLocationCapturedAt: true,
+    requestLocationAccuracyMeters: true,
+    requestLocationSource: true,
+    requestLocationPrecision: true,
+    requestLocationConfidence: true,
+    totalAmount: true,
+    commissionAmount: true,
+    doctorNetAmount: true,
+    urgentFixedPrice: true,
+    scheduledAt: true,
+    expiresAt: true,
+    startedAt: true,
+    completedAt: true,
+    cancelledAt: true,
+    cancelReason: true,
+    notes: true,
+    createdAt: true,
+    updatedAt: true,
+    acceptedAt: true,
+    queuedAt: true,
+};
+/** Solo datos seguros del médico: evita `baseLat`/`coverageKm` si no existen en `doctor_profiles`. */
+const DOCTOR_FOR_HISTORY_SELECT = {
+    specialty: true,
+    user: { select: { firstName: true, lastName: true } },
+};
+const TRANSACTION_FOR_HISTORY_SELECT = {
+    orderBy: { createdAt: 'desc' },
+    select: {
+        id: true,
+        provider: true,
+        status: true,
+        amount: true,
+        createdAt: true,
+    },
+};
 // 1) POST /services — Paciente crea solicitud
 router.post('/', (0, roles_1.authorize)('PATIENT'), async (req, res) => {
     try {
-        const patient = await prisma_1.default.patientProfile.findUnique({ where: { userId: req.user.id } });
+        const patient = await prisma_1.default.patientProfile.findUnique({
+            where: { userId: req.user.id },
+            select: { id: true },
+        });
         if (!patient)
             return res.status(404).json({ error: true, message: 'Perfil paciente no encontrado' });
         if (config_1.config.isDev) {
@@ -77,15 +200,168 @@ router.post('/', (0, roles_1.authorize)('PATIENT'), async (req, res) => {
 // 2) GET /services/me — Paciente: mi historial
 router.get('/me', (0, roles_1.authorize)('PATIENT'), async (req, res) => {
     try {
-        const patient = await prisma_1.default.patientProfile.findUnique({ where: { userId: req.user.id } });
+        // Solo `id`: evita leer columnas del perfil que aún no existen en algunas BD.
+        const patient = await prisma_1.default.patientProfile.findUnique({
+            where: { userId: req.user.id },
+            select: { id: true },
+        });
         if (!patient)
             return res.status(404).json({ error: true, message: 'Perfil no encontrado' });
+        // Select explícito: la tabla real puede no tener columnas nuevas del schema (`serviceType`, boleta, etc.).
         const list = await prisma_1.default.serviceRequest.findMany({
             where: { patientId: patient.id },
             orderBy: { createdAt: 'desc' },
-            include: { doctor: { include: { user: { select: { firstName: true, lastName: true } } } } },
+            select: {
+                ...SERVICE_REQUEST_DB_SCALAR_SELECT,
+                doctor: { select: DOCTOR_FOR_HISTORY_SELECT },
+                transactions: TRANSACTION_FOR_HISTORY_SELECT,
+            },
         });
-        res.json({ data: list.map((row) => ({ ...row, city: row.province })) });
+        const serviceItems = list.map((row) => {
+            const doctorName = row.doctor?.user
+                ? `Dr. ${row.doctor.user.firstName} ${row.doctor.user.lastName}`
+                : null;
+            const doctorSpecialtyLabel = buildDoctorSpecialtyLabel(row.doctor?.specialty);
+            const latestTransaction = row.transactions[0] || null;
+            const completedTx = row.transactions.find((x) => x.status === 'COMPLETED') || null;
+            // Listado compatible con BD legacy: no proyectamos `baseLat`/`baseLng`/`coverageKm` del médico aquí.
+            const computedDistanceKm = null;
+            const allowedRadiusKm = null;
+            const inferredServiceType = inferServiceRequestServiceType(row);
+            return {
+                ...row,
+                recordKind: 'service',
+                city: row.province,
+                doctorName,
+                doctorSpecialtyLabel,
+                requestedAt: row.createdAt,
+                estimatedArrivalAt: row.scheduledAt,
+                arrivedAt: row.startedAt,
+                patientAddress: row.address,
+                patientCommune: row.commune,
+                distanceKm: computedDistanceKm,
+                allowedRadiusKm,
+                paymentMethod: mapPaymentMethod(completedTx?.provider ?? latestTransaction?.provider),
+                serviceType: inferredServiceType,
+                serviceTypeLabel: mapServiceTypeLabel(inferredServiceType),
+                // Sin columnas de boleta en BD antigua: siempre pendiente desde el punto de vista del paciente.
+                receiptStatus: 'PENDING',
+                statusDisplay: null,
+            };
+        });
+        const agendaList = await prisma_1.default.appointmentRequest.findMany({
+            where: { patientId: patient.id },
+            orderBy: { createdAt: 'desc' },
+            include: {
+                professional: { select: { ...DOCTOR_FOR_HISTORY_SELECT, baseFee: true } },
+                slot: { select: { startAt: true, endAt: true } },
+                payment: { select: { amount: true, status: true, provider: true } },
+            },
+        });
+        const agendaItems = agendaList.map((ar) => {
+            const { status, statusDisplay } = mapAppointmentRequestToHistoryStatus(ar.status);
+            const u = ar.professional.user;
+            const doctorName = u ? `Dr. ${u.firstName} ${u.lastName}` : null;
+            const doctorSpecialtyLabel = buildDoctorSpecialtyLabel(ar.professional.specialty);
+            const pay = ar.payment;
+            const total = pay?.amount ?? ar.professional.baseFee ?? 0;
+            return {
+                id: ar.id,
+                recordKind: 'agenda',
+                type: 'SCHEDULED',
+                status,
+                statusDisplay,
+                description: 'Agenda Médico a Domicilio',
+                address: ar.addressText,
+                commune: ar.commune,
+                province: ar.province,
+                region: ar.region,
+                totalAmount: total,
+                notes: ar.notes,
+                createdAt: ar.createdAt,
+                city: ar.province,
+                doctorName,
+                doctorSpecialtyLabel,
+                doctor: { user: { firstName: u.firstName, lastName: u.lastName } },
+                requestedAt: ar.createdAt,
+                estimatedArrivalAt: ar.slot?.startAt ?? ar.createdAt,
+                arrivedAt: null,
+                serviceType: 'SCHEDULED',
+                serviceTypeLabel: 'Agenda Médico a Domicilio',
+                paymentMethod: pay ? mapPaymentMethod(pay.provider) : 'Pendiente',
+                receiptStatus: 'PENDING',
+                appointmentStatus: ar.status,
+                distanceKm: null,
+                allowedRadiusKm: null,
+            };
+        });
+        const data = [...serviceItems, ...agendaItems].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        res.json({ data });
+    }
+    catch (e) {
+        res.status(500).json({ error: true, message: e.message });
+    }
+});
+// 2b) POST /services/:id/receipt — médico asignado sube boleta
+router.post('/:id/receipt', (0, roles_1.authorize)('DOCTOR'), upload_1.receiptUpload.single('receiptFile'), async (req, res) => {
+    try {
+        const doctor = await prisma_1.default.doctorProfile.findUnique({ where: { userId: req.user.id } });
+        if (!doctor)
+            return res.status(404).json({ error: true, message: 'Perfil médico no encontrado' });
+        const file = req.file;
+        if (!file)
+            return res.status(400).json({ error: true, message: 'Debes adjuntar una boleta' });
+        const sr = await prisma_1.default.serviceRequest.findUnique({ where: { id: req.params.id } });
+        if (!sr)
+            return res.status(404).json({ error: true, message: 'Solicitud no encontrada' });
+        if (sr.doctorId !== doctor.id)
+            return res.status(403).json({ error: true, message: 'Sin permisos para esta atención' });
+        const receiptUrl = `/uploads/receipts/${file.filename}`;
+        const updated = await prisma_1.default.serviceRequest.update({
+            where: { id: sr.id },
+            data: {
+                receiptUrl,
+                receiptFileName: file.originalname,
+                receiptMimeType: file.mimetype,
+                receiptUploadedAt: new Date(),
+            },
+        });
+        res.status(201).json({ data: updated });
+    }
+    catch (e) {
+        res.status(500).json({ error: true, message: e.message });
+    }
+});
+// 2c) GET /services/:id/receipt — descarga segura de boleta para paciente/médico/admin
+router.get('/:id/receipt', async (req, res) => {
+    try {
+        const sr = await prisma_1.default.serviceRequest.findUnique({ where: { id: req.params.id } });
+        if (!sr)
+            return res.status(404).json({ error: true, message: 'Solicitud no encontrada' });
+        if (!sr.receiptUrl || !sr.receiptFileName) {
+            return res.status(404).json({ error: true, message: 'Boleta pendiente de carga por el médico' });
+        }
+        const role = req.user.role;
+        const userId = req.user.id;
+        let allowed = role === 'ADMIN';
+        if (!allowed && role === 'PATIENT') {
+            const patient = await prisma_1.default.patientProfile.findUnique({ where: { userId }, select: { id: true } });
+            allowed = patient?.id === sr.patientId;
+        }
+        if (!allowed && role === 'DOCTOR') {
+            const doctor = await prisma_1.default.doctorProfile.findUnique({ where: { userId }, select: { id: true } });
+            allowed = doctor?.id === sr.doctorId;
+        }
+        if (!allowed)
+            return res.status(403).json({ error: true, message: 'Sin acceso' });
+        const rel = sr.receiptUrl.replace(/^\/uploads\//, '');
+        const abs = path_1.default.join(process.cwd(), 'uploads', rel);
+        if (!abs.startsWith(path_1.default.join(process.cwd(), 'uploads'))) {
+            return res.status(400).json({ error: true, message: 'Ruta inválida' });
+        }
+        if (!fs_1.default.existsSync(abs))
+            return res.status(404).json({ error: true, message: 'Archivo no encontrado' });
+        res.download(abs, sr.receiptFileName);
     }
     catch (e) {
         res.status(500).json({ error: true, message: e.message });
@@ -216,10 +492,21 @@ router.get('/:id', async (req, res) => {
     try {
         const sr = await prisma_1.default.serviceRequest.findUnique({
             where: { id: req.params.id },
-            include: {
-                patient: { include: { user: { select: { firstName: true, lastName: true, phone: true } } } },
-                doctor: { include: { user: { select: { firstName: true, lastName: true, phone: true } } } },
-                transactions: true,
+            select: {
+                ...SERVICE_REQUEST_DB_SCALAR_SELECT,
+                patient: {
+                    select: {
+                        id: true,
+                        user: { select: { firstName: true, lastName: true, phone: true } },
+                    },
+                },
+                doctor: {
+                    select: {
+                        specialty: true,
+                        user: { select: { firstName: true, lastName: true, phone: true } },
+                    },
+                },
+                transactions: TRANSACTION_FOR_HISTORY_SELECT,
             },
         });
         if (!sr)
@@ -227,11 +514,18 @@ router.get('/:id', async (req, res) => {
         // Verificar acceso
         const userId = req.user.id;
         const role = req.user.role;
-        const withCity = { ...sr, city: sr.province };
+        const inferredServiceType = inferServiceRequestServiceType(sr);
+        const withCity = {
+            ...sr,
+            city: sr.province,
+            serviceType: inferredServiceType,
+            serviceTypeLabel: mapServiceTypeLabel(inferredServiceType),
+            receiptStatus: 'PENDING',
+        };
         if (role === 'ADMIN')
             return res.json({ data: withCity });
-        const patient = await prisma_1.default.patientProfile.findUnique({ where: { userId } });
-        const doctor = await prisma_1.default.doctorProfile.findUnique({ where: { userId } });
+        const patient = await prisma_1.default.patientProfile.findUnique({ where: { userId }, select: { id: true } });
+        const doctor = await prisma_1.default.doctorProfile.findUnique({ where: { userId }, select: { id: true } });
         const isOwner = patient?.id === sr.patientId || doctor?.id === sr.doctorId;
         if (!isOwner)
             return res.status(403).json({ error: true, message: 'Sin acceso' });
@@ -253,8 +547,8 @@ router.get('/:id/chat', async (req, res) => {
         // Permisos: paciente dueño o doctor asignado
         const userId = req.user.id;
         const role = req.user.role;
-        const patient = role === 'PATIENT' ? await prisma_1.default.patientProfile.findUnique({ where: { userId } }) : null;
-        const doctor = role === 'DOCTOR' ? await prisma_1.default.doctorProfile.findUnique({ where: { userId } }) : null;
+        const patient = role === 'PATIENT' ? await prisma_1.default.patientProfile.findUnique({ where: { userId }, select: { id: true } }) : null;
+        const doctor = role === 'DOCTOR' ? await prisma_1.default.doctorProfile.findUnique({ where: { userId }, select: { id: true } }) : null;
         const allowed = patient?.id === sr.patientId || (doctor?.id && sr.doctorId === doctor.id);
         if (!allowed)
             return res.status(403).json({ error: true, message: 'Sin acceso al chat' });
@@ -293,8 +587,8 @@ router.post('/:id/chat', async (req, res) => {
         }
         const userId = req.user.id;
         const role = req.user.role;
-        const patient = role === 'PATIENT' ? await prisma_1.default.patientProfile.findUnique({ where: { userId } }) : null;
-        const doctor = role === 'DOCTOR' ? await prisma_1.default.doctorProfile.findUnique({ where: { userId } }) : null;
+        const patient = role === 'PATIENT' ? await prisma_1.default.patientProfile.findUnique({ where: { userId }, select: { id: true } }) : null;
+        const doctor = role === 'DOCTOR' ? await prisma_1.default.doctorProfile.findUnique({ where: { userId }, select: { id: true } }) : null;
         const isPatient = patient?.id === sr.patientId;
         const isDoctor = doctor?.id != null && sr.doctorId === doctor.id;
         if (!isPatient && !isDoctor)
@@ -332,10 +626,16 @@ const confirmLocationSchema = zod_1.z.object({
 });
 router.patch('/:id/location', (0, roles_1.authorize)('PATIENT'), async (req, res) => {
     try {
-        const patient = await prisma_1.default.patientProfile.findUnique({ where: { userId: req.user.id } });
+        const patient = await prisma_1.default.patientProfile.findUnique({
+            where: { userId: req.user.id },
+            select: { id: true },
+        });
         if (!patient)
             return res.status(404).json({ error: true, message: 'Perfil paciente no encontrado' });
-        const sr = await prisma_1.default.serviceRequest.findUnique({ where: { id: req.params.id } });
+        const sr = await prisma_1.default.serviceRequest.findUnique({
+            where: { id: req.params.id },
+            select: { id: true, patientId: true },
+        });
         if (!sr)
             return res.status(404).json({ error: true, message: 'Solicitud no encontrada' });
         if (sr.patientId !== patient.id)
@@ -354,6 +654,16 @@ router.patch('/:id/location', (0, roles_1.authorize)('PATIENT'), async (req, res
                 requestLocationSource: parsed.data.source,
                 requestLocationPrecision: parsed.data.precision,
                 requestLocationConfidence: parsed.data.confidence,
+            },
+            select: {
+                id: true,
+                requestLat: true,
+                requestLng: true,
+                requestLocationCapturedAt: true,
+                requestLocationAccuracyMeters: true,
+                requestLocationSource: true,
+                requestLocationPrecision: true,
+                requestLocationConfidence: true,
             },
         });
         res.json({ message: 'Ubicación confirmada', data: updated });

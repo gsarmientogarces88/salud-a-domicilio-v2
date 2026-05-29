@@ -8,6 +8,7 @@ import StatusBadge from '@/components/ui/StatusBadge';
 import DateRangePicker from '@/components/medico/DateRangePicker';
 import TimeSlots from '@/components/medico/TimeSlots';
 import LocationSelector from '@/components/ui/LocationSelector';
+import { formatChileYmd } from '@/lib/formatLocalYmd';
 
 const SERVICIOS: Record<string, { label: string; icon: string }> = {
   medico: { label: 'Médico', icon: '👨‍⚕️' },
@@ -45,6 +46,10 @@ interface Service {
   notes?: string | null;
   createdAt: string;
   doctor?: { user: { firstName: string; lastName: string } };
+  /** 'service' = `service_requests`; 'agenda' = `appointment_requests` (Agenda Médico a Domicilio). */
+  recordKind?: 'service' | 'agenda';
+  statusDisplay?: string | null;
+  appointmentStatus?: 'PENDING' | 'CONFIRMED' | 'REJECTED' | 'EXPIRED';
 }
 
 type HistoryFilter = 'ALL' | 'COMPLETED' | 'CANCELLED' | 'PENDING';
@@ -131,6 +136,7 @@ function ConsultasContent() {
   const load = async () => {
     setHistoryError('');
     try {
+      // Incluye Médico a Domicilio Inmediato (service_requests) y Agenda Médico a Domicilio (appointment_requests) unificados
       const res = await apiFetch<{ data: Service[] }>('/services/me');
       setServices(Array.isArray(res.data) ? res.data : []);
     } catch (e) {
@@ -145,7 +151,7 @@ function ConsultasContent() {
     const statusMatch =
       historyFilter === 'ALL' ||
       (historyFilter === 'COMPLETED' && s.status === 'COMPLETED') ||
-      (historyFilter === 'CANCELLED' && s.status === 'CANCELLED') ||
+      (historyFilter === 'CANCELLED' && (s.status === 'CANCELLED' || s.status === 'REFUNDED')) ||
       (historyFilter === 'PENDING' &&
         ['PENDING', 'QUEUED', 'ACCEPTED', 'IN_PROGRESS'].includes(s.status));
 
@@ -156,10 +162,14 @@ function ConsultasContent() {
     const doctorText =
       s.doctorName ||
       (s.doctor?.user ? `Dr. ${s.doctor.user.firstName} ${s.doctor.user.lastName}` : '');
+    const typeText = (s.serviceTypeLabel || '').toLowerCase();
+    const statusText = (s.statusDisplay || s.status || '').toLowerCase();
     return (
       s.description.toLowerCase().includes(q) ||
       (s.commune || '').toLowerCase().includes(q) ||
-      doctorText.toLowerCase().includes(q)
+      doctorText.toLowerCase().includes(q) ||
+      typeText.includes(q) ||
+      statusText.includes(q)
     );
   });
 
@@ -243,11 +253,23 @@ function ConsultasContent() {
     const loadSlots = async () => {
       if (!soloAgendado || !selectedProfessional || !selectedDate) return;
       try {
-        const dateParam = selectedDate.toISOString().split('T')[0];
+        const dateParam = formatChileYmd(selectedDate);
+        if (process.env.NODE_ENV === 'development') {
+          // eslint-disable-next-line no-console
+          console.log('[Consultas] GET availability', {
+            professionalId: selectedProfessional.id,
+            dateSent: dateParam,
+          });
+        }
         const res = await apiFetch<{ data: { slots: string[] } }>(
           `/professionals/${selectedProfessional.id}/availability?date=${dateParam}`,
         );
-        setAvailableSlots(res.data.slots || []);
+        const slots = res.data?.slots || [];
+        if (process.env.NODE_ENV === 'development') {
+          // eslint-disable-next-line no-console
+          console.log('[Consultas] availability response', { count: slots.length, slots });
+        }
+        setAvailableSlots(slots);
       } catch {
         setAvailableSlots([]);
       }
@@ -443,7 +465,7 @@ function ConsultasContent() {
                 <div className="mt-4 space-y-4 rounded-lg bg-white p-3">
                   <div>
                     <label className="mb-2 block text-sm font-medium text-gray-700">Fecha</label>
-                    <DateRangePicker selectedDate={selectedDate} onSelect={setSelectedDate} />
+                    <DateRangePicker selectedDate={selectedDate} onSelect={setSelectedDate} fromDayOffset={1} />
                   </div>
                   <div>
                     <label className="mb-2 block text-sm font-medium text-gray-700">Hora disponible</label>
@@ -557,6 +579,7 @@ function ConsultasContent() {
             ) : (
               <div className="grid gap-4 xl:grid-cols-2">
                 {filteredHistory.map((s) => {
+                  const isAgenda = s.recordKind === 'agenda';
                   const doctorName =
                     s.doctorName ||
                     (s.doctor?.user
@@ -564,22 +587,27 @@ function ConsultasContent() {
                       : 'Profesional por asignar');
                   const specialty = s.doctorSpecialtyLabel?.trim() || 'No informado';
                   const distanceText =
-                    typeof s.distanceKm === 'number'
-                      ? `Distancia: ${s.distanceKm.toFixed(1)} km`
-                      : s.allowedRadiusKm
-                        ? `Dentro del radio de ${s.allowedRadiusKm} km`
-                        : 'Distancia no disponible';
+                    isAgenda
+                      ? 'No aplica (agenda)'
+                      : typeof s.distanceKm === 'number'
+                        ? `Distancia: ${s.distanceKm.toFixed(1)} km`
+                        : s.allowedRadiusKm
+                          ? `Dentro del radio de ${s.allowedRadiusKm} km`
+                          : 'Distancia no disponible';
                   const llegadaRaw = s.arrivedAt || s.estimatedArrivalAt;
                   const llegadaText = llegadaRaw ? formatDateTime(llegadaRaw) : 'No registrada';
+                  const detailHref = isAgenda
+                    ? `/dashboard/patient/agenda/estado/${s.id}`
+                    : `/dashboard/patient/medico/urgente/estado?serviceId=${s.id}`;
 
                   return (
                     <article
-                      key={s.id}
+                      key={`${s.recordKind || 'service'}-${s.id}`}
                       className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm ring-1 ring-sky-50"
                     >
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <h3 className="text-base font-semibold text-gray-900">{s.description || 'Atención médica'}</h3>
-                        <StatusBadge status={s.status} />
+                        <StatusBadge status={s.status} label={s.statusDisplay || undefined} />
                       </div>
 
                       <div className="mt-3">
@@ -600,7 +628,11 @@ function ConsultasContent() {
                           <span className="font-medium">Fecha solicitud:</span> {formatDateTime(s.requestedAt || s.createdAt)}
                         </p>
                         <p className="text-gray-700">
-                          <span className="font-medium">Hora llegada:</span> {llegadaText}
+                          <span className="font-medium">
+                            {isAgenda ? 'Fecha y hora agendada' : 'Hora llegada'}
+                            :
+                          </span>{' '}
+                          {llegadaText}
                         </p>
                         <p className="text-gray-700 sm:col-span-2">
                           <span className="font-medium">Ubicación:</span> {s.address}
@@ -625,22 +657,28 @@ function ConsultasContent() {
                       )}
 
                       <div className="mt-4 flex flex-wrap gap-2">
-                        {s.receiptStatus === 'AVAILABLE' ? (
-                          <button
-                            type="button"
-                            onClick={() => downloadReceipt(s.id)}
-                            disabled={downloadingReceiptId === s.id}
-                            className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
-                          >
-                            {downloadingReceiptId === s.id ? 'Descargando boleta...' : 'Descargar boleta'}
-                          </button>
-                        ) : (
-                          <span className="rounded-xl bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-800 ring-1 ring-amber-200">
-                            Boleta pendiente
+                        {!isAgenda &&
+                          (s.receiptStatus === 'AVAILABLE' ? (
+                            <button
+                              type="button"
+                              onClick={() => downloadReceipt(s.id)}
+                              disabled={downloadingReceiptId === s.id}
+                              className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                            >
+                              {downloadingReceiptId === s.id ? 'Descargando boleta...' : 'Descargar boleta'}
+                            </button>
+                          ) : (
+                            <span className="rounded-xl bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-800 ring-1 ring-amber-200">
+                              Boleta pendiente
+                            </span>
+                          ))}
+                        {isAgenda && (
+                          <span className="rounded-xl bg-slate-50 px-4 py-2 text-sm text-slate-600 ring-1 ring-slate-200">
+                            Pago: según confirmación del médico
                           </span>
                         )}
                         <Link
-                          href={`/dashboard/patient/medico/urgente/estado?serviceId=${s.id}`}
+                          href={detailHref}
                           className="rounded-xl bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-800 ring-1 ring-sky-200 hover:bg-sky-100"
                         >
                           Ver detalle

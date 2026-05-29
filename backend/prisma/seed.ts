@@ -1,5 +1,20 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { addMinutes } from 'date-fns';
+import { zonedSlotStartUtc } from '../src/lib/appointmentBookingRules';
+
+function ymdFromDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function chileSlotRange(day: Date, hour: number, durationMin: number): { startAt: Date; endAt: Date } {
+  const ymd = ymdFromDate(day);
+  const startAt = zonedSlotStartUtc(ymd, `${String(hour).padStart(2, '0')}:00`);
+  return { startAt, endAt: addMinutes(startAt, durationMin) };
+}
 
 const prisma = new PrismaClient();
 
@@ -124,6 +139,30 @@ async function main() {
     console.log('⏭️  Usuario MÉDICO ya existe');
   }
 
+  // 3.0) Asegurar filas en `availabilities` para Rodrigo Silva (doctor@salud.cl): el bloque create no las insertaba
+  const rodrigoUser = await prisma.user.findUnique({
+    where: { email: doctorEmail },
+    include: { doctorProfile: true },
+  });
+  if (rodrigoUser?.doctorProfile) {
+    const rc = await prisma.availability.count({ where: { professionalId: rodrigoUser.doctorProfile.id } });
+    if (rc === 0) {
+      for (let day = 1; day <= 5; day++) {
+        await prisma.availability.create({
+          data: {
+            professionalId: rodrigoUser.doctorProfile.id,
+            dayOfWeek: day,
+            startTime: '09:00',
+            endTime: '18:00',
+            slotDuration: 30,
+            bufferMinutes: 15,
+          },
+        });
+      }
+      console.log('✅ Disponibilidad L–V 09:00–18:00 (30m, buffer 15) creada para Rodrigo Silva (doctor@salud.cl)');
+    }
+  }
+
   // 3.1) Médico de prueba adicional
   const doctor2Email = 'doctor2@salud.cl';
   const doctor2Exists = await prisma.user.findUnique({ where: { email: doctor2Email } });
@@ -178,15 +217,12 @@ async function main() {
       day.setDate(day.getDate() + d);
       if (day.getDay() === 0 || day.getDay() === 6) continue; // fin de semana
       for (let h = 9; h < 18; h++) {
-        const start = new Date(day);
-        start.setHours(h, 0, 0, 0);
-        const end = new Date(day);
-        end.setHours(h + 1, 0, 0, 0);
+        const { startAt, endAt } = chileSlotRange(day, h, 60);
         await prisma.availabilitySlot.create({
           data: {
             professionalId: docId,
-            startAt: start,
-            endAt: end,
+            startAt,
+            endAt,
             status: 'AVAILABLE',
           },
         });
@@ -299,15 +335,12 @@ async function main() {
       day.setDate(day.getDate() + d);
       if (day.getDay() === 0 || day.getDay() === 6) continue; // saltar fin de semana
       for (let h = 9; h < 18; h++) {
-        const start = new Date(day);
-        start.setHours(h, 0, 0, 0);
-        const end = new Date(day);
-        end.setHours(h + 1, 0, 0, 0);
+        const { startAt, endAt } = chileSlotRange(day, h, 60);
         await prisma.availabilitySlot.create({
           data: {
             professionalId: docId,
-            startAt: start,
-            endAt: end,
+            startAt,
+            endAt,
             status: 'AVAILABLE',
           },
         });
@@ -346,12 +379,9 @@ async function main() {
       day.setDate(day.getDate() + d);
       if (day.getDay() === 0 || day.getDay() === 6) continue;
       for (let h = 9; h < 18; h++) {
-        const start = new Date(day);
-        start.setHours(h, 0, 0, 0);
-        const end = new Date(day);
-        end.setHours(h + 1, 0, 0, 0);
+        const { startAt, endAt } = chileSlotRange(day, h, 60);
         await prisma.availabilitySlot.create({
-          data: { professionalId: doc.id, startAt: start, endAt: end, status: 'AVAILABLE' },
+          data: { professionalId: doc.id, startAt, endAt, status: 'AVAILABLE' },
         });
       }
     }

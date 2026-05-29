@@ -8,12 +8,14 @@ const COLORS: Record<string, string> = {
   COMPLETED: 'bg-green-100 text-green-800',
   CANCELLED: 'bg-red-100 text-red-800',
   REFUNDED: 'bg-gray-100 text-gray-800',
+  REJECTED: 'bg-red-100 text-red-800',
+  EXPIRED: 'bg-gray-200 text-gray-800',
 };
 
-export default function StatusBadge({ status }: { status: string }) {
+export default function StatusBadge({ status, label }: { status: string; label?: string }) {
   return (
     <span className={`rounded-full px-2 py-1 text-xs font-medium ${COLORS[status] || 'bg-gray-100'}`}>
-      {status.replace('_', ' ')}
+      {label?.trim() || status.replace(/_/g, ' ')}
     </span>
   );
 }

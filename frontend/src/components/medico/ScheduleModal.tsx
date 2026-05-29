@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api';
-import { formatLocalYmd } from '@/lib/formatLocalYmd';
+import { formatChileTimeFromIso, formatChileYmd, jsWeekdayChile } from '@/lib/formatLocalYmd';
 import { buildChileGeocodeQuery, geocodeChileAddressLine } from '@/lib/mapboxGeocode';
 import DateRangePicker from './DateRangePicker';
 import MapaDireccion from '@/components/MapaDireccion';
@@ -73,6 +73,7 @@ export default function ScheduleModal({
     setSelectedDate(null);
     setAgendaSlots([]);
     setSelectedSlot(null);
+    setLoadingSlots(false);
     setSlotsError('');
     setAddressText('');
     setCoords(null);
@@ -103,18 +104,53 @@ export default function ScheduleModal({
     setGeocodeState((s) => ({ ...s, error: null }));
   }, [location.region, location.province, location.commune, step]);
 
+  const handleSelectDate = useCallback(
+    (d: Date) => {
+      setSelectedDate(d);
+      if (!doctor) return;
+      setLoadingSlots(true);
+      setAgendaSlots([]);
+      setSelectedSlot(null);
+      setSlotsError('');
+    },
+    [doctor],
+  );
+
   useEffect(() => {
     const load = async () => {
       if (!doctor || !selectedDate) return;
       setLoadingSlots(true);
       setSlotsError('');
       setSelectedSlot(null);
+      setAgendaSlots([]);
       try {
-        const dateParam = formatLocalYmd(selectedDate);
-        const res = await apiFetch<{ data: AgendaSlot[] }>(
-          `/agenda/slots?professionalId=${encodeURIComponent(doctor.id)}&date=${dateParam}`,
-        );
-        setAgendaSlots(res.data || []);
+        const dateParam = formatChileYmd(selectedDate);
+        const path = `/agenda/slots?professionalId=${encodeURIComponent(doctor.id)}&date=${dateParam}`;
+        if (process.env.NODE_ENV === 'development') {
+          // eslint-disable-next-line no-console
+          console.log('[ScheduleModal] GET /agenda/slots — request', {
+            path,
+            professionalId: doctor.id,
+            doctorName: doctor.name,
+            dateSent: dateParam,
+            selectedDateLocal: selectedDate.toString(),
+            dayOfWeekChile: jsWeekdayChile(selectedDate),
+          });
+        }
+        const res = await apiFetch<{ data: AgendaSlot[] }>(path);
+        const slots = res.data || [];
+        if (process.env.NODE_ENV === 'development') {
+          // eslint-disable-next-line no-console
+          console.log('[ScheduleModal] GET /agenda/slots — response', {
+            count: slots.length,
+            slots: slots.map((s) => ({
+              id: s.id,
+              startAt: s.startAt,
+              labelChile: formatChileTimeFromIso(s.startAt),
+            })),
+          });
+        }
+        setAgendaSlots(slots);
       } catch (e: any) {
         setAgendaSlots([]);
         setSlotsError(e.message || 'No se pudieron cargar los horarios.');
@@ -125,7 +161,7 @@ export default function ScheduleModal({
     load();
   }, [doctor, selectedDate]);
 
-  const canGoStep2 = doctor && selectedDate && selectedSlot;
+  const canGoStep2 = doctor && selectedDate && selectedSlot && !loadingSlots;
   const canSubmit =
     doctor &&
     selectedSlot &&
@@ -232,36 +268,56 @@ export default function ScheduleModal({
             </p>
             <div>
               <label className="mb-2 block text-sm font-medium text-gray-700">Fecha</label>
-              <DateRangePicker selectedDate={selectedDate} onSelect={setSelectedDate} fromDayOffset={1} dayCount={14} />
+              <DateRangePicker
+                selectedDate={selectedDate}
+                onSelect={handleSelectDate}
+                fromDayOffset={1}
+                dayCount={14}
+              />
             </div>
             <div>
               <label className="mb-2 block text-sm font-medium text-gray-700">Hora disponible</label>
-              {loadingSlots && <p className="text-xs text-gray-500">Cargando horarios...</p>}
-              {!loadingSlots && agendaSlots.length === 0 && selectedDate && !slotsError && (
-                <p className="text-xs text-gray-500">No hay cupos para esta fecha. Prueba otra.</p>
+              {loadingSlots && selectedDate && (
+                <div
+                  className="flex min-h-[132px] flex-col items-center justify-center gap-3 rounded-xl border border-sky-100/80 bg-sky-50/40 py-6"
+                  aria-busy
+                  aria-live="polite"
+                >
+                  <div
+                    className="h-9 w-9 shrink-0 animate-spin rounded-full border-2 border-sky-200 border-t-sky-600"
+                    role="status"
+                  />
+                  <p className="px-2 text-center text-sm text-gray-500">Cargando horarios disponibles...</p>
+                </div>
               )}
-              {slotsError && <p className="text-xs text-red-600">{slotsError}</p>}
-              <div className="mt-2 flex flex-wrap gap-2">
-                {agendaSlots.map((s) => {
-                  const label = new Date(s.startAt).toLocaleTimeString('es-CL', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  });
-                  const active = selectedSlot?.id === s.id;
-                  return (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => setSelectedSlot(s)}
-                      className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                        active ? 'bg-sky-600 text-white' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
+              {!loadingSlots && !slotsError && agendaSlots.length === 0 && selectedDate && (
+                <p className="text-xs text-gray-500">
+                  {jsWeekdayChile(selectedDate) === 0 || jsWeekdayChile(selectedDate) === 6
+                    ? 'Los médicos atienden de lunes a viernes. Elige un día hábil.'
+                    : 'No hay cupos disponibles para esta fecha (mínimo 12 h de anticipación). Prueba otra fecha u horario.'}
+                </p>
+              )}
+              {!loadingSlots && slotsError && <p className="text-xs text-red-600">{slotsError}</p>}
+              {!loadingSlots && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {agendaSlots.map((s) => {
+                    const label = formatChileTimeFromIso(s.startAt);
+                    const active = selectedSlot?.id === s.id;
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => setSelectedSlot(s)}
+                        className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                          active ? 'bg-sky-600 text-white' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -347,13 +403,13 @@ export default function ScheduleModal({
           {step === 1 ? (
             <button
               type="button"
-              disabled={!canGoStep2}
+              disabled={!canGoStep2 || loadingSlots}
               onClick={() => setStep(2)}
               className={`flex-1 rounded-lg px-4 py-2 font-medium text-white ${
-                canGoStep2 ? 'bg-sky-600 hover:bg-sky-700' : 'cursor-not-allowed bg-gray-300'
+                canGoStep2 && !loadingSlots ? 'bg-sky-600 hover:bg-sky-700' : 'cursor-not-allowed bg-gray-300'
               }`}
             >
-              Continuar
+              {loadingSlots ? 'Cargando…' : 'Continuar'}
             </button>
           ) : (
             <button

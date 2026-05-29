@@ -96,6 +96,15 @@ router.get('/:id/availability', async (req, res) => {
             return res.status(400).json({ error: true, message: 'date debe ser YYYY-MM-DD' });
         }
         const slots = await (0, scheduling_service_1.getAvailableSlotsForDate)(id, date);
+        if (process.env.NODE_ENV !== 'production') {
+            // eslint-disable-next-line no-console
+            console.log('[PROFESSIONALS availability]', {
+                professionalId: id,
+                dateReceived: date,
+                slotsCount: slots.length,
+                sample: slots.slice(0, 8),
+            });
+        }
         res.json({ data: { slots } });
     }
     catch (e) {

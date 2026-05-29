@@ -15,7 +15,7 @@ router.get('/me', auth_1.authenticate, async (req, res) => {
     try {
         const user = await prisma_1.default.user.findUnique({
             where: { id: req.user.id },
-            select: { id: true, email: true, role: true, firstName: true, lastName: true },
+            select: { id: true, email: true, role: true, firstName: true, lastName: true, phone: true },
         });
         if (!user)
             return res.status(404).json({ error: true, message: 'Usuario no encontrado' });
@@ -57,7 +57,7 @@ router.post('/register', async (req, res) => {
                     },
                 } : {}),
             },
-            select: { id: true, email: true, role: true, firstName: true, lastName: true, createdAt: true },
+            select: { id: true, email: true, role: true, firstName: true, lastName: true, phone: true, createdAt: true },
         });
         const token = jsonwebtoken_1.default.sign({ userId: user.id }, config_1.config.jwtSecret, { expiresIn: config_1.config.jwtExpiresIn });
         res.status(201).json({ message: 'Registro exitoso', data: { user, token } });
@@ -121,7 +121,14 @@ router.post('/login', async (req, res) => {
         res.json({
             data: {
                 token,
-                user: { id: user.id, email: user.email, role: user.role, firstName: user.firstName, lastName: user.lastName },
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    role: user.role,
+                    firstName: user.firstName,
+                    lastName: user.lastName,
+                    phone: user.phone,
+                },
             },
         });
     }

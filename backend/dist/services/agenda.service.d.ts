@@ -29,8 +29,8 @@ export declare function createAppointmentRequest(data: {
     createdAt: Date;
     updatedAt: Date;
     commune: string;
-    province: string;
     region: string;
+    province: string;
     patientId: string;
     status: import(".prisma/client").$Enums.AppointmentRequestStatus;
     notes: string | null;

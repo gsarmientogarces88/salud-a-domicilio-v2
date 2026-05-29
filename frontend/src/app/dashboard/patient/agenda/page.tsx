@@ -8,6 +8,7 @@ import LocationSelector from '@/components/ui/LocationSelector';
 import DateRangePicker from '@/components/medico/DateRangePicker';
 import TimeSlots from '@/components/medico/TimeSlots';
 import { getCoordsForCommune } from '@/data/coordsFallback';
+import { formatLocalYmd } from '@/lib/formatLocalYmd';
 
 const TIPOS_PROFESIONAL: { value: string; label: string }[] = [
   { value: 'Kinesiología', label: 'Kinesiología' },
@@ -99,7 +100,7 @@ export default function AgendaPage() {
       }
       setLoadingSlots(true);
       try {
-        const dateStr = selectedDate.toISOString().split('T')[0];
+        const dateStr = formatLocalYmd(selectedDate);
         const res = await apiFetch<{ data: SlotItem[] }>(
           `/agenda/slots?professionalId=${selectedProfessional.id}&date=${dateStr}`,
         );

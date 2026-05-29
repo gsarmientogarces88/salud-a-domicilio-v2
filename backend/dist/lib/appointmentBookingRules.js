@@ -18,7 +18,13 @@ function calendarDateKeyInChile(d) {
 function jsWeekdayFromYmdChile(ymd) {
     const noon = (0, date_fns_tz_1.fromZonedTime)(`${ymd}T12:00:00`, exports.BOOKING_TIMEZONE);
     const isoDow = Number((0, date_fns_tz_1.formatInTimeZone)(noon, exports.BOOKING_TIMEZONE, 'i')); // 1=Lun … 7=Dom
-    return isoDow === 7 ? 0 : isoDow;
+    if (!Number.isNaN(isoDow) && isoDow >= 1 && isoDow <= 7) {
+        return isoDow === 7 ? 0 : isoDow;
+    }
+    // Fallback si el token `i` no está disponible en runtime
+    const [y, m, d] = ymd.split('-').map((x) => parseInt(x, 10));
+    const utc = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+    return utc.getUTCDay();
 }
 function zonedSlotStartUtc(ymd, hhmm) {
     const [h, m] = hhmm.split(':').map((x) => parseInt(x, 10));
