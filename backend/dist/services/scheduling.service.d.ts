@@ -84,7 +84,7 @@ export declare function getAgendaSlotCandidatesForDate(professionalId: string, y
 /**
  * Crea filas faltantes en `availability_slots` para que POST /agenda/requests tenga `slotId` real.
  * No pisa filas BOOKED/HELD; ajusta endAt solo en AVAILABLE (sin hold vigente) si la regla cambió.
- * Idempotente por (professionalId, startAt) con constraint única.
+ * Idempotente por (professionalId, startAt). Usa findFirst (no requiere @@unique en BD).
  */
 export declare function ensureMaterializedAgendaSlotsForDate(professionalId: string, ymd: string, 
 /** Si se pasan (p. ej. ya filtrados con 12h), evita otra ronda de lecturas a BD. */

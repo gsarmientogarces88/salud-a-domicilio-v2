@@ -207,7 +207,7 @@ async function getAgendaSlotCandidatesForDate(professionalId, ymd) {
 /**
  * Crea filas faltantes en `availability_slots` para que POST /agenda/requests tenga `slotId` real.
  * No pisa filas BOOKED/HELD; ajusta endAt solo en AVAILABLE (sin hold vigente) si la regla cambió.
- * Idempotente por (professionalId, startAt) con constraint única.
+ * Idempotente por (professionalId, startAt). Usa findFirst (no requiere @@unique en BD).
  */
 async function ensureMaterializedAgendaSlotsForDate(professionalId, ymd, 
 /** Si se pasan (p. ej. ya filtrados con 12h), evita otra ronda de lecturas a BD. */
@@ -218,9 +218,15 @@ precomputedCandidates) {
     for (const c of candidates) {
         const startAt = (0, appointmentBookingRules_1.zonedSlotStartUtc)(ymd, c.hhmm);
         const endAt = (0, date_fns_1.addMinutes)(startAt, c.durationMin);
-        const existing = await prisma_1.default.availabilitySlot.findUnique({
-            where: { professionalId_startAt: { professionalId, startAt } },
+        const existing = await prisma_1.default.availabilitySlot.findFirst({
+            where: { professionalId, startAt },
         });
+        // eslint-disable-next-line no-console
+        console.log('[AGENDA materialize] professionalId', professionalId);
+        // eslint-disable-next-line no-console
+        console.log('[AGENDA materialize] startAt', startAt.toISOString());
+        // eslint-disable-next-line no-console
+        console.log('[AGENDA materialize] slot encontrado', existing?.id ?? null);
         if (!existing) {
             try {
                 await prisma_1.default.availabilitySlot.create({
