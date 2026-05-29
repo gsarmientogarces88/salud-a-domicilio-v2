@@ -11,6 +11,7 @@ exports.expireHeldRequests = expireHeldRequests;
 const prisma_1 = __importDefault(require("../lib/prisma"));
 const haversine_1 = require("../lib/haversine");
 const appointmentBookingRules_1 = require("../lib/appointmentBookingRules");
+const agendaPricing_1 = require("../lib/agendaPricing");
 const HOLD_MINUTES = 20;
 function getHoldUntil() {
     const d = new Date();
@@ -51,6 +52,7 @@ async function createAppointmentRequest(data) {
     ]);
     if (!professional)
         throw new Error('Profesional no encontrado');
+    (0, agendaPricing_1.assertAgendaBaseFeeConfigured)(professional.baseFee);
     if (!slot)
         throw new Error('Slot no encontrado');
     if (slot.professionalId !== professionalId)
@@ -63,7 +65,7 @@ async function createAppointmentRequest(data) {
         throw new Error(validation.error);
     }
     const holdUntil = getHoldUntil();
-    const amount = professional.baseFee;
+    const amount = (0, agendaPricing_1.assertAgendaBaseFeeConfigured)(professional.baseFee);
     const result = await prisma_1.default.$transaction(async (tx) => {
         await tx.availabilitySlot.update({
             where: { id: slotId },

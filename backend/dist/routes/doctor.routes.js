@@ -10,6 +10,7 @@ const prisma_1 = __importDefault(require("../lib/prisma"));
 const zod_1 = require("zod");
 const config_1 = require("../config");
 const geo_service_1 = require("../services/geo.service");
+const agendaPricing_1 = require("../lib/agendaPricing");
 const router = (0, express_1.Router)();
 router.use(auth_1.authenticate, (0, roles_1.authorize)('DOCTOR'));
 // GET /doctor/me — perfil del médico
@@ -86,11 +87,15 @@ router.patch('/me/settings', async (req, res) => {
         if (!profile) {
             return res.status(404).json({ error: true, message: 'Perfil médico no encontrado' });
         }
-        const data = {};
+        const parsedFee = typeof baseFee === 'number' ? baseFee : baseFee != null ? Number(baseFee) : NaN;
+        if (!(0, agendaPricing_1.isValidAgendaBaseFee)(parsedFee)) {
+            return res.status(400).json({ error: true, message: agendaPricing_1.AGENDA_HOME_VISIT_FEE_ERROR });
+        }
+        const data = {
+            baseFee: Math.round(parsedFee),
+        };
         if (typeof specialty === 'string' && specialty.trim())
             data.specialty = specialty.trim();
-        if (typeof baseFee === 'number' && baseFee > 0)
-            data.baseFee = Math.round(baseFee);
         const updated = await prisma_1.default.doctorProfile.update({
             where: { id: profile.id },
             data,

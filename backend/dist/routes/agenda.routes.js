@@ -46,6 +46,7 @@ const date_fns_tz_1 = require("date-fns-tz");
 const geo = __importStar(require("../services/geo.service"));
 const territoryCompat_1 = require("../lib/territoryCompat");
 const scheduling_service_1 = require("../services/scheduling.service");
+const agendaPricing_1 = require("../lib/agendaPricing");
 const router = (0, express_1.Router)();
 router.use(auth_1.authenticate);
 // POST /agenda/requests — Paciente crea solicitud de agenda
@@ -237,6 +238,9 @@ router.get('/slots', async (req, res) => {
                 date,
             });
             return res.status(404).json({ error: true, message: 'Profesional no encontrado' });
+        }
+        if (!(0, agendaPricing_1.isValidAgendaBaseFee)(pro.baseFee)) {
+            return res.status(400).json({ error: true, message: agendaPricing_1.AGENDA_HOME_VISIT_FEE_ERROR });
         }
         const debug = process.env.NODE_ENV !== 'production';
         const { slots, debug: stats } = await (0, scheduling_service_1.listMaterializedAgendaSlotsForDate)(pro.id, date, { debug });

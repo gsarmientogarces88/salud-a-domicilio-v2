@@ -8,6 +8,7 @@ import { formatInTimeZone } from 'date-fns-tz';
 import * as geo from '../services/geo.service';
 import { coalesceProvinceFromPayload } from '../lib/territoryCompat';
 import { listMaterializedAgendaSlotsForDate } from '../services/scheduling.service';
+import { AGENDA_HOME_VISIT_FEE_ERROR, isValidAgendaBaseFee } from '../lib/agendaPricing';
 
 const router = Router();
 router.use(authenticate);
@@ -228,6 +229,10 @@ router.get('/slots', async (req: Request, res: Response) => {
         date,
       });
       return res.status(404).json({ error: true, message: 'Profesional no encontrado' });
+    }
+
+    if (!isValidAgendaBaseFee(pro.baseFee)) {
+      return res.status(400).json({ error: true, message: AGENDA_HOME_VISIT_FEE_ERROR });
     }
 
     const debug = process.env.NODE_ENV !== 'production';

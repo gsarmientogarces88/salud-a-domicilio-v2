@@ -135,6 +135,11 @@ export default function DoctorSettingsPage() {
   const handleSave = async () => {
     setSaving(true);
     setMessage('');
+    if (!Number.isFinite(standardFee) || standardFee <= 0) {
+      setMessage('Debe configurar el valor de la consulta a domicilio (mayor a $0).');
+      setSaving(false);
+      return;
+    }
     try {
       const availabilityPayload = availabilityRows
         .filter((r) => r.enabled)
@@ -270,14 +275,20 @@ export default function DoctorSettingsPage() {
           <div className="grid gap-4 md:grid-cols-3">
             <div>
               <h2 className="mb-2 text-sm font-semibold text-gray-800">Tarifas</h2>
-              <label className="mb-1 block text-xs text-gray-600">Consulta estándar (CLP)</label>
+              <label className="mb-1 block text-xs text-gray-600">
+                Valor consulta a domicilio (CLP) <span className="text-red-600">*</span>
+              </label>
               <input
                 type="number"
-                min={10000}
+                min={1}
+                required
                 value={standardFee}
                 onChange={(e) => setStandardFee(Number(e.target.value))}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
               />
+              <p className="mt-1 text-xs text-gray-500">
+                Obligatorio para Agenda Médico a Domicilio. Debe ser mayor a $0.
+              </p>
             </div>
             <div>
               <label className="mb-1 block text-xs text-gray-600">

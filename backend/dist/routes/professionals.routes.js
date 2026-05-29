@@ -72,6 +72,7 @@ router.get('/', async (req, res) => {
                 return {
                     ...p,
                     city: p.province,
+                    baseFee: p.baseFee,
                     acceptsWebpay: true,
                     acceptsIsapreBono: true,
                     ratingAverage: 4.8,

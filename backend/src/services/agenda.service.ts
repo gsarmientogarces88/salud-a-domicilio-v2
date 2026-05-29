@@ -1,6 +1,7 @@
 import prisma from '../lib/prisma';
 import { haversineDistance } from '../lib/haversine';
 import { assertBookingSlotAllowed } from '../lib/appointmentBookingRules';
+import { assertAgendaBaseFeeConfigured } from '../lib/agendaPricing';
 
 const HOLD_MINUTES = 20;
 
@@ -66,6 +67,7 @@ export async function createAppointmentRequest(data: {
   ]);
 
   if (!professional) throw new Error('Profesional no encontrado');
+  assertAgendaBaseFeeConfigured(professional.baseFee);
   if (!slot) throw new Error('Slot no encontrado');
   if (slot.professionalId !== professionalId) throw new Error('Slot no pertenece al profesional');
   if (slot.status !== 'AVAILABLE') throw new Error('El horario ya no está disponible');
@@ -78,7 +80,7 @@ export async function createAppointmentRequest(data: {
   }
 
   const holdUntil = getHoldUntil();
-  const amount = professional.baseFee;
+  const amount = assertAgendaBaseFeeConfigured(professional.baseFee);
 
   const result = await prisma.$transaction(async (tx) => {
     await tx.availabilitySlot.update({
