@@ -1,8 +1,0 @@
-{
-  "/page": "app/page.js",
-  "/dashboard/patient/inicio/page": "app/dashboard/patient/inicio/page.js",
-  "/dashboard/patient/medico/page": "app/dashboard/patient/medico/page.js",
-  "/dashboard/patient/baja-peso/page": "app/dashboard/patient/baja-peso/page.js",
-  "/dashboard/patient/examenes-domicilio/page": "app/dashboard/patient/examenes-domicilio/page.js",
-  "/dashboard/patient/medico/agendar/page": "app/dashboard/patient/medico/agendar/page.js"
-}
