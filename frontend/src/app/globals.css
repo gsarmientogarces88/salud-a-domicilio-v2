@@ -1,3 +1,47 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  --color-azul-primario: #185FA5;
+  --color-azul-oscuro: #042C53;
+  --color-azul-claro: #E6F1FB;
+  --color-azul-borde: #B5D4F4;
+  --color-verde: #1D9E75;
+  --color-verde-claro: #EAF3DE;
+  --color-verde-borde: #C0DD97;
+  --color-rojo-urgencia: #E24B4A;
+  --color-rojo-claro: #FCEBEB;
+  --color-rojo-borde: #F09595;
+  --color-texto-1: #111827;
+  --color-texto-2: #374151;
+  --color-texto-3: #6B7280;
+  --color-texto-4: #9CA3AF;
+  --color-fondo-pag: #F8FAFB;
+  --color-fondo-card: #FFFFFF;
+  --color-borde-card: #E5EAF0;
+  --color-estrella: #BA7517;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: Inter, sans-serif;
+  font-weight: 400;
+  background: var(--color-fondo-pag);
+}
+
+button,
+a,
+input,
+select {
+  transition: all 0.15s ease;
+}

@@ -1,96 +1,271 @@
 'use client';
 
 import Link from 'next/link';
-import { useAuth } from '@/context/AuthContext';
+import {
+  FloatingAction,
+  InitialAvatar,
+  MetricsStrip,
+  Pill,
+  RatingStars,
+  SectionCard,
+  StatusDot,
+  SvgIcon,
+  defaultMetrics,
+} from '@/components/medicilio/MedicilioUI';
 
-const MAIN_ACTIONS = [
+const quickAccess = [
+  ['Mi historial', 'clock'],
+  ['Mis recetas', 'file'],
+  ['Mis resultados', 'chart'],
+  ['Mis pagos', 'card'],
+] as const;
+
+const services = [
   {
-    icon: '🚨',
-    title: 'Pedir Médico Ahora',
-    desc: 'Solicita atención médica a domicilio de forma inmediata.',
-    cta: 'Solicitar ahora',
+    title: 'Urgencia a domicilio',
+    body: 'Médico inmediato para síntomas que no pueden esperar.',
     href: '/dashboard/patient/medico',
+    cta: 'Solicitar ahora',
+    icon: 'briefcase',
+    badge: 'Urgencia',
+    tone: 'red',
+    price: '$50.000',
+    meta: '15–20 min',
   },
   {
-    icon: '📅',
-    title: 'Agenda Médico a Domicilio',
-    desc: 'Elige día, hora y profesional según tu necesidad.',
-    cta: 'Agendar',
+    title: 'Agenda médico',
+    body: 'Reserva para el día y hora que prefieras.',
     href: '/dashboard/patient/medico/agendar',
+    cta: 'Agendar',
+    icon: 'calendar',
+    badge: 'Popular',
+    tone: 'blue',
+    price: '$39.990',
+    meta: 'A elección',
   },
   {
-    icon: '⚖️',
-    title: 'Programa Médico Baja de Peso',
-    desc: 'Accede a un plan médico personalizado para control de peso.',
-    cta: 'Ver programa',
+    title: 'Baja de peso',
+    body: 'Plan médico personalizado con seguimiento mensual.',
     href: '/dashboard/patient/baja-peso',
-  },
-  {
-    icon: '🧪',
-    title: 'Exámenes Médicos a Domicilio',
-    desc: 'Solicita exámenes sin salir de tu hogar.',
-    cta: 'Solicitar exámenes',
-    href: '/dashboard/patient/examenes-domicilio',
+    cta: 'Ver plan',
+    icon: 'scale',
+    badge: 'Nuevo',
+    tone: 'green',
+    price: '$79.990',
+    meta: 'Mensual',
   },
 ] as const;
 
-export default function PacienteInicioPage() {
-  const { user } = useAuth();
+const trust = [
+  ['Médicos con Registro SIS activo', 'shield', 'blue'],
+  ['Pago seguro con Webpay', 'lock', 'green'],
+  ['Receta médica digital incluida', 'file', 'amber'],
+  ['Historial clínico digital seguro', 'activity', 'purple'],
+] as const;
 
+export default function PacienteInicioPage() {
   return (
-    <div className="flex flex-col">
-      <div className="mb-8 flex items-start justify-between">
+    <div className="space-y-6">
+      <section className="grid gap-6 rounded-[16px] bg-[var(--color-azul-claro)] p-8 lg:grid-cols-[1.6fr_0.9fr]">
         <div>
-          <h1 className="mb-2 flex items-center gap-2 text-2xl font-bold text-gray-900">
-            <span className="text-3xl">🏠</span>
-            Bienvenido a Salud en Casa
+          <Pill>
+            <StatusDot />
+            3 médicos disponibles · Gran Concepción
+          </Pill>
+          <h1 className="mt-5 max-w-xl text-[38px] font-semibold leading-tight text-[var(--color-azul-oscuro)]">
+            Atención médica
+            <br />
+            en tu hogar.
+            <br />
+            <span className="text-[var(--color-azul-primario)]">En 15–20 minutos.</span>
           </h1>
-          <p className="max-w-2xl text-gray-600">
-            Somos la primera plataforma de atención médica a domicilio que integra servicios de urgencia, atención
-            programada y exámenes médicos en un solo lugar.
+          <p className="mt-4 max-w-2xl text-sm leading-6 text-[var(--color-texto-2)]">
+            Médicos certificados con registro SIS activo. Sin filas, sin traslado, sin espera.
           </p>
+          <div className="mt-6 w-[190px] rounded-[10px] border border-[var(--color-azul-borde)] bg-white p-4">
+            <p className="text-xs font-medium text-[var(--color-texto-3)]">Urgencia a domicilio</p>
+            <p className="mt-1 text-[22px] font-semibold text-[var(--color-azul-oscuro)]">$50.000</p>
+            <p className="mt-1 flex items-center gap-1 text-xs text-[var(--color-texto-3)]">
+              <SvgIcon name="card" className="h-3.5 w-3.5" />
+              Webpay · Isapre · Efectivo
+            </p>
+          </div>
+          <div className="mt-5 flex flex-wrap gap-2">
+            {['Registro SIS activo', 'Webpay seguro', '24/7', 'Médicos certificados'].map((item) => (
+              <Pill key={item} tone="gray">{item}</Pill>
+            ))}
+          </div>
+          <Link
+            href="/dashboard/patient/medico"
+            className="mt-5 inline-flex items-center gap-2 rounded-[10px] bg-[var(--color-azul-primario)] px-5 py-3 text-sm font-semibold text-white hover:bg-[#0C447C]"
+          >
+            <SvgIcon name="plus" className="h-4 w-4" />
+            Solicitar atención ahora
+          </Link>
         </div>
-        <div className="flex items-center gap-4">
-          <button type="button" className="relative rounded-full p-2 hover:bg-gray-100">
-            <span className="text-xl">🔔</span>
-            <span className="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white">
-              1
-            </span>
-          </button>
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-medium text-gray-700">
-              {user?.firstName} {user?.lastName}
-            </span>
-            <span className="inline-block h-10 w-10 overflow-hidden rounded-full bg-sky-200 text-center leading-10 text-sky-700">
-              👤
-            </span>
+
+        <div className="space-y-4">
+          <SectionCard className="p-5">
+            <div className="flex items-start gap-3">
+              <InitialAvatar initials="CM" />
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold text-[var(--color-texto-1)]">Dr. Carlos Muñoz</p>
+                <p className="text-xs text-[var(--color-texto-3)]">Médico General · 8 años exp.</p>
+                <div className="mt-1 flex items-center gap-2 text-xs text-[var(--color-texto-3)]">
+                  <RatingStars />
+                  4.9 · 142
+                </div>
+              </div>
+            </div>
+            <div className="mt-4 rounded-[10px] bg-[var(--color-azul-claro)] p-4">
+              <p className="text-xs text-[var(--color-texto-3)]">Tiempo estimado de llegada</p>
+              <div className="mt-1 flex items-center justify-between">
+                <span className="text-xl font-semibold text-[var(--color-azul-primario)]">14 minutos</span>
+                <span className="rounded-full bg-[var(--color-verde-claro)] px-3 py-1 text-xs font-medium text-[#27500A]">En camino</span>
+              </div>
+            </div>
+          </SectionCard>
+          <div className="grid grid-cols-2 gap-3">
+            {defaultMetrics.map((metric) => (
+              <div key={metric.label} className="rounded-[14px] border border-[var(--color-borde-card)] bg-white p-4 text-center">
+                <p className="text-lg font-semibold text-[var(--color-azul-primario)]">{metric.value}</p>
+                <p className="text-xs text-[var(--color-texto-3)]">{metric.label}</p>
+              </div>
+            ))}
           </div>
         </div>
+      </section>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-[14px] border border-[var(--color-borde-card)] bg-white px-4 py-3 text-sm">
+        <span className="flex items-center gap-2 text-[var(--color-texto-2)]">
+          <StatusDot />
+          Médicos disponibles ahora · Tiempo estimado: 15–20 minutos
+        </span>
+        <span className="text-xs text-[var(--color-texto-3)]">+3.200 pacientes atendidos · Calificación promedio 4.9/5</span>
       </div>
 
+      <SectionCard className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center gap-4">
+          <span className="flex h-12 w-12 items-center justify-center rounded-[12px] bg-[var(--color-verde-claro)] text-[var(--color-verde)]">
+            <SvgIcon name="calendar" className="h-6 w-6" />
+          </span>
+          <div>
+            <p className="text-sm font-semibold text-[var(--color-texto-1)]">Próxima atención programada</p>
+            <p className="mt-1 text-sm text-[var(--color-texto-2)]">Dr. Carlos Muñoz · Medicina General</p>
+            <p className="text-xs text-[var(--color-texto-3)]">Mañana · 10:00 AM · Domicilio confirmado</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <Link href="/dashboard/patient/consultas" className="text-xs font-medium text-[var(--color-azul-primario)]">
+            Ver historial →
+          </Link>
+          <span className="rounded-full bg-[var(--color-verde-claro)] px-3 py-1 text-xs font-medium text-[#27500A]">Confirmada</span>
+        </div>
+      </SectionCard>
+
       <section>
-        <h2 className="mb-4 text-lg font-semibold text-gray-800">Servicios principales</h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {MAIN_ACTIONS.map((item) => (
-            <div
-              key={item.href}
-              className="flex flex-col rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-all hover:shadow-md hover:ring-2 hover:ring-sky-200"
+        <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--color-texto-4)]">Acceso rápido</p>
+        <h2 className="mt-1 text-xl font-semibold text-[var(--color-texto-1)]">¿Qué necesitas hoy?</h2>
+        <div className="mt-4 grid gap-3 md:grid-cols-4">
+          {quickAccess.map(([label, icon]) => (
+            <Link
+              key={label}
+              href="/dashboard/patient/consultas"
+              className="rounded-[14px] border border-[var(--color-borde-card)] bg-white p-5 text-center hover:border-[var(--color-azul-borde)] hover:shadow-[0_2px_12px_rgba(24,95,165,0.08)]"
             >
-              <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-lg bg-sky-50 text-3xl">
-                {item.icon}
-              </div>
-              <h3 className="mb-1 font-semibold text-gray-900">{item.title}</h3>
-              <p className="mb-4 flex-1 text-sm text-gray-600">{item.desc}</p>
-              <Link
-                href={item.href}
-                className="inline-flex w-full items-center justify-center rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-700"
-              >
-                {item.cta}
-              </Link>
-            </div>
+              <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-[12px] bg-[var(--color-azul-claro)] text-[var(--color-azul-primario)]">
+                <SvgIcon name={icon} className="h-5 w-5" />
+              </span>
+              <span className="mt-3 block text-sm font-medium text-[var(--color-texto-2)]">{label}</span>
+            </Link>
           ))}
         </div>
       </section>
+
+      <section>
+        <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--color-texto-4)]">Servicios disponibles</p>
+        <h2 className="mt-1 text-xl font-semibold text-[var(--color-texto-1)]">¿Qué más necesitas?</h2>
+        <p className="mt-1 text-sm text-[var(--color-texto-3)]">Todos con profesional verificado y boleta electrónica.</p>
+        <div className="mt-5 grid gap-4 lg:grid-cols-3">
+          {services.map((service) => (
+            <article
+              key={service.title}
+              className={`rounded-[14px] border bg-white p-5 ${
+                service.tone === 'red' ? 'border-[var(--color-rojo-borde)]' : 'border-[var(--color-borde-card)]'
+              }`}
+            >
+              <div className="flex items-start justify-between">
+                <span
+                  className={`flex h-11 w-11 items-center justify-center rounded-[12px] ${
+                    service.tone === 'red'
+                      ? 'bg-[var(--color-rojo-claro)] text-[var(--color-rojo-urgencia)]'
+                      : service.tone === 'green'
+                        ? 'bg-[var(--color-verde-claro)] text-[var(--color-verde)]'
+                        : 'bg-[var(--color-azul-claro)] text-[var(--color-azul-primario)]'
+                  }`}
+                >
+                  <SvgIcon name={service.icon} className="h-5 w-5" />
+                </span>
+                <span
+                  className={`rounded-full px-2 py-1 text-[10px] font-medium ${
+                    service.tone === 'red'
+                      ? 'bg-[var(--color-rojo-claro)] text-[var(--color-rojo-urgencia)]'
+                      : service.tone === 'green'
+                        ? 'bg-[var(--color-verde-claro)] text-[#27500A]'
+                        : 'bg-[var(--color-azul-claro)] text-[var(--color-azul-primario)]'
+                  }`}
+                >
+                  {service.badge}
+                </span>
+              </div>
+              <h3 className="mt-4 text-base font-semibold text-[var(--color-texto-1)]">{service.title}</h3>
+              <p className="mt-2 min-h-[42px] text-sm text-[var(--color-texto-3)]">{service.body}</p>
+              <div className="mt-4 flex items-center justify-between text-xs text-[var(--color-texto-3)]">
+                <span className="inline-flex items-center gap-1">
+                  <SvgIcon name="clock" className="h-3.5 w-3.5" />
+                  {service.meta}
+                </span>
+                <span className="font-semibold text-[var(--color-azul-primario)]">{service.price}</span>
+              </div>
+              <Link
+                href={service.href}
+                className={`mt-4 flex h-10 items-center justify-center rounded-[10px] text-sm font-medium ${
+                  service.tone === 'red'
+                    ? 'bg-[var(--color-rojo-claro)] text-[var(--color-rojo-urgencia)] hover:bg-[#F9DCDC]'
+                    : 'bg-[var(--color-azul-claro)] text-[var(--color-azul-primario)] hover:bg-[#D8EAF8]'
+                }`}
+              >
+                {service.cta}
+              </Link>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <MetricsStrip items={defaultMetrics} />
+
+      <div className="grid gap-3 rounded-[14px] border border-[var(--color-borde-card)] bg-white p-4 md:grid-cols-4">
+        {trust.map(([label, icon, tone]) => (
+          <div key={label} className="flex items-center gap-3">
+            <span
+              className={`flex h-10 w-10 items-center justify-center rounded-[10px] ${
+                tone === 'green'
+                  ? 'bg-[var(--color-verde-claro)] text-[var(--color-verde)]'
+                  : tone === 'amber'
+                    ? 'bg-[#FAEEDA] text-[#9A6A18]'
+                    : tone === 'purple'
+                      ? 'bg-[#EEEDFE] text-[#6153B8]'
+                      : 'bg-[var(--color-azul-claro)] text-[var(--color-azul-primario)]'
+              }`}
+            >
+              <SvgIcon name={icon} className="h-5 w-5" />
+            </span>
+            <span className="text-sm text-[var(--color-texto-2)]">{label}</span>
+          </div>
+        ))}
+      </div>
+
+      <FloatingAction href="/dashboard/patient/medico">Solicitar atención ahora</FloatingAction>
     </div>
   );
 }
