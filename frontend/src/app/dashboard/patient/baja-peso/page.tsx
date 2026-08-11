@@ -9,6 +9,8 @@ import {
   SectionCard,
   SvgIcon,
 } from '@/components/medicilio/MedicilioUI';
+import ProyeccionPeso from './ProyeccionPeso';
+import BajaPesoServiceLanding from './BajaPesoServiceLanding';
 
 type AvatarTone = NonNullable<Parameters<typeof InitialAvatar>[0]['tone']>;
 
@@ -272,6 +274,10 @@ export default function BajaPesoPage() {
         </SectionCard>
       </section>
 
+      <ProyeccionPeso pesoInicialDefault={weight} pesoMetaDefault={goal} />
+
+      <BajaPesoServiceLanding />
+
       <section>
         <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--color-texto-4)]">
           Equipo especializado
@@ -323,16 +329,16 @@ export default function BajaPesoPage() {
                     </li>
                   ))}
                 </ul>
-                <button
-                  type="button"
-                  className={`mt-6 h-10 w-full rounded-[10px] text-sm font-semibold ${
+                <a
+                  href="#agendar-baja-peso"
+                  className={`mt-6 flex h-10 w-full items-center justify-center rounded-[10px] text-sm font-semibold ${
                     popular
                       ? 'bg-[var(--color-verde)] text-white'
                       : 'border border-[var(--color-verde-borde)] text-[var(--color-verde)]'
                   }`}
                 >
-                  Comenzar ahora
-                </button>
+                  Solicitar consulta
+                </a>
               </SectionCard>
             );
           })}
@@ -444,8 +450,8 @@ export default function BajaPesoPage() {
         </div>
       </section>
 
-      <FloatingAction href="/dashboard/patient/baja-peso#calculadora-imc" green>
-        Comenzar evaluación gratis
+      <FloatingAction href="/dashboard/patient/baja-peso#agendar-baja-peso" green>
+        Solicitar consulta
       </FloatingAction>
     </div>
   );
