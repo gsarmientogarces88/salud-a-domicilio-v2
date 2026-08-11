@@ -8,11 +8,8 @@ import { apiFetch } from '@/lib/api';
 import {
   FloatingAction,
   InitialAvatar,
-  MockMap,
-  Pill,
   RatingStars,
   SectionCard,
-  StatusDot,
   SvgIcon,
 } from '@/components/medicilio/MedicilioUI';
 
@@ -36,6 +33,7 @@ type ProfessionalApi = {
   region?: string | null;
   province?: string | null;
   commune?: string | null;
+  distanceKm?: number | null;
   user: { firstName: string; lastName: string };
 };
 
@@ -44,6 +42,7 @@ type ListedDoctor = DoctorCard & {
   price: string;
   tone: AvatarTone;
   locationLabel: string;
+  distanceKm?: number | null;
 };
 
 const specialties = [
@@ -55,6 +54,8 @@ const specialties = [
   ['Ginecología', 'Desde $45.990', 'Disponible en 30 min', 'user'],
   ['Dermatología', 'Desde $39.990', 'Disponible en 25 min', 'pulse'],
   ['Medicina interna', 'Desde $55.990', 'Disponible en 40 min', 'crosshair'],
+  ['Medicina estética', 'Desde $49.990', 'Disponible en 35 min', 'star'],
+  ['Neurología', 'Desde $59.990', 'Disponible en 40 min', 'activity'],
 ] as const;
 
 const tones: AvatarTone[] = ['blue', 'green', 'purple', 'amber'];
@@ -104,6 +105,8 @@ function mapProfessional(p: ProfessionalApi, index: number): ListedDoctor {
   const lastName = (p.user?.lastName || '').trim();
   const name = `Dr. ${[firstName, lastName].filter(Boolean).join(' ')}`.trim();
   const fee = typeof p.baseFee === 'number' ? p.baseFee : 0;
+  const distanceLabel =
+    typeof p.distanceKm === 'number' ? `A ${p.distanceKm.toFixed(1)} km` : null;
   return {
     id: p.id,
     name,
@@ -111,12 +114,27 @@ function mapProfessional(p: ProfessionalApi, index: number): ListedDoctor {
     initials: initialsFromName(name),
     price: `$${fee.toLocaleString('es-CL')}`,
     tone: tones[index % tones.length],
-    locationLabel: formatLocation(p),
+    locationLabel: distanceLabel || formatLocation(p),
     region: p.region,
     province: p.province,
     commune: p.commune,
+    distanceKm: p.distanceKm ?? null,
     availabilityLabel: 'Agenda disponible',
   };
+}
+
+function getPatientCoords(): Promise<{ lat: number; lng: number } | null> {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      resolve(null);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => resolve(null),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60_000 },
+    );
+  });
 }
 
 export default function AgendarPage() {
@@ -124,25 +142,56 @@ export default function AgendarPage() {
   const [modalDoctor, setModalDoctor] = useState<DoctorCard | null>(null);
   const [doctors, setDoctors] = useState<ListedDoctor[]>([]);
   const [loadingDoctors, setLoadingDoctors] = useState(true);
+  const [locationError, setLocationError] = useState('');
+  const [patientCoords, setPatientCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [recent, setRecent] = useState<RecentRequest[]>([]);
   const [loadingRecent, setLoadingRecent] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
+    void (async () => {
+      const coords = await getPatientCoords();
+      if (cancelled) return;
+      setPatientCoords(coords);
+      if (!coords) {
+        setLocationError(
+          'Activa la ubicación del navegador para ver médicos a menos de 10 km de tu posición.',
+        );
+        setLoadingDoctors(false);
+        setDoctors([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
 
     const loadDoctors = async () => {
+      if (!patientCoords) return;
       setLoadingDoctors(true);
+      setLocationError('');
       try {
-        let path = '/professionals?forAgenda=1';
+        const params = new URLSearchParams();
+        params.set('forAgenda', '1');
+        params.set('lat', String(patientCoords.lat));
+        params.set('lng', String(patientCoords.lng));
         if (selectedSpecialty) {
-          path += `&type=${encodeURIComponent(selectedSpecialty)}`;
+          params.set('type', selectedSpecialty);
         }
-        const res = await apiFetch<{ data: ProfessionalApi[] }>(path);
+        const res = await apiFetch<{ data: ProfessionalApi[] }>(
+          `/professionals?${params.toString()}`,
+        );
         if (!cancelled) {
           setDoctors((res.data || []).map(mapProfessional));
         }
-      } catch {
-        if (!cancelled) setDoctors([]);
+      } catch (e: any) {
+        if (!cancelled) {
+          setDoctors([]);
+          setLocationError(e?.message || 'No se pudieron cargar médicos cercanos.');
+        }
       } finally {
         if (!cancelled) setLoadingDoctors(false);
       }
@@ -152,7 +201,7 @@ export default function AgendarPage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedSpecialty]);
+  }, [selectedSpecialty, patientCoords]);
 
   useEffect(() => {
     let cancelled = false;
@@ -236,100 +285,6 @@ export default function AgendarPage() {
 
   return (
     <div className="space-y-6">
-      <section className="grid gap-6 rounded-[16px] bg-[var(--color-azul-claro)] p-8 lg:grid-cols-[1.55fr_0.75fr]">
-        <div>
-          <Pill>
-            <StatusDot />
-            {loadingDoctors
-              ? 'Buscando médicos disponibles…'
-              : `${doctors.length} médicos disponibles · Gran Concepción`}
-          </Pill>
-          <h1 className="mt-5 text-[38px] font-semibold leading-tight text-[var(--color-azul-oscuro)]">
-            Agenda tu médico
-            <br />
-            a domicilio
-          </h1>
-          <p className="mt-4 max-w-2xl text-sm leading-6 text-[var(--color-texto-2)]">
-            Profesionales verificados disponibles cerca de tu ubicación. Elige día, hora y especialidad.
-          </p>
-          <div className="mt-5 grid gap-3 md:grid-cols-2">
-            {[
-              [loadingDoctors ? '—' : String(doctors.length), 'Médicos disponibles'],
-              ['4.9/5', 'Valoración promedio'],
-              ['20 min', 'Tiempo promedio'],
-              ['+5.000', 'Atenciones realizadas'],
-            ].map(([value, label]) => (
-              <div key={label} className="rounded-[10px] border border-[var(--color-azul-borde)] bg-white p-4">
-                <p className="text-xl font-semibold text-[var(--color-azul-primario)]">{value}</p>
-                <p className="text-xs text-[var(--color-texto-3)]">{label}</p>
-              </div>
-            ))}
-          </div>
-          <a
-            href="#medicos-disponibles"
-            className="mt-5 inline-flex items-center gap-2 rounded-[10px] bg-[var(--color-azul-primario)] px-5 py-3 text-sm font-semibold text-white hover:bg-[#0C447C]"
-          >
-            <SvgIcon name="search" className="h-4 w-4" />
-            Encontrar médico ahora
-          </a>
-        </div>
-
-        <SectionCard className="p-4">
-          <div className="mb-3 flex items-center justify-between text-xs">
-            <span className="font-medium text-[var(--color-texto-2)]">Médicos cerca de ti</span>
-            <span className="flex items-center gap-1 text-[var(--color-verde)]">
-              <StatusDot />
-              En vivo
-            </span>
-          </div>
-          <MockMap height={140} />
-          <div className="mt-3 flex items-center justify-between text-xs">
-            <span>
-              Más cercano: <span className="font-semibold text-[var(--color-azul-primario)]">15 min</span>
-            </span>
-          </div>
-        </SectionCard>
-      </section>
-
-      <SectionCard className="p-4">
-        <div className="flex flex-col gap-3 lg:flex-row">
-          <div className="relative flex-1">
-            <SvgIcon
-              name="search"
-              className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-texto-4)]"
-            />
-            <input
-              className="h-11 w-full rounded-[8px] border border-[var(--color-borde-card)] bg-[#F9FAFB] pl-10 pr-3 text-sm outline-none focus:border-[var(--color-azul-borde)]"
-              placeholder="Buscar especialidad o nombre de médico..."
-            />
-          </div>
-          <button
-            type="button"
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-[10px] bg-[var(--color-azul-primario)] px-4 text-sm font-semibold text-white"
-          >
-            <SvgIcon name="search" className="h-4 w-4" />
-            Buscar médicos
-          </button>
-        </div>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {['Disponible ahora', 'Mejor evaluados', 'Menor precio', 'Llegada más rápida', 'Especialistas'].map(
-            (filter, index) => (
-              <button
-                key={filter}
-                type="button"
-                className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
-                  index === 0
-                    ? 'border-[var(--color-azul-borde)] bg-[var(--color-azul-claro)] text-[#0C447C]'
-                    : 'border-[var(--color-borde-card)] bg-white text-[var(--color-texto-3)]'
-                }`}
-              >
-                {filter}
-              </button>
-            ),
-          )}
-        </div>
-      </SectionCard>
-
       <section>
         <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--color-texto-4)]">
           Especialidades disponibles
@@ -376,14 +331,25 @@ export default function AgendarPage() {
           </span>
         </div>
         <div className="mt-5 space-y-4">
-          {loadingDoctors && (
-            <SectionCard className="p-4 text-sm text-[var(--color-texto-3)]">
-              Cargando profesionales…
+          {locationError && (
+            <SectionCard className="border-[var(--color-rojo-borde)] bg-[var(--color-rojo-claro)] p-4 text-sm text-[var(--color-rojo-urgencia)]">
+              {locationError}
             </SectionCard>
           )}
-          {!loadingDoctors && doctors.length === 0 && (
+          {loadingDoctors && (
             <SectionCard className="p-4 text-sm text-[var(--color-texto-3)]">
-              No hay profesionales disponibles para {selectedSpecialty}. Prueba otra especialidad.
+              Detectando tu ubicación y buscando médicos a menos de 10 km…
+            </SectionCard>
+          )}
+          {!loadingDoctors && !locationError && doctors.length === 0 && (
+            <SectionCard className="p-4 text-sm text-[var(--color-texto-3)]">
+              No hay profesionales de {selectedSpecialty} a menos de 10 km de tu ubicación. Prueba otra
+              especialidad o muévete más cerca de la zona de cobertura.
+            </SectionCard>
+          )}
+          {!loadingDoctors && doctors.length === 0 && locationError && (
+            <SectionCard className="p-4 text-sm text-[var(--color-texto-3)]">
+              Sin ubicación no podemos mostrar prestadores cercanos.
             </SectionCard>
           )}
           {!loadingDoctors &&
@@ -524,7 +490,7 @@ export default function AgendarPage() {
       </section>
 
       <ScheduleModal isOpen={!!modalDoctor} onClose={() => setModalDoctor(null)} doctor={modalDoctor} />
-      <FloatingAction href="#medicos-disponibles">Encontrar médico ahora</FloatingAction>
+      <FloatingAction href="#medicos-disponibles">Ver médicos disponibles</FloatingAction>
     </div>
   );
 }

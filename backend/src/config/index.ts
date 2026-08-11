@@ -22,7 +22,10 @@ export const config = {
   },
   geo: {
     urgentProximityFilterEnabled: (process.env.GEO_URGENT_PROXIMITY_FILTER_ENABLED || 'true') === 'true',
-    urgentRadiusKm: parseFloat(process.env.GEO_URGENT_RADIUS_KM || '15'),
+    /** Radio máximo urgencia: médico ↔ punto de solicitud (km). */
+    urgentRadiusKm: parseFloat(process.env.GEO_URGENT_RADIUS_KM || '10'),
+    /** Radio máximo agenda: listado de prestadores cerca del paciente (km). */
+    agendaRadiusKm: parseFloat(process.env.GEO_AGENDA_RADIUS_KM || '10'),
     minAccuracyMetersApp: parseInt(process.env.GEO_MIN_ACCURACY_METERS_APP || '200'),
     minAccuracyMetersWeb: parseInt(process.env.GEO_MIN_ACCURACY_METERS_WEB || '500'),
     ttlSecondsApp: parseInt(process.env.GEO_TTL_SECONDS_APP || '300'),

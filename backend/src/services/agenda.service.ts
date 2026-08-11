@@ -2,6 +2,7 @@ import prisma from '../lib/prisma';
 import { haversineDistance } from '../lib/haversine';
 import { assertBookingSlotAllowed } from '../lib/appointmentBookingRules';
 import { assertAgendaBaseFeeConfigured } from '../lib/agendaPricing';
+import { config } from '../config';
 
 const HOLD_MINUTES = 20;
 
@@ -29,7 +30,7 @@ export function validateAddressForProfessional(
 
   const baseLat = professional.baseLat;
   const baseLng = professional.baseLng;
-  const coverageKm = professional.coverageKm ?? 15;
+  const coverageKm = professional.coverageKm ?? config.geo.agendaRadiusKm;
 
   if (baseLat == null || baseLng == null) {
     // Sin coordenadas base: aceptar por defecto (MVP)

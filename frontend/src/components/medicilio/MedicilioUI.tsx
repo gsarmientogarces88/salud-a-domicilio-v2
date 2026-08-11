@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { ReactNode } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { BajaPesoAgendarProvider } from '@/components/baja-peso/BajaPesoAgendarContext';
 
 type IconName =
   | 'pin'
@@ -167,7 +168,7 @@ function Topbar() {
       <div className="mx-auto flex h-full max-w-[1440px] items-center justify-between px-6">
         <span className="inline-flex items-center gap-2 text-[#85B7EB]">
           <SvgIcon name="pin" className="h-3.5 w-3.5 text-[var(--color-verde)]" />
-          Gran Concepción · Disponible 24/7
+          Disponible 24/7
         </span>
         <span className="hidden items-center gap-2 text-[var(--color-azul-borde)] sm:inline-flex">
           <SvgIcon name="phone" className="h-3.5 w-3.5 text-[var(--color-verde)]" />
@@ -229,6 +230,9 @@ interface SidebarItem {
   icon: IconName;
   tone?: 'blue' | 'red' | 'green';
   badge?: string;
+  onClick?: () => void;
+  /** Ítem no navegable, con etiqueta tachada. */
+  comingSoon?: boolean;
 }
 
 function SidebarLink({ item, active }: { item: SidebarItem; active: boolean }) {
@@ -239,22 +243,51 @@ function SidebarLink({ item, active }: { item: SidebarItem; active: boolean }) {
         ? 'border-l-[var(--color-verde)] bg-[#F0FFF9] text-[var(--color-verde)]'
         : 'border-l-[var(--color-azul-primario)] bg-[#EBF3FF] text-[var(--color-azul-primario)]';
 
-  return (
-    <Link
-      href={item.href}
-      className={`flex h-9 items-center gap-3 border-l-[3px] px-4 text-[13px] font-medium ${
-        active ? activeClass : 'border-l-transparent text-[var(--color-texto-3)] hover:bg-[#F3F7FB] hover:text-[var(--color-texto-2)]'
-      }`}
-    >
+  const className = `flex h-9 w-full items-center gap-3 border-l-[3px] px-4 text-left text-[13px] font-medium ${
+    item.comingSoon
+      ? 'cursor-not-allowed border-l-transparent text-[var(--color-texto-4)] opacity-70'
+      : active
+        ? activeClass
+        : 'border-l-transparent text-[var(--color-texto-3)] hover:bg-[#F3F7FB] hover:text-[var(--color-texto-2)]'
+  }`;
+
+  const content = (
+    <>
       <SvgIcon name={item.icon} className="h-4 w-4 shrink-0" />
-      <span className="min-w-0 flex-1 truncate">{item.label}</span>
-      {item.badge ? (
+      <span className={`min-w-0 flex-1 truncate ${item.comingSoon ? 'line-through' : ''}`}>{item.label}</span>
+      {item.comingSoon ? (
+        <span className="rounded-full bg-[#E5EAF0] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-[var(--color-texto-3)]">
+          Próximamente
+        </span>
+      ) : item.badge ? (
         <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
           item.tone === 'red' ? 'bg-[var(--color-rojo-urgencia)] text-white' : item.tone === 'green' ? 'bg-[var(--color-verde)] text-white' : 'bg-[var(--color-azul-primario)] text-white'
         }`}>
           {item.badge}
         </span>
       ) : null}
+    </>
+  );
+
+  if (item.comingSoon) {
+    return (
+      <span className={className} aria-disabled title="Próximamente">
+        {content}
+      </span>
+    );
+  }
+
+  if (item.onClick) {
+    return (
+      <button type="button" onClick={item.onClick} className={className}>
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <Link href={item.href} className={className}>
+      {content}
     </Link>
   );
 }
@@ -272,8 +305,13 @@ function PatientSidebar() {
         { href: '/dashboard/patient/inicio', label: 'Inicio', icon: 'home' },
         { href: '/dashboard/patient/medico', label: 'Urgencia', icon: 'briefcase', tone: 'red', badge: '!' },
         { href: '/dashboard/patient/medico/agendar', label: 'Agendar médico', icon: 'calendar' },
-        { href: '/dashboard/patient/baja-peso', label: 'Baja de peso', icon: 'scale', tone: 'green', badge: 'Nuevo' },
-        { href: '/dashboard/patient/examenes-domicilio', label: 'Exámenes', icon: 'flask' },
+        {
+          href: '/dashboard/patient/baja-peso',
+          label: 'Baja de peso',
+          icon: 'scale',
+          tone: 'green',
+          badge: 'Nuevo',
+        },        { href: '/dashboard/patient/examenes-domicilio', label: 'Exámenes', icon: 'flask', comingSoon: true },
       ],
     },
     {
@@ -288,11 +326,10 @@ function PatientSidebar() {
       ? [{
           title: 'Mi programa',
           items: [
-            { href: '/dashboard/patient/baja-peso#progreso', label: 'Mi progreso', icon: 'chart', tone: 'green' as const },
-            { href: '/dashboard/patient/baja-peso#controles', label: 'Mis controles', icon: 'calendar', tone: 'green' as const },
-            { href: '/dashboard/patient/mensajes', label: 'Mensajes', icon: 'message', badge: '2' },
+            { href: '/dashboard/patient/baja-peso#planes', label: 'Ver plan', icon: 'scale' as const, tone: 'green' as const },
+            { href: '/dashboard/patient/mensajes', label: 'Mensajes', icon: 'message' as const, badge: '2' },
           ],
-        }]
+        } satisfies { title: string; items: SidebarItem[] }]
       : []),
     {
       title: 'Cuenta',
@@ -343,15 +380,17 @@ function PatientSidebar() {
 
 export function PatientShell({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen bg-[var(--color-fondo-pag)] text-[var(--color-texto-1)]">
-      <Topbar />
-      <PatientNavbar />
-      <UrgencyBar />
-      <div className="mx-auto flex max-w-[1440px]">
-        <PatientSidebar />
-        <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+    <BajaPesoAgendarProvider>
+      <div className="min-h-screen bg-[var(--color-fondo-pag)] text-[var(--color-texto-1)]">
+        <Topbar />
+        <PatientNavbar />
+        <UrgencyBar />
+        <div className="mx-auto flex max-w-[1440px]">
+          <PatientSidebar />
+          <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+        </div>
       </div>
-    </div>
+    </BajaPesoAgendarProvider>
   );
 }
 

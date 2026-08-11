@@ -379,8 +379,13 @@ export default function ProyeccionPeso({
     if (!usaOzempic)
       return { title: 'Ozempic', text: 'Sin medicación. La proyección se basa solo en ejercicio y nutrición.', active: false };
     const pct: Record<number, string> = { 0.5: '≈15–20%', 1: '≈25–30%', 2: '≈35–40%' };
+    const nombre: Record<number, string> = {
+      0.5: 'Tratamiento inicial',
+      1: 'Tratamiento intermedio',
+      2: 'Tratamiento intensivo',
+    };
     return {
-      title: `Ozempic ${dosisOzempic} mg`,
+      title: nombre[dosisOzempic] || 'Tratamiento farmacológico',
       text: `Reducción estimada del apetito: ${pct[dosisOzempic] || '—'}. Favorece menor ingesta calórica espontánea.`,
       active: true,
     };
@@ -526,9 +531,9 @@ export default function ProyeccionPeso({
             {usaOzempic && (
               <div className="space-y-2">
                 {[
-                  [0.5, '0.5 mg/semana'],
-                  [1, '1 mg/semana'],
-                  [2, '2 mg/semana'],
+                  [0.5, 'Tratamiento inicial'],
+                  [1, 'Tratamiento intermedio'],
+                  [2, 'Tratamiento intensivo'],
                 ].map(([val, label]) => (
                   <label key={String(val)} className="flex cursor-pointer items-center gap-2 text-sm text-[var(--color-texto-3)]">
                     <input

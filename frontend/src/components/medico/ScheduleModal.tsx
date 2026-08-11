@@ -317,7 +317,7 @@ export default function ScheduleModal({ isOpen, onClose, doctor }: ScheduleModal
                 selectedDate={selectedDate}
                 onSelect={handleSelectDate}
                 fromDayOffset={1}
-                dayCount={14}
+                dayCount={2}
               />
             </div>
             <div>

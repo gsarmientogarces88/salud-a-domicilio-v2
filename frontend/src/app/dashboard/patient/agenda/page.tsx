@@ -304,7 +304,12 @@ export default function AgendaPage() {
               <label className="mb-2 block text-sm font-medium text-gray-700">
                 Fecha *
               </label>
-              <DateRangePicker selectedDate={selectedDate} onSelect={setSelectedDate} />
+              <DateRangePicker
+                selectedDate={selectedDate}
+                onSelect={setSelectedDate}
+                fromDayOffset={1}
+                dayCount={2}
+              />
             </div>
             <div>
               <label className="mb-2 block text-sm font-medium text-gray-700">

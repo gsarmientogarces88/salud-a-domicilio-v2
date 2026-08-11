@@ -2,23 +2,22 @@
 
 import { useMemo, useState } from 'react';
 import {
-  FloatingAction,
   InitialAvatar,
   Pill,
   RatingStars,
   SectionCard,
   SvgIcon,
 } from '@/components/medicilio/MedicilioUI';
+import { useBajaPesoAgendar } from '@/components/baja-peso/BajaPesoAgendarContext';
 import ProyeccionPeso from './ProyeccionPeso';
-import BajaPesoServiceLanding from './BajaPesoServiceLanding';
 
 type AvatarTone = NonNullable<Parameters<typeof InitialAvatar>[0]['tone']>;
 
 const stats = [
-  ['+500', 'Pacientes programa'],
-  ['-20%', 'Reducción promedio'],
-  ['4', 'Profesionales por plan'],
-  ['24/7', 'Soporte y seguimiento'],
+  ['-12 kg', 'Reducción promedio'],
+  ['92%', 'Adherencia'],
+  ['4.9', 'Valoraciones'],
+  ['6 meses', 'Promedio'],
 ] as const;
 
 const team = [
@@ -28,29 +27,17 @@ const team = [
   ['Psic. María Torres', 'MT', 'Psicóloga conductual', '10 años de experiencia', 'amber'],
 ] as const;
 
-const plans = [
-  [
-    'Plan inicial',
-    '$79.990',
-    '3 meses mínimo',
-    ['Evaluación médica inicial', 'Plan nutricional personalizado', 'Control mensual'],
-    'blue',
+const plan = {
+  badge: 'Plan telemedicina',
+  price: '$75.000',
+  term: 'Incluye 1 atención médica y atención con nutricionista',
+  features: [
+    'Evaluación médica por telemedicina',
+    'Plan nutricional personalizado',
+    'Seguimiento y controles incluidos',
+    'Mensajes con el equipo clínico',
   ],
-  [
-    'Más popular',
-    '$129.990',
-    '6 meses',
-    ['Equipo médico completo', 'Seguimiento semanal', 'Mensajes del equipo', 'Controles incluidos'],
-    'green',
-  ],
-  [
-    'Plan premium',
-    '$189.990',
-    '12 meses',
-    ['Todo el plan popular', 'Controles prioritarios', 'Soporte extendido'],
-    'amber',
-  ],
-] as const;
+} as const;
 
 const benefits = [
   ['Salud cardiovascular', 'Control preventivo del corazón'],
@@ -62,6 +49,7 @@ const benefits = [
 ] as const;
 
 export default function BajaPesoPage() {
+  const { openAgendar } = useBajaPesoAgendar();
   const [weight, setWeight] = useState(95);
   const [height, setHeight] = useState(170);
   const [age, setAge] = useState(38);
@@ -86,17 +74,24 @@ export default function BajaPesoPage() {
     <div className="space-y-6">
       <section className="grid gap-6 rounded-[16px] border border-[var(--color-verde-borde)] bg-[var(--color-verde-claro)] p-8 lg:grid-cols-[1.55fr_0.75fr]">
         <div>
-          <Pill tone="green">Programa médico certificado · Gran Concepción</Pill>
+          <Pill tone="green">Programa médico certificado</Pill>
           <h1 className="mt-5 text-[38px] font-semibold leading-tight text-[#173404]">
             Programa médico
             <br />
-            de <span className="text-[var(--color-verde)]">baja de peso</span>
+            <span className="text-[var(--color-verde)]">Telemedicina de baja de peso</span>
           </h1>
           <p className="mt-4 max-w-2xl text-sm leading-6 text-[#3B6D11]">
             Acompañamiento médico, nutricional y psicológico para bajar de peso de forma segura y sostenible.
           </p>
           <div className="mt-5 grid gap-2 text-sm text-[#27500A] sm:grid-cols-2">
-            {['Evaluación médica integral', 'Plan personalizado', 'Seguimiento semanal', 'Resultados sostenibles'].map(
+            {[
+              'Evaluación médica integral',
+              'Plan personalizado',
+              'Seguimiento semanal',
+              'Resultados sostenibles',
+              'Plan y rutinas de ejercicios en domicilio',
+              'Atención y plan nutricional',
+            ].map(
               (check) => (
                 <span key={check} className="inline-flex items-center gap-2">
                   <SvgIcon name="check" className="h-4 w-4 text-[var(--color-verde)]" />
@@ -106,12 +101,13 @@ export default function BajaPesoPage() {
             )}
           </div>
           <div className="mt-6 flex flex-wrap gap-3">
-            <a
-              href="#calculadora-imc"
+            <button
+              type="button"
+              onClick={openAgendar}
               className="rounded-[10px] bg-[var(--color-verde)] px-5 py-3 text-sm font-semibold text-white hover:bg-[#167F5E]"
             >
               Comenzar evaluación
-            </a>
+            </button>
             <a
               href="#planes"
               className="rounded-[10px] border border-[var(--color-verde-borde)] bg-white px-5 py-3 text-sm font-semibold text-[var(--color-verde)] hover:bg-[#F6FBF0]"
@@ -121,37 +117,44 @@ export default function BajaPesoPage() {
           </div>
         </div>
 
-        <SectionCard className="border-[var(--color-verde-borde)] p-5">
-          <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-[#173404]">
-            <SvgIcon name="trophy" className="h-5 w-5 text-[var(--color-verde)]" />
-            Resultados promedio
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              ['-12 kg', 'promedio'],
-              ['92%', 'adherencia'],
-              ['4.9', 'valoración'],
-              ['6 m', 'duración'],
-            ].map(([value, label]) => (
-              <div
-                key={label}
-                className="rounded-[10px] border border-[var(--color-verde-borde)] bg-[#F7FBF0] p-4 text-center"
-              >
-                <p className="text-xl font-semibold text-[#173404]">{value}</p>
-                <p className="text-xs text-[#3B6D11]">{label}</p>
-              </div>
-            ))}
-          </div>
-        </SectionCard>
+        <div id="planes">
+          <SectionCard className="border-2 border-[var(--color-verde)] p-5">
+            <span className="rounded-full bg-[var(--color-verde)] px-3 py-1 text-xs font-medium text-white">
+              {plan.badge}
+            </span>
+            <p className="mt-4 text-3xl font-semibold text-[#173404]">{plan.price}</p>
+            <p className="text-sm text-[#3B6D11]">{plan.term}</p>
+            <ul className="mt-4 space-y-2">
+              {plan.features.map((feature) => (
+                <li key={feature} className="flex items-center gap-2 text-sm text-[#27500A]">
+                  <SvgIcon name="check" className="h-4 w-4 shrink-0 text-[var(--color-verde)]" />
+                  {feature}
+                </li>
+              ))}
+            </ul>
+            <button
+              type="button"
+              onClick={openAgendar}
+              className="mt-5 flex h-10 w-full items-center justify-center rounded-[10px] bg-[var(--color-verde)] text-sm font-semibold text-white hover:bg-[#167F5E]"
+            >
+              Comenzar ahora
+            </button>
+          </SectionCard>
+        </div>
       </section>
 
-      <div className="grid grid-cols-2 overflow-hidden rounded-[14px] border border-[var(--color-verde-borde)] bg-white md:grid-cols-4">
-        {stats.map(([value, label]) => (
-          <div key={label} className="border-r border-[var(--color-verde-borde)] px-4 py-4 text-center last:border-r-0">
-            <p className="text-xl font-semibold text-[var(--color-verde)]">{value}</p>
-            <p className="text-xs text-[var(--color-texto-3)]">{label}</p>
-          </div>
-        ))}
+      <div>
+        <p className="mb-2 text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--color-texto-4)]">
+          Resultados promedios
+        </p>
+        <div className="grid grid-cols-2 overflow-hidden rounded-[14px] border border-[var(--color-verde-borde)] bg-white md:grid-cols-4">
+          {stats.map(([value, label]) => (
+            <div key={label} className="border-r border-[var(--color-verde-borde)] px-4 py-4 text-center last:border-r-0">
+              <p className="text-xl font-semibold text-[var(--color-verde)]">{value}</p>
+              <p className="text-xs text-[var(--color-texto-3)]">{label}</p>
+            </div>
+          ))}
+        </div>
       </div>
 
       <SectionCard className="p-5">
@@ -276,8 +279,6 @@ export default function BajaPesoPage() {
 
       <ProyeccionPeso pesoInicialDefault={weight} pesoMetaDefault={goal} />
 
-      <BajaPesoServiceLanding />
-
       <section>
         <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--color-texto-4)]">
           Equipo especializado
@@ -295,53 +296,6 @@ export default function BajaPesoPage() {
               </div>
             </SectionCard>
           ))}
-        </div>
-      </section>
-
-      <section id="planes">
-        <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--color-texto-4)]">
-          Planes disponibles
-        </p>
-        <h2 className="mt-1 text-xl font-semibold text-[var(--color-texto-1)]">Elige el programa ideal para ti</h2>
-        <div className="mt-5 grid gap-4 lg:grid-cols-3">
-          {plans.map(([badge, price, term, features, tone]) => {
-            const popular = tone === 'green';
-            return (
-              <SectionCard key={badge} className={`p-6 ${popular ? 'border-2 border-[var(--color-verde)]' : ''}`}>
-                <span
-                  className={`rounded-full px-3 py-1 text-xs font-medium ${
-                    popular
-                      ? 'bg-[var(--color-verde)] text-white'
-                      : tone === 'amber'
-                        ? 'bg-[#FAEEDA] text-[#9A6A18]'
-                        : 'bg-[var(--color-azul-claro)] text-[var(--color-azul-primario)]'
-                  }`}
-                >
-                  {badge}
-                </span>
-                <p className="mt-5 text-3xl font-semibold text-[var(--color-texto-1)]">{price}</p>
-                <p className="text-sm text-[var(--color-texto-3)]">{term}</p>
-                <ul className="mt-5 space-y-2">
-                  {features.map((feature) => (
-                    <li key={feature} className="flex items-center gap-2 text-sm text-[var(--color-texto-2)]">
-                      <SvgIcon name="check" className="h-4 w-4 text-[var(--color-verde)]" />
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
-                <a
-                  href="#agendar-baja-peso"
-                  className={`mt-6 flex h-10 w-full items-center justify-center rounded-[10px] text-sm font-semibold ${
-                    popular
-                      ? 'bg-[var(--color-verde)] text-white'
-                      : 'border border-[var(--color-verde-borde)] text-[var(--color-verde)]'
-                  }`}
-                >
-                  Solicitar consulta
-                </a>
-              </SectionCard>
-            );
-          })}
         </div>
       </section>
 
@@ -391,68 +345,13 @@ export default function BajaPesoPage() {
         </div>
       </section>
 
-      <section id="progreso" className="grid gap-6 lg:grid-cols-2">
-        <SectionCard className="p-5">
-          <h2 className="text-xl font-semibold text-[var(--color-texto-1)]">Mi progreso</h2>
-          <p className="mt-1 text-sm text-[var(--color-texto-3)]">Semana 8 de 24</p>
-          <div className="mt-5 h-3 rounded-full bg-[#E5EAF0]">
-            <div className="h-3 w-[54%] rounded-full bg-[var(--color-verde)]" />
-          </div>
-          <div className="mt-5 grid grid-cols-3 gap-3 text-center">
-            {['-7.2 kg', '6.8 kg', '54%'].map((value) => (
-              <div key={value} className="rounded-[10px] bg-[var(--color-verde-claro)] p-3 font-semibold text-[#173404]">
-                {value}
-              </div>
-            ))}
-          </div>
-          <h3 className="mt-6 text-sm font-semibold">Evolución de peso</h3>
-          <div className="mt-3 flex h-28 items-end gap-2">
-            {[92, 88, 84, 82, 78, 74, 70, 66].map((heightValue) => (
-              <span
-                key={heightValue}
-                className="flex-1 rounded-t bg-[var(--color-verde)]"
-                style={{ height: `${heightValue}%`, opacity: heightValue / 100 }}
-              />
-            ))}
-          </div>
-        </SectionCard>
-        <div id="controles" className="space-y-4">
-          <SectionCard className="p-5">
-            <h2 className="text-xl font-semibold text-[var(--color-texto-1)]">Próximos controles</h2>
-            {['Dr. Carlos Muñoz', 'Nut. Ana Pérez', 'Psic. María Torres'].map((name, index) => (
-              <div
-                key={name}
-                className="mt-4 flex items-center justify-between border-b border-[var(--color-borde-card)] pb-3 last:border-b-0"
-              >
-                <span className="text-sm text-[var(--color-texto-2)]">{name}</span>
-                <span
-                  className={`rounded-full px-2 py-1 text-xs ${
-                    index === 0
-                      ? 'bg-[var(--color-verde-claro)] text-[#27500A]'
-                      : 'bg-[var(--color-azul-claro)] text-[var(--color-azul-primario)]'
-                  }`}
-                >
-                  {index === 0 ? 'Confirmado' : 'Pendiente'}
-                </span>
-              </div>
-            ))}
-          </SectionCard>
-          <SectionCard className="p-5">
-            <h2 className="text-xl font-semibold text-[var(--color-texto-1)]">Mensajes del equipo</h2>
-            {['Excelente evolución. Continúa con la pauta indicada.', 'Recuerda hidratarte y registrar tus comidas.'].map(
-              (msg) => (
-                <p key={msg} className="mt-3 rounded-[10px] bg-[#F8FAFB] p-3 text-sm text-[var(--color-texto-2)]">
-                  {msg}
-                </p>
-              )
-            )}
-          </SectionCard>
-        </div>
-      </section>
-
-      <FloatingAction href="/dashboard/patient/baja-peso#agendar-baja-peso" green>
-        Solicitar consulta
-      </FloatingAction>
+      <button
+        type="button"
+        onClick={openAgendar}
+        className="fixed bottom-6 right-6 z-40 rounded-[12px] bg-[var(--color-verde)] px-5 py-3 text-sm font-semibold text-white shadow-lg hover:bg-[#167F5E]"
+      >
+        Agendar consulta
+      </button>
     </div>
   );
 }
