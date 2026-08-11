@@ -1,4 +1,4 @@
-import { apiFetch } from './api';
+import { apiFetch, getApiBaseUrl } from './api';
 
 export function getToken(): string | null {
   return typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -22,6 +22,9 @@ export function decodeToken(token: string): { userId: string; iat: number; exp: 
 }
 
 export async function loginRequest(email: string, password: string) {
+  const loginUrl = `${getApiBaseUrl()}/auth/login`;
+  console.log('[auth] login POST →', loginUrl);
+
   return apiFetch<{ data: { token: string; user: any } }>('/auth/login', {
     method: 'POST',
     body: JSON.stringify({ email, password }),

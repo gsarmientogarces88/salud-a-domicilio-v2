@@ -20,5 +20,5 @@ export async function getPatientUserId(patientProfileId: string) {
 }
 
 export function isTerminalPatientStatus(s: LabExamRequestStatus) {
-  return s === 'REJECTED' || s === 'CANCELLED' || s === 'COMPLETED';
+  return s === 'EXPIRED' || s === 'CANCELLED' || s === 'COMPLETED';
 }

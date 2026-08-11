@@ -10,6 +10,7 @@ import {
   pacienteAtendidoLabel,
   solicitanteLabel,
 } from '@/lib/serviceParties';
+import { getToken } from '@/lib/auth';
 
 type ServiceRequest = {
   id: string;
@@ -21,6 +22,7 @@ type ServiceRequest = {
   edadPaciente?: number | null;
   patient?: { user: { firstName: string; lastName: string; phone?: string | null } };
   doctor?: { user: { firstName: string; lastName: string; phone?: string | null } } | null;
+  receiptUploadedAt?: string | null;
 };
 
 export default function DoctorConsultationDetailPage() {
@@ -31,6 +33,7 @@ export default function DoctorConsultationDetailPage() {
   const [loading, setLoading] = useState(true);
   const [finishing, setFinishing] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [uploadingReceipt, setUploadingReceipt] = useState(false);
 
   const load = async () => {
     if (!id) return;
@@ -90,6 +93,28 @@ export default function DoctorConsultationDetailPage() {
   if (!sr) return <p className="text-sm text-gray-500">No encontrada.</p>;
 
   const chatEnabled = ['ACCEPTED', 'QUEUED', 'IN_PROGRESS', 'COMPLETED'].includes(sr.status);
+
+  const uploadReceipt = async (file: File) => {
+    if (!sr) return;
+    setUploadingReceipt(true);
+    try {
+      const form = new FormData();
+      form.append('receiptFile', file);
+      const token = getToken();
+      const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
+      const res = await fetch(`${base}/services/${sr.id}/receipt`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        body: form,
+      });
+      if (!res.ok) throw new Error('No se pudo subir la boleta');
+      await load();
+    } catch (e: any) {
+      alert(e?.message || 'No se pudo subir la boleta');
+    } finally {
+      setUploadingReceipt(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -162,6 +187,29 @@ export default function DoctorConsultationDetailPage() {
             📞 Llamar al paciente
           </a>
         ) : null}
+        <div className="mt-4 rounded-xl bg-gray-50 p-3 ring-1 ring-gray-100">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">Boleta</p>
+          <p className="mt-1 text-sm text-gray-700">
+            {sr.receiptUploadedAt
+              ? `Cargada el ${new Date(sr.receiptUploadedAt).toLocaleString('es-CL')}`
+              : 'Aún no has cargado la boleta de esta atención.'}
+          </p>
+          <label className="mt-3 inline-flex cursor-pointer rounded-xl bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700">
+            {uploadingReceipt ? 'Subiendo...' : 'Subir boleta'}
+            <input
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png"
+              disabled={uploadingReceipt}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (!f) return;
+                void uploadReceipt(f);
+                e.currentTarget.value = '';
+              }}
+              className="hidden"
+            />
+          </label>
+        </div>
       </div>
 
       {chatEnabled ? (

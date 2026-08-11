@@ -13,7 +13,13 @@ export function calendarDateKeyInChile(d: Date): string {
 export function jsWeekdayFromYmdChile(ymd: string): number {
   const noon = fromZonedTime(`${ymd}T12:00:00`, BOOKING_TIMEZONE);
   const isoDow = Number(formatInTimeZone(noon, BOOKING_TIMEZONE, 'i')); // 1=Lun … 7=Dom
-  return isoDow === 7 ? 0 : isoDow;
+  if (!Number.isNaN(isoDow) && isoDow >= 1 && isoDow <= 7) {
+    return isoDow === 7 ? 0 : isoDow;
+  }
+  // Fallback si el token `i` no está disponible en runtime
+  const [y, m, d] = ymd.split('-').map((x) => parseInt(x, 10));
+  const utc = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+  return utc.getUTCDay();
 }
 
 export function zonedSlotStartUtc(ymd: string, hhmm: string): Date {

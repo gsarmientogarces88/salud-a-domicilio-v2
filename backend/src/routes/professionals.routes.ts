@@ -84,6 +84,7 @@ router.get('/', async (req: Request, res: Response) => {
         return {
           ...p,
           city: p.province,
+          baseFee: p.baseFee,
           acceptsWebpay: true,
           acceptsIsapreBono: true,
           ratingAverage: 4.8,
@@ -111,6 +112,15 @@ router.get('/:id/availability', async (req: Request, res: Response) => {
     }
 
     const slots = await getAvailableSlotsForDate(id, date);
+    if (process.env.NODE_ENV !== 'production') {
+      // eslint-disable-next-line no-console
+      console.log('[PROFESSIONALS availability]', {
+        professionalId: id,
+        dateReceived: date,
+        slotsCount: slots.length,
+        sample: slots.slice(0, 8),
+      });
+    }
     res.json({ data: { slots } });
   } catch (e: any) {
     res.status(500).json({ error: true, message: e.message });

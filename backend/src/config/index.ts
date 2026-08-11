@@ -17,6 +17,9 @@ export const config = {
       process.env.SERVICE_REQUEST_IN_PROGRESS_AUTO_COMPLETE_MINUTES || '100'
     ),
   },
+  labExams: {
+    quoteDeadlineMinutes: parseInt(process.env.LAB_EXAM_QUOTE_DEADLINE_MINUTES || '90'),
+  },
   geo: {
     urgentProximityFilterEnabled: (process.env.GEO_URGENT_PROXIMITY_FILTER_ENABLED || 'true') === 'true',
     urgentRadiusKm: parseFloat(process.env.GEO_URGENT_RADIUS_KM || '15'),

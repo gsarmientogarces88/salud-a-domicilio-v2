@@ -12,7 +12,7 @@ router.get('/me', authenticate, async (req: Request, res: Response) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.user!.id },
-      select: { id: true, email: true, role: true, firstName: true, lastName: true },
+      select: { id: true, email: true, role: true, firstName: true, lastName: true, phone: true },
     });
     if (!user) return res.status(404).json({ error: true, message: 'Usuario no encontrado' });
     res.json({ data: { user } });
@@ -80,7 +80,7 @@ router.post('/register', async (req: Request, res: Response) => {
           },
         } : {}),
       },
-      select: { id: true, email: true, role: true, firstName: true, lastName: true, createdAt: true },
+      select: { id: true, email: true, role: true, firstName: true, lastName: true, phone: true, createdAt: true },
     });
 
     const token = jwt.sign({ userId: user.id }, config.jwtSecret, { expiresIn: config.jwtExpiresIn as any });
@@ -148,7 +148,14 @@ router.post('/login', async (req: Request, res: Response) => {
     res.json({
       data: {
         token,
-        user: { id: user.id, email: user.email, role: user.role, firstName: user.firstName, lastName: user.lastName },
+        user: {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          phone: user.phone,
+        },
       },
     });
   } catch (e: any) {

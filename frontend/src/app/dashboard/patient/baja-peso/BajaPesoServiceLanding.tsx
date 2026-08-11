@@ -57,6 +57,7 @@ export default function BajaPesoServiceLanding() {
         city: p.city ?? p.province,
         commune: p.commune,
         availabilityLabel: 'Agenda disponible',
+        baseFee: typeof p.baseFee === 'number' ? p.baseFee : null,
         ratingAverage: typeof p.ratingAverage === 'number' ? p.ratingAverage : 4.8,
         ratingCount: typeof p.ratingCount === 'number' ? p.ratingCount : 24,
         acceptsWebpay: p.acceptsWebpay !== false,

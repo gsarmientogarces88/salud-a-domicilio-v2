@@ -8,6 +8,7 @@ import StatusBadge from '@/components/ui/StatusBadge';
 import DateRangePicker from '@/components/medico/DateRangePicker';
 import TimeSlots from '@/components/medico/TimeSlots';
 import LocationSelector from '@/components/ui/LocationSelector';
+import { formatChileYmd } from '@/lib/formatLocalYmd';
 
 const SERVICIOS: Record<string, { label: string; icon: string }> = {
   medico: { label: 'Médico', icon: '👨‍⚕️' },
@@ -28,9 +29,76 @@ interface Service {
   status: string;
   description: string;
   address: string;
+  commune?: string | null;
   totalAmount: number;
+  requestedAt?: string;
+  estimatedArrivalAt?: string | null;
+  arrivedAt?: string | null;
+  doctorName?: string | null;
+  doctorSpecialtyLabel?: string | null;
+  distanceKm?: number | null;
+  allowedRadiusKm?: number | null;
+  paymentMethod?: string | null;
+  serviceType?: 'IMMEDIATE' | 'SCHEDULED' | 'WEIGHT_PROGRAM';
+  serviceTypeLabel?: string;
+  receiptStatus?: 'AVAILABLE' | 'PENDING';
+  receiptUploadedAt?: string | null;
+  notes?: string | null;
   createdAt: string;
   doctor?: { user: { firstName: string; lastName: string } };
+  /** 'service' = `service_requests`; 'agenda' = `appointment_requests` (Agenda Médico a Domicilio). */
+  recordKind?: 'service' | 'agenda';
+  statusDisplay?: string | null;
+  appointmentStatus?: 'PENDING' | 'CONFIRMED' | 'REJECTED' | 'EXPIRED';
+}
+
+type HistoryFilter = 'ALL' | 'COMPLETED' | 'CANCELLED' | 'PENDING';
+
+function formatDateTime(iso?: string | null) {
+  if (!iso) return '—';
+  try {
+    return new Date(iso).toLocaleString('es-CL', {
+      dateStyle: 'short',
+      timeStyle: 'short',
+    });
+  } catch {
+    return iso;
+  }
+}
+
+/** Badge informativo por tipo de servicio (sin filtro superior en UI). */
+function getServiceTypeVisual(serviceType?: 'IMMEDIATE' | 'SCHEDULED' | 'WEIGHT_PROGRAM') {
+  if (serviceType === 'WEIGHT_PROGRAM') {
+    return {
+      label: 'Programa Médico Baja de Peso',
+      className: 'bg-emerald-50 text-emerald-800 ring-emerald-200',
+    };
+  }
+  if (serviceType === 'SCHEDULED') {
+    return {
+      label: 'Agenda Médico a Domicilio',
+      className: 'bg-sky-50 text-sky-800 ring-sky-200',
+    };
+  }
+  return {
+    label: 'Médico a Domicilio Inmediato 🚨',
+    className: 'bg-orange-50 text-orange-800 ring-orange-200',
+  };
+}
+
+function resolveServiceType(s: Service): 'IMMEDIATE' | 'SCHEDULED' | 'WEIGHT_PROGRAM' {
+  if (s.serviceType) return s.serviceType;
+  if (s.type === 'SCHEDULED') return 'SCHEDULED';
+  if (s.description?.toLowerCase().includes('baja de peso')) return 'WEIGHT_PROGRAM';
+  return 'IMMEDIATE';
+}
+
+function serviceTypeDisplayLabel(s: Service): string {
+  if (s.serviceTypeLabel?.trim()) return s.serviceTypeLabel;
+  const st = resolveServiceType(s);
+  const v = getServiceTypeVisual(st);
+  if (st === 'IMMEDIATE' && !s.description?.trim()) return 'Consulta médica';
+  return v.label;
 }
 
 function ConsultasContent() {
@@ -39,6 +107,10 @@ function ConsultasContent() {
   const [services, setServices] = useState<Service[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [historyError, setHistoryError] = useState('');
+  const [historyFilter, setHistoryFilter] = useState<HistoryFilter>('ALL');
+  const [historySearch, setHistorySearch] = useState('');
+  const [downloadingReceiptId, setDownloadingReceiptId] = useState<string | null>(null);
   const [form, setForm] = useState({
     type: 'URGENT',
     description: '',
@@ -62,11 +134,65 @@ function ConsultasContent() {
   const soloAgendado = servicioParam ? SOLO_AGENDADOS.has(servicioParam) : false;
 
   const load = async () => {
+    setHistoryError('');
     try {
+      // Incluye Médico a Domicilio Inmediato (service_requests) y Agenda Médico a Domicilio (appointment_requests) unificados
       const res = await apiFetch<{ data: Service[] }>('/services/me');
-      setServices(res.data);
-    } catch {} finally {
+      setServices(Array.isArray(res.data) ? res.data : []);
+    } catch (e) {
+      setServices([]);
+      setHistoryError(e instanceof Error ? e.message : 'No se pudo cargar el historial de consultas.');
+    } finally {
       setLoading(false);
+    }
+  };
+
+  const filteredHistory = services.filter((s) => {
+    const statusMatch =
+      historyFilter === 'ALL' ||
+      (historyFilter === 'COMPLETED' && s.status === 'COMPLETED') ||
+      (historyFilter === 'CANCELLED' && (s.status === 'CANCELLED' || s.status === 'REFUNDED')) ||
+      (historyFilter === 'PENDING' &&
+        ['PENDING', 'QUEUED', 'ACCEPTED', 'IN_PROGRESS'].includes(s.status));
+
+    if (!statusMatch) return false;
+
+    const q = historySearch.trim().toLowerCase();
+    if (!q) return true;
+    const doctorText =
+      s.doctorName ||
+      (s.doctor?.user ? `Dr. ${s.doctor.user.firstName} ${s.doctor.user.lastName}` : '');
+    const typeText = (s.serviceTypeLabel || '').toLowerCase();
+    const statusText = (s.statusDisplay || s.status || '').toLowerCase();
+    return (
+      s.description.toLowerCase().includes(q) ||
+      (s.commune || '').toLowerCase().includes(q) ||
+      doctorText.toLowerCase().includes(q) ||
+      typeText.includes(q) ||
+      statusText.includes(q)
+    );
+  });
+
+  const downloadReceipt = async (serviceId: string) => {
+    setDownloadingReceiptId(serviceId);
+    try {
+      const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${base}/services/${serviceId}/receipt`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error('No se pudo descargar la boleta');
+      const blob = await res.blob();
+      const href = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = href;
+      a.download = `boleta-${serviceId}.pdf`;
+      a.click();
+      URL.revokeObjectURL(href);
+    } catch (err: any) {
+      alert(err?.message || 'No se pudo descargar la boleta');
+    } finally {
+      setDownloadingReceiptId(null);
     }
   };
 
@@ -127,11 +253,23 @@ function ConsultasContent() {
     const loadSlots = async () => {
       if (!soloAgendado || !selectedProfessional || !selectedDate) return;
       try {
-        const dateParam = selectedDate.toISOString().split('T')[0];
+        const dateParam = formatChileYmd(selectedDate);
+        if (process.env.NODE_ENV === 'development') {
+          // eslint-disable-next-line no-console
+          console.log('[Consultas] GET availability', {
+            professionalId: selectedProfessional.id,
+            dateSent: dateParam,
+          });
+        }
         const res = await apiFetch<{ data: { slots: string[] } }>(
           `/professionals/${selectedProfessional.id}/availability?date=${dateParam}`,
         );
-        setAvailableSlots(res.data.slots || []);
+        const slots = res.data?.slots || [];
+        if (process.env.NODE_ENV === 'development') {
+          // eslint-disable-next-line no-console
+          console.log('[Consultas] availability response', { count: slots.length, slots });
+        }
+        setAvailableSlots(slots);
       } catch {
         setAvailableSlots([]);
       }
@@ -161,11 +299,19 @@ function ConsultasContent() {
     const desc = selectedServicio ? `${selectedServicio.label}: ${form.description}` : form.description;
 
     let scheduledAt: string | undefined;
+    let requestServiceType: 'IMMEDIATE' | 'SCHEDULED' | 'WEIGHT_PROGRAM' | undefined;
     if (soloAgendado && selectedDate && selectedTime) {
       const [h, m] = selectedTime.split(':').map((v) => parseInt(v, 10));
       const d = new Date(selectedDate);
       d.setHours(h || 0, m || 0, 0, 0);
       scheduledAt = d.toISOString();
+    }
+    if (selectedServicio?.label?.toLowerCase().includes('baja de peso')) {
+      requestServiceType = 'WEIGHT_PROGRAM';
+    } else if (soloAgendado || form.type === 'SCHEDULED') {
+      requestServiceType = 'SCHEDULED';
+    } else {
+      requestServiceType = 'IMMEDIATE';
     }
 
     try {
@@ -181,6 +327,7 @@ function ConsultasContent() {
             province,
             city: province,
             scheduledAt,
+            serviceType: requestServiceType,
           }),
         });
       } else {
@@ -190,6 +337,7 @@ function ConsultasContent() {
             ...form,
             type: form.type,
             description: desc,
+            serviceType: requestServiceType,
           }),
         });
       }
@@ -203,38 +351,13 @@ function ConsultasContent() {
     }
   };
 
-  const handlePay = async (serviceId: string) => {
-    try {
-      await apiFetch(`/payments/${serviceId}/create`, {
-        method: 'POST',
-        body: JSON.stringify({ provider: 'mercadopago' }),
-      });
-      await apiFetch(`/payments/${serviceId}/confirm`, {
-        method: 'POST',
-        body: JSON.stringify({}),
-      });
-      load();
-    } catch (err: any) {
-      alert(err.message);
-    }
-  };
-
-  const handleCancel = async (serviceId: string) => {
-    try {
-      await apiFetch(`/services/${serviceId}`, { method: 'DELETE', body: JSON.stringify({}) });
-      load();
-    } catch (err: any) {
-      alert(err.message);
-    }
-  };
-
   if (loading) return <p>Cargando...</p>;
 
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold">
-          {soloAgendado && selectedServicio ? `Agendar ${selectedServicio.label}` : 'Mis Solicitudes'}
+          {soloAgendado && selectedServicio ? `Agendar ${selectedServicio.label}` : 'Historial de Consultas'}
         </h1>
         <button
           onClick={() => setShowForm(!showForm)}
@@ -342,7 +465,7 @@ function ConsultasContent() {
                 <div className="mt-4 space-y-4 rounded-lg bg-white p-3">
                   <div>
                     <label className="mb-2 block text-sm font-medium text-gray-700">Fecha</label>
-                    <DateRangePicker selectedDate={selectedDate} onSelect={setSelectedDate} />
+                    <DateRangePicker selectedDate={selectedDate} onSelect={setSelectedDate} fromDayOffset={1} />
                   </div>
                   <div>
                     <label className="mb-2 block text-sm font-medium text-gray-700">Hora disponible</label>
@@ -401,55 +524,173 @@ function ConsultasContent() {
         </form>
       )}
 
-      {/* Historial de solicitudes solo se muestra cuando NO es un servicio solo-agendado */}
-      {!soloAgendado &&
-        (services.length === 0 ? (
-          <p className="text-gray-500">No tienes solicitudes aún.</p>
-        ) : (
-          <div className="space-y-3">
-            {services.map((s) => (
-              <div
-                key={s.id}
-                className="flex items-center justify-between rounded-xl border bg-white p-4 shadow-sm"
-              >
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">
-                      {s.type === 'URGENT' ? '🚨' : '📅'} {s.description}
-                    </span>
-                    <StatusBadge status={s.status} />
-                  </div>
-                  <p className="text-sm text-gray-500">
-                    {s.address} · ${s.totalAmount.toLocaleString('es-CL')} CLP
-                  </p>
-                  {s.doctor && (
-                    <p className="text-sm text-gray-400">
-                      Dr. {s.doctor.user.firstName} {s.doctor.user.lastName}
-                    </p>
-                  )}
+      {/* Historial: siempre visible (también en flujos solo-agendados) para no “perder” solicitudes previas. */}
+      {historyError && (
+        <div className="mb-4 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-800">
+          {historyError}
+        </div>
+      )}
+
+      {!historyError && services.length === 0 ? (
+        <p className="rounded-2xl border border-dashed border-gray-200 bg-white px-6 py-12 text-center text-gray-500">
+          No tienes atenciones médicas registradas aún.
+        </p>
+      ) : !historyError ? (
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-sky-100 bg-white p-4 shadow-sm">
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { id: 'ALL', label: 'Todos' },
+                    { id: 'PENDING', label: 'Pendientes' },
+                    { id: 'COMPLETED', label: 'Completadas' },
+                    { id: 'CANCELLED', label: 'Canceladas' },
+                  ].map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setHistoryFilter(opt.id as HistoryFilter)}
+                      className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                        historyFilter === opt.id
+                          ? 'bg-sky-600 text-white'
+                          : 'bg-sky-50 text-sky-800 ring-1 ring-sky-200 hover:bg-sky-100'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
                 </div>
-                <div className="flex gap-2">
-                  {s.status === 'PENDING' && (
-                    <button
-                      onClick={() => handleCancel(s.id)}
-                      className="rounded-lg bg-red-100 px-4 py-2 text-sm text-red-600 hover:bg-red-200"
-                    >
-                      Cancelar
-                    </button>
-                  )}
-                  {s.status === 'ACCEPTED' && (
-                    <button
-                      onClick={() => handlePay(s.id)}
-                      className="rounded-lg bg-green-500 px-4 py-2 text-sm text-white hover:bg-green-600"
-                    >
-                      💳 Pagar
-                    </button>
-                  )}
+                <div className="lg:flex lg:justify-end">
+                <input
+                  type="text"
+                  value={historySearch}
+                  onChange={(e) => setHistorySearch(e.target.value)}
+                  placeholder="Buscar por médico, motivo o comuna"
+                  className="w-full rounded-xl border border-gray-200 px-4 py-2 text-sm text-gray-900 lg:max-w-sm"
+                />
                 </div>
               </div>
-            ))}
+            </div>
+
+            {filteredHistory.length === 0 ? (
+              <p className="rounded-2xl border border-dashed border-gray-200 bg-white px-6 py-10 text-center text-gray-500">
+                No hay atenciones que coincidan con tu búsqueda o filtro.
+              </p>
+            ) : (
+              <div className="grid gap-4 xl:grid-cols-2">
+                {filteredHistory.map((s) => {
+                  const isAgenda = s.recordKind === 'agenda';
+                  const doctorName =
+                    s.doctorName ||
+                    (s.doctor?.user
+                      ? `Dr. ${s.doctor.user.firstName} ${s.doctor.user.lastName}`
+                      : 'Profesional por asignar');
+                  const specialty = s.doctorSpecialtyLabel?.trim() || 'No informado';
+                  const distanceText =
+                    isAgenda
+                      ? 'No aplica (agenda)'
+                      : typeof s.distanceKm === 'number'
+                        ? `Distancia: ${s.distanceKm.toFixed(1)} km`
+                        : s.allowedRadiusKm
+                          ? `Dentro del radio de ${s.allowedRadiusKm} km`
+                          : 'Distancia no disponible';
+                  const llegadaRaw = s.arrivedAt || s.estimatedArrivalAt;
+                  const llegadaText = llegadaRaw ? formatDateTime(llegadaRaw) : 'No registrada';
+                  const detailHref = isAgenda
+                    ? `/dashboard/patient/agenda/estado/${s.id}`
+                    : `/dashboard/patient/medico/urgente/estado?serviceId=${s.id}`;
+
+                  return (
+                    <article
+                      key={`${s.recordKind || 'service'}-${s.id}`}
+                      className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm ring-1 ring-sky-50"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <h3 className="text-base font-semibold text-gray-900">{s.description || 'Atención médica'}</h3>
+                        <StatusBadge status={s.status} label={s.statusDisplay || undefined} />
+                      </div>
+
+                      <div className="mt-3">
+                        <span
+                          className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${getServiceTypeVisual(resolveServiceType(s)).className}`}
+                        >
+                          {serviceTypeDisplayLabel(s)}
+                        </span>
+                      </div>
+
+                      <div className="mt-3">
+                        <p className="font-semibold text-gray-900">{doctorName}</p>
+                        <p className="text-sm text-gray-600">{specialty}</p>
+                      </div>
+
+                      <div className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
+                        <p className="text-gray-700">
+                          <span className="font-medium">Fecha solicitud:</span> {formatDateTime(s.requestedAt || s.createdAt)}
+                        </p>
+                        <p className="text-gray-700">
+                          <span className="font-medium">
+                            {isAgenda ? 'Fecha y hora agendada' : 'Hora llegada'}
+                            :
+                          </span>{' '}
+                          {llegadaText}
+                        </p>
+                        <p className="text-gray-700 sm:col-span-2">
+                          <span className="font-medium">Ubicación:</span> {s.address}
+                          {s.commune ? `, ${s.commune}` : ''}
+                        </p>
+                        <p className="text-gray-700 sm:col-span-2">
+                          <span className="font-medium">Distancia:</span> {distanceText}
+                        </p>
+                        <p className="text-gray-700">
+                          <span className="font-medium">Pago:</span> ${(s.totalAmount ?? 0).toLocaleString('es-CL')} CLP
+                        </p>
+                        <p className="text-gray-700">
+                          <span className="font-medium">Medio:</span> {s.paymentMethod || 'Pendiente'}
+                        </p>
+                      </div>
+
+                      {s.notes && (
+                        <div className="mt-3 rounded-xl bg-gray-50 p-3 ring-1 ring-gray-100">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Observaciones finales</p>
+                          <p className="mt-1 text-sm text-gray-700">{s.notes}</p>
+                        </div>
+                      )}
+
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {!isAgenda &&
+                          (s.receiptStatus === 'AVAILABLE' ? (
+                            <button
+                              type="button"
+                              onClick={() => downloadReceipt(s.id)}
+                              disabled={downloadingReceiptId === s.id}
+                              className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                            >
+                              {downloadingReceiptId === s.id ? 'Descargando boleta...' : 'Descargar boleta'}
+                            </button>
+                          ) : (
+                            <span className="rounded-xl bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-800 ring-1 ring-amber-200">
+                              Boleta pendiente
+                            </span>
+                          ))}
+                        {isAgenda && (
+                          <span className="rounded-xl bg-slate-50 px-4 py-2 text-sm text-slate-600 ring-1 ring-slate-200">
+                            Pago: según confirmación del médico
+                          </span>
+                        )}
+                        <Link
+                          href={detailHref}
+                          className="rounded-xl bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-800 ring-1 ring-sky-200 hover:bg-sky-100"
+                        >
+                          Ver detalle
+                        </Link>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        ))}
+        ) : null}
     </div>
   );
 }

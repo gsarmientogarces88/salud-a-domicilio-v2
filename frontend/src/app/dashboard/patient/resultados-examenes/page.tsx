@@ -11,9 +11,9 @@ export default function ResultadosExamenesPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Resultados de Exámenes</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Historial de Exámenes</h1>
         <p className="mt-1 text-gray-600">
-          Aquí puedes ver y descargar los resultados de tus exámenes de laboratorio.
+          Revisa todas tus solicitudes de exámenes, su estado, fechas clave y resultados disponibles.
         </p>
       </div>
       <PatientExamResults patientId={user.id} />

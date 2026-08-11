@@ -10,6 +10,7 @@ interface User {
   role: 'PATIENT' | 'DOCTOR' | 'ADMIN' | 'LABORATORY';
   firstName: string;
   lastName: string;
+  phone?: string | null;
 }
 
 interface AuthContextType {
@@ -19,6 +20,7 @@ interface AuthContextType {
   loginLaboratory: (email: string, password: string) => Promise<void>;
   register: (data: any) => Promise<void>;
   logout: () => void;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
@@ -31,7 +33,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const token = getToken();
     if (!token) { setLoading(false); return; }
     apiFetch<{ data: { user: User } }>('/auth/me')
-      .then((res) => setUser(res.data.user))
+      .then((res) => {
+        setUser(res.data.user);
+        localStorage.setItem('user', JSON.stringify(res.data.user));
+      })
       .catch(() => {
         removeToken();
         localStorage.removeItem('user');
@@ -66,8 +71,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
+  const refreshUser = async () => {
+    const token = getToken();
+    if (!token) return;
+    const res = await apiFetch<{ data: { user: User } }>('/auth/me');
+    setUser(res.data.user);
+    localStorage.setItem('user', JSON.stringify(res.data.user));
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, loginLaboratory, register, logout }}>
+    <AuthContext.Provider
+      value={{ user, loading, login, loginLaboratory, register, logout, refreshUser }}
+    >
       {children}
     </AuthContext.Provider>
   );

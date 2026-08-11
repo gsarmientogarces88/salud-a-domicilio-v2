@@ -44,7 +44,7 @@ export function usePatientLabExam(requestId: string | null) {
     if (!requestId) return;
     const needsPoll =
       request &&
-      ['PENDING', 'IN_REVIEW', 'QUOTED', 'PATIENT_ACCEPTED', 'SCHEDULED', 'SAMPLE_COLLECTED'].includes(
+      ['PENDING_QUOTES', 'QUOTED', 'LAB_SELECTED', 'SCHEDULED', 'SAMPLE_COLLECTED'].includes(
         request.status
       );
     if (!needsPoll) return;
@@ -56,9 +56,9 @@ export function usePatientLabExam(requestId: string | null) {
 
   const actions = useMemo(
     () => ({
-      acceptQuote: async () => {
+      acceptQuote: async (quoteId: string) => {
         if (!requestId) return;
-        const res = await acceptPatientQuote(requestId);
+        const res = await acceptPatientQuote(requestId, quoteId);
         setRequest(res.data);
       },
       rejectQuote: async () => {

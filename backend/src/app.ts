@@ -17,6 +17,7 @@ import agendaRoutes from './routes/agenda.routes';
 import laboratoriesPublicRoutes from './routes/laboratories.public.routes';
 import patientLabRoutes from './routes/patientLab.routes';
 import patientNotificationsRoutes from './routes/patientNotifications.routes';
+import patientProfileRoutes from './routes/patientProfile.routes';
 import laboratoryRoutes from './routes/laboratory.routes';
 
 const app = express();
@@ -43,6 +44,7 @@ app.use('/api/professionals', professionalsRoutes);
 app.use('/api/agenda', agendaRoutes);
 app.use('/api/laboratories', laboratoriesPublicRoutes);
 app.use('/api/patient/lab-exams', patientLabRoutes);
+app.use('/api/patient', patientProfileRoutes);
 app.use('/api/patient', patientNotificationsRoutes);
 app.use('/api/laboratory', laboratoryRoutes);
 

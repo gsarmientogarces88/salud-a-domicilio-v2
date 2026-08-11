@@ -31,9 +31,9 @@ export default function LaboratorioDashboardPage() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {[
-          { key: 'pending', label: 'Pendientes', tone: 'bg-amber-50 text-amber-900 ring-amber-100' },
-          { key: 'inReview', label: 'En revisión', tone: 'bg-sky-50 text-sky-900 ring-sky-100' },
-          { key: 'quoted', label: 'Cotizadas', tone: 'bg-violet-50 text-violet-900 ring-violet-100' },
+          { key: 'pendingQuotes', label: 'Pendientes por cotizar', tone: 'bg-amber-50 text-amber-900 ring-amber-100' },
+          { key: 'quotedByMe', label: 'Cotizadas por mí', tone: 'bg-sky-50 text-sky-900 ring-sky-100' },
+          { key: 'selectedByMe', label: 'Elegidas por paciente', tone: 'bg-violet-50 text-violet-900 ring-violet-100' },
           { key: 'scheduled', label: 'Agendadas', tone: 'bg-teal-50 text-teal-900 ring-teal-100' },
           { key: 'resultsReady', label: 'Resultados listos', tone: 'bg-emerald-50 text-emerald-900 ring-emerald-100' },
         ].map((card) => (

@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from 'react';
 import HomeExamRequestForm from '@/components/examenes/HomeExamRequestForm';
 import PatientExamSummary from '@/components/examenes/PatientExamSummary';
 import PatientExamStatusTimeline from '@/components/examenes/PatientExamStatusTimeline';
-import PatientExamQuoteCard from '@/components/examenes/PatientExamQuoteCard';
 import PatientExamResultsCard from '@/components/examenes/PatientExamResultsCard';
 import ExamRequestTimeline from '@/components/examenes/ExamRequestTimeline';
 import { usePatientLabExam } from '@/hooks/usePatientLabExam';
@@ -15,11 +14,10 @@ const ACTIVE_KEY = 'salud_active_lab_exam_id';
 
 function Stepper() {
   const steps = [
-    'Elige laboratorio y sube tu orden',
-    'Describe los exámenes y tus datos',
-    'El laboratorio revisa y cotiza',
-    'Aceptas o rechazas en esta misma pantalla',
-    'Coordinación, visita y resultados',
+    'Envía solicitud con orden, datos y ubicación',
+    'Espera cotizaciones (hasta 90 minutos)',
+    'Compara y elige laboratorio',
+    'Coordinación de visita y resultados',
   ];
 
   return (
@@ -61,7 +59,7 @@ export default function ExamsHomePageSection({
     fetchPatientLabExams()
       .then((res) => {
         const latest = res.data[0];
-        if (latest && !['COMPLETED', 'CANCELLED', 'REJECTED'].includes(latest.status)) {
+        if (latest && !['COMPLETED', 'CANCELLED', 'EXPIRED'].includes(latest.status)) {
           setActiveId(latest.id);
           setMode('track');
           localStorage.setItem(ACTIVE_KEY, latest.id);
@@ -71,6 +69,19 @@ export default function ExamsHomePageSection({
   }, [patientId]);
 
   const { request, error, loading, actions } = usePatientLabExam(activeId);
+  const deadlineMs = request?.quoteDeadlineAt ? new Date(request.quoteDeadlineAt).getTime() : null;
+  const [nowMs, setNowMs] = useState(Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const remainingMs = deadlineMs != null ? Math.max(0, deadlineMs - nowMs) : 0;
+  const remainingMmSs = `${Math.floor(remainingMs / 60000)
+    .toString()
+    .padStart(2, '0')}:${Math.floor((remainingMs % 60000) / 1000)
+    .toString()
+    .padStart(2, '0')}`;
+  const activeQuotes = request?.quotes?.filter((q) => q.status === 'SENT') ?? [];
 
   const timelineItems = useMemo(() => {
     return (request?.events || []).map((e) => ({
@@ -95,15 +106,15 @@ export default function ExamsHomePageSection({
               </div>
               <h2 className="mt-3 text-2xl font-bold text-gray-900">Solicitar exámenes a domicilio</h2>
               <p className="mt-2 max-w-2xl text-sm text-gray-600 sm:text-base">
-                Sube tu orden médica y recibe la cotización del laboratorio en esta página.
+                Sube tu orden médica y enviaremos tu solicitud a laboratorios compatibles para que coticen.
               </p>
             </>
           )}
           {variant === 'standalone' && mode === 'create' && (
             <div className="rounded-2xl bg-white/80 p-4 ring-1 ring-sky-100">
               <p className="text-sm text-gray-700">
-                <span className="font-semibold text-gray-900">Flujo:</span> laboratorio → orden → cotización → decisión
-                → visita → resultados.
+                <span className="font-semibold text-gray-900">Flujo:</span> solicitud abierta → cotizaciones →
+                selección de laboratorio → coordinación → resultados.
               </p>
               <div className="mt-4">
                 <button
@@ -177,8 +188,8 @@ export default function ExamsHomePageSection({
           />
           <div className="mt-4 rounded-2xl bg-white px-5 py-4 text-sm text-gray-600 ring-1 ring-sky-100">
             <p>
-              <span className="font-semibold text-gray-900">Tiempo estimado de respuesta:</span> según carga del
-              laboratorio (típicamente minutos a pocas horas hábiles).
+              <span className="font-semibold text-gray-900">Tiempo límite de cotización:</span> 90 minutos desde el
+              envío de la solicitud.
             </p>
             <p className="mt-1">
               El seguimiento aparece abajo automáticamente.{' '}
@@ -195,29 +206,54 @@ export default function ExamsHomePageSection({
 
             <PatientExamStatusTimeline currentStatus={request.status} />
 
-            {(request.status === 'PENDING' || request.status === 'IN_REVIEW') && (
+            {(request.status === 'PENDING_QUOTES' || request.status === 'QUOTED') && (
               <div className="rounded-3xl border border-sky-100 bg-sky-50/80 p-6 ring-1 ring-sky-100">
-                <p className="text-sm font-semibold text-sky-900">Solicitud enviada</p>
+                <p className="text-sm font-semibold text-sky-900">Etapa 2: Esperando cotizaciones</p>
                 <p className="mt-1 text-sm text-sky-800">
-                  El laboratorio revisará tu orden y emitirá una cotización con precio y fecha propuesta.
+                  Estamos buscando laboratorios disponibles en tu zona.
                 </p>
+                <p className="mt-2 text-xl font-bold text-sky-900">Tiempo restante: {remainingMmSs}</p>
+                {remainingMs === 0 && activeQuotes.length === 0 && (
+                  <p className="mt-2 rounded-xl bg-white px-3 py-2 text-sm text-amber-700 ring-1 ring-amber-100">
+                    No existen prestadores disponibles en su zona en este momento.
+                  </p>
+                )}
               </div>
             )}
 
-            {request.status === 'QUOTED' && request.quote && (
-              <PatientExamQuoteCard
-                request={request}
-                quote={request.quote}
-                onAccept={() => actions.acceptQuote()}
-                onReject={() => actions.rejectQuote()}
-              />
+            {activeQuotes.length > 0 && (
+              <div className="space-y-3 rounded-3xl border border-emerald-100 bg-white p-5 ring-1 ring-emerald-50">
+                <p className="text-sm font-semibold text-gray-900">Etapa 3: Cotizaciones recibidas</p>
+                <div className="grid gap-3">
+                  {activeQuotes.map((q) => (
+                    <div key={q.id} className="rounded-2xl border border-gray-100 bg-gray-50/60 p-4">
+                      <p className="text-sm font-semibold text-gray-900">{q.laboratory?.name || 'Laboratorio'}</p>
+                      <p className="mt-1 text-sm text-gray-700">Valor: ${q.priceClp.toLocaleString('es-CL')} CLP</p>
+                      <p className="text-sm text-gray-700">
+                        Propuesta: {q.proposedDate ? formatExamDateTime(q.proposedDate) : 'Sin fecha'} ·{' '}
+                        {q.proposedTimeRange || 'Sin rango'}
+                      </p>
+                      {q.comment ? <p className="mt-1 text-sm text-gray-600">{q.comment}</p> : null}
+                      <button
+                        type="button"
+                        onClick={() => actions.acceptQuote(q.id)}
+                        className="mt-3 rounded-xl bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700"
+                      >
+                        Elegir laboratorio
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
 
-            {request.status === 'PATIENT_ACCEPTED' && (
+            {request.status === 'LAB_SELECTED' && (
               <div className="rounded-3xl border border-emerald-200 bg-emerald-50/80 p-6 ring-1 ring-emerald-100">
-                <p className="text-sm font-semibold text-emerald-900">Cotización aceptada</p>
+                <p className="text-sm font-semibold text-emerald-900">Etapa 4: Coordinación confirmada</p>
                 <p className="mt-1 text-sm text-emerald-800">
-                  El laboratorio agendará la visita. Verás la fecha en esta página cuando quede confirmada.
+                  Laboratorio elegido:{' '}
+                  <span className="font-semibold">{request.selectedQuote?.laboratory?.name || 'Laboratorio seleccionado'}</span>.
+                  El laboratorio coordinará la visita.
                 </p>
               </div>
             )}
@@ -242,7 +278,7 @@ export default function ExamsHomePageSection({
             )}
 
             {request.status !== 'CANCELLED' &&
-              request.status !== 'REJECTED' &&
+              request.status !== 'EXPIRED' &&
               request.status !== 'COMPLETED' && (
                 <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-sky-100">
                   <div className="flex flex-wrap items-center justify-between gap-3">

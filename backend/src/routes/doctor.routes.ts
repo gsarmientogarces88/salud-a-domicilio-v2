@@ -12,6 +12,7 @@ import {
   isDoctorDocumentType,
 } from '../lib/privateDoctorDocs';
 import type { DoctorDocumentType } from '@prisma/client';
+import { AGENDA_HOME_VISIT_FEE_ERROR, isValidAgendaBaseFee } from '../lib/agendaPricing';
 
 const router = Router();
 
@@ -116,9 +117,16 @@ router.patch('/me/settings', async (req: Request, res: Response) => {
       return res.status(404).json({ error: true, message: 'Perfil médico no encontrado' });
     }
 
-    const data: any = {};
+    const parsedFee =
+      typeof baseFee === 'number' ? baseFee : baseFee != null ? Number(baseFee) : NaN;
+    if (!isValidAgendaBaseFee(parsedFee)) {
+      return res.status(400).json({ error: true, message: AGENDA_HOME_VISIT_FEE_ERROR });
+    }
+
+    const data: { specialty?: string; baseFee: number } = {
+      baseFee: Math.round(parsedFee),
+    };
     if (typeof specialty === 'string' && specialty.trim()) data.specialty = specialty.trim();
-    if (typeof baseFee === 'number' && baseFee > 0) data.baseFee = Math.round(baseFee);
 
     const updated = await prisma.doctorProfile.update({
       where: { id: profile.id },

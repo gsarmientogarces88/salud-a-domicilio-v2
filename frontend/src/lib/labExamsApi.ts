@@ -29,10 +29,10 @@ export async function createPatientLabExam(form: FormData) {
   return apiFetchForm<{ data: PatientLabExamRequestDto }>('/patient/lab-exams', form);
 }
 
-export async function acceptPatientQuote(requestId: string) {
+export async function acceptPatientQuote(requestId: string, quoteId: string) {
   return apiFetch<{ data: PatientLabExamRequestDto }>(`/patient/lab-exams/${requestId}/accept-quote`, {
     method: 'POST',
-    body: JSON.stringify({}),
+    body: JSON.stringify({ quoteId }),
   });
 }
 

@@ -3,11 +3,12 @@ import { authenticate } from '../middleware/auth';
 import { authorize } from '../middleware/roles';
 import prisma from '../lib/prisma';
 import * as agenda from '../services/agenda.service';
-import { addDays } from 'date-fns';
-import { fromZonedTime } from 'date-fns-tz';
-import { BOOKING_TIMEZONE, evaluateBookingSlot } from '../lib/appointmentBookingRules';
+import { BOOKING_TIMEZONE } from '../lib/appointmentBookingRules';
+import { formatInTimeZone } from 'date-fns-tz';
 import * as geo from '../services/geo.service';
 import { coalesceProvinceFromPayload } from '../lib/territoryCompat';
+import { listMaterializedAgendaSlotsForDate } from '../services/scheduling.service';
+import { AGENDA_HOME_VISIT_FEE_ERROR, isValidAgendaBaseFee } from '../lib/agendaPricing';
 
 const router = Router();
 router.use(authenticate);
@@ -217,30 +218,50 @@ router.get('/slots', async (req: Request, res: Response) => {
       return res.status(400).json({ error: true, message: 'date debe ser YYYY-MM-DD' });
     }
 
-    const dayStart = fromZonedTime(`${date}T00:00:00`, BOOKING_TIMEZONE);
-    const dayEndExclusive = addDays(dayStart, 1);
-
-    const slots = await prisma.availabilitySlot.findMany({
-      where: {
+    const pro = await prisma.doctorProfile.findFirst({
+      where: { id: professionalId },
+      include: { user: { select: { firstName: true, lastName: true, email: true } } },
+    });
+    if (!pro) {
+      // eslint-disable-next-line no-console
+      console.warn('[AGENDA SLOTS] professionalId no encontrado (doctorProfile.id distinto a lo que envía el front?)', {
         professionalId,
-        startAt: { gte: dayStart, lt: dayEndExclusive },
-        status: 'AVAILABLE',
-        OR: [{ heldUntil: null }, { heldUntil: { gt: new Date() } }],
-      },
-      orderBy: { startAt: 'asc' },
-    });
+        date,
+      });
+      return res.status(404).json({ error: true, message: 'Profesional no encontrado' });
+    }
 
-    const now = new Date();
-    const allowed = slots.filter((s) => evaluateBookingSlot(s.startAt, now).ok);
+    if (!isValidAgendaBaseFee(pro.baseFee)) {
+      return res.status(400).json({ error: true, message: AGENDA_HOME_VISIT_FEE_ERROR });
+    }
 
-    res.json({
-      data: allowed.map((s) => ({
-        id: s.id,
-        startAt: s.startAt,
-        endAt: s.endAt,
-      })),
-    });
+    const debug = process.env.NODE_ENV !== 'production';
+    const { slots, debug: stats } = await listMaterializedAgendaSlotsForDate(pro.id, date, { debug });
+
+    if (debug) {
+      const now = new Date();
+      // eslint-disable-next-line no-console
+      console.log(
+        '[AGENDA SLOTS DEBUG]',
+        JSON.stringify(
+          {
+            professionalId: pro.id,
+            proLabel: `${pro.user.firstName} ${pro.user.lastName} <${pro.user.email}>`,
+            dateReceived: date,
+            nowChile: formatInTimeZone(now, BOOKING_TIMEZONE, "yyyy-MM-dd'T'HH:mm"),
+            ...stats,
+            finalReturned: slots.length,
+          },
+          null,
+          0,
+        ),
+      );
+    }
+
+    res.json({ data: slots });
   } catch (e: any) {
+    // eslint-disable-next-line no-console
+    console.error('[AGENDA SLOTS] error', e);
     res.status(500).json({ error: true, message: e.message });
   }
 });

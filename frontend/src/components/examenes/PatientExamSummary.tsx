@@ -47,7 +47,7 @@ export default function PatientExamSummary({ request }: { request: PatientLabExa
           </div>
           <div className="rounded-2xl bg-gray-50 p-4 ring-1 ring-gray-100">
             <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">Laboratorio</p>
-            <p className="mt-1 text-sm font-medium text-gray-900">{request.laboratory?.name ?? '—'}</p>
+            <p className="mt-1 text-sm font-medium text-gray-900">{request.selectedQuote?.laboratory?.name ?? 'Pendiente de selección'}</p>
           </div>
           <div className="rounded-2xl bg-gray-50 p-4 ring-1 ring-gray-100">
             <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">Dirección</p>
@@ -57,8 +57,11 @@ export default function PatientExamSummary({ request }: { request: PatientLabExa
           <div className="rounded-2xl bg-gray-50 p-4 ring-1 ring-gray-100">
             <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">Contacto</p>
             <p className="mt-1 text-sm font-medium text-gray-900">{request.phone}</p>
-            {request.preferredTime && (
-              <p className="mt-1 text-sm text-gray-600">Preferencia horaria: {request.preferredTime}</p>
+            <p className="mt-1 text-sm text-gray-600">{request.email}</p>
+            {request.preferredTimeRange && (
+              <p className="mt-1 text-sm text-gray-600">
+                Preferencia: {request.preferredDate ? formatExamDateTime(request.preferredDate) : 'Sin fecha'} · {request.preferredTimeRange}
+              </p>
             )}
           </div>
         </div>
