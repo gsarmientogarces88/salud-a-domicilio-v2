@@ -17,6 +17,10 @@ interface MapaDireccionProps {
   onChangeCoords: (coords: LatLng | null) => void;
   /** Si no hay `position`, pide GPS al montar (por defecto true). */
   autoLocate?: boolean;
+  /** Texto encima del mapa. */
+  label?: string;
+  /** Clases del contenedor del mapa (altura, etc.). */
+  mapClassName?: string;
 }
 
 const DEFAULT_CENTER: LatLng = { lat: -33.4489, lng: -70.6693 }; // Santiago fallback
@@ -51,6 +55,8 @@ export default function MapaDireccion({
   debug,
   onChangeCoords,
   autoLocate = true,
+  label = 'Ubicación referencial del paciente',
+  mapClassName = 'h-72 w-full overflow-hidden rounded-xl border border-gray-200 bg-gray-100 shadow-sm',
 }: MapaDireccionProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -174,7 +180,7 @@ export default function MapaDireccion({
 
   return (
     <div className="space-y-2">
-      <p className="text-xs font-medium text-gray-600">Ubicación referencial del paciente</p>
+      {label ? <p className="text-xs font-medium text-gray-600">{label}</p> : null}
       {locating && !position && (
         <p className="text-[11px] text-sky-700">Detectando tu ubicación…</p>
       )}
@@ -185,10 +191,7 @@ export default function MapaDireccion({
         </p>
       )}
       {error && <p className="text-xs text-red-600">{error}</p>}
-      <div
-        ref={containerRef}
-        className="h-72 w-full overflow-hidden rounded-xl border border-gray-200 bg-gray-100 shadow-sm"
-      />
+      <div ref={containerRef} className={mapClassName} />
     </div>
   );
 }

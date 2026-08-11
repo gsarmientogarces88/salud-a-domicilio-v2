@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import ScheduleModal from '@/components/medico/ScheduleModal';
 import type { DoctorCard } from '@/components/medico/DoctorList';
+import MapaDireccion from '@/components/MapaDireccion';
 import { apiFetch } from '@/lib/api';
+import { geocodeChileAddressLine } from '@/lib/mapboxGeocode';
 import {
   FloatingAction,
   InitialAvatar,
@@ -69,6 +71,9 @@ const reasons = [
   ['Cobertura Gran Concepción', 'Talcahuano y comunas', 'pin'],
 ] as const;
 
+const MIN_ADDRESS_LENGTH = 8;
+const GEOCODE_DEBOUNCE_MS = 700;
+
 function formatStatus(status: string) {
   const map: Record<string, string> = {
     PENDING: 'Pendiente',
@@ -123,56 +128,81 @@ function mapProfessional(p: ProfessionalApi, index: number): ListedDoctor {
   };
 }
 
-function getPatientCoords(): Promise<{ lat: number; lng: number } | null> {
-  return new Promise((resolve) => {
-    if (!navigator.geolocation) {
-      resolve(null);
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => resolve(null),
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60_000 },
-    );
-  });
-}
-
 export default function AgendarPage() {
   const [selectedSpecialty, setSelectedSpecialty] = useState('Medicina general');
   const [modalDoctor, setModalDoctor] = useState<DoctorCard | null>(null);
   const [doctors, setDoctors] = useState<ListedDoctor[]>([]);
-  const [loadingDoctors, setLoadingDoctors] = useState(true);
-  const [locationError, setLocationError] = useState('');
+  const [loadingDoctors, setLoadingDoctors] = useState(false);
+  const [locationHint, setLocationHint] = useState(
+    'Detectando tu ubicación… Si el GPS no responde, mueve el pin o escribe tu dirección.',
+  );
   const [patientCoords, setPatientCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [addressText, setAddressText] = useState('');
+  const [geocodeState, setGeocodeState] = useState<{ loading: boolean; error: string | null }>({
+    loading: false,
+    error: null,
+  });
+  const [doctorsError, setDoctorsError] = useState('');
   const [recent, setRecent] = useState<RecentRequest[]>([]);
   const [loadingRecent, setLoadingRecent] = useState(true);
+  const skipNextGeocodeRef = useRef(false);
+  const geocodeRequestIdRef = useRef(0);
 
+  const handleCoordsChange = (coords: { lat: number; lng: number } | null) => {
+    if (!coords) return;
+    setPatientCoords(coords);
+    setLocationHint('Buscamos médicos a menos de 10 km del pin. Puedes ajustarlo en el mapa.');
+    setDoctorsError('');
+  };
+
+  // Si el GPS no responde (común en HTTP), orientar a pin/dirección
   useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      const coords = await getPatientCoords();
-      if (cancelled) return;
-      setPatientCoords(coords);
-      if (!coords) {
-        setLocationError(
-          'Activa la ubicación del navegador para ver médicos a menos de 10 km de tu posición.',
-        );
-        setLoadingDoctors(false);
-        setDoctors([]);
+    if (patientCoords) return;
+    const timer = window.setTimeout(() => {
+      setLocationHint(
+        'No pudimos usar el GPS del navegador. Escribe tu dirección o mueve el pin del mapa.',
+      );
+    }, 4500);
+    return () => window.clearTimeout(timer);
+  }, [patientCoords]);
+
+  // Geocodificar dirección → mover pin
+  useEffect(() => {
+    if (skipNextGeocodeRef.current) {
+      skipNextGeocodeRef.current = false;
+      return;
+    }
+    const query = addressText.replace(/\s+/g, ' ').trim();
+    if (query.length < MIN_ADDRESS_LENGTH) return;
+
+    const timer = window.setTimeout(async () => {
+      const requestId = ++geocodeRequestIdRef.current;
+      setGeocodeState({ loading: true, error: null });
+      const result = await geocodeChileAddressLine(`${query}, Chile`);
+      if (requestId !== geocodeRequestIdRef.current) return;
+      if (!result.ok) {
+        setGeocodeState({ loading: false, error: result.error });
+        return;
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+      setPatientCoords({ lat: result.lat, lng: result.lng });
+      setLocationHint('Ubicación según tu dirección. Ajusta el pin si es necesario.');
+      setGeocodeState({ loading: false, error: null });
+    }, GEOCODE_DEBOUNCE_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [addressText]);
 
   useEffect(() => {
     let cancelled = false;
 
     const loadDoctors = async () => {
-      if (!patientCoords) return;
+      if (!patientCoords) {
+        setDoctors([]);
+        setLoadingDoctors(false);
+        return;
+      }
       setLoadingDoctors(true);
-      setLocationError('');
+      setDoctorsError('');
       try {
         const params = new URLSearchParams();
         params.set('forAgenda', '1');
@@ -190,7 +220,7 @@ export default function AgendarPage() {
       } catch (e: any) {
         if (!cancelled) {
           setDoctors([]);
-          setLocationError(e?.message || 'No se pudieron cargar médicos cercanos.');
+          setDoctorsError(e?.message || 'No se pudieron cargar médicos cercanos.');
         }
       } finally {
         if (!cancelled) setLoadingDoctors(false);
@@ -325,31 +355,70 @@ export default function AgendarPage() {
             <h2 className="mt-1 text-xl font-semibold text-[var(--color-texto-1)]">Profesionales cerca de ti</h2>
           </div>
           <span className="text-sm text-[var(--color-texto-3)]">
-            {loadingDoctors
-              ? 'Cargando…'
-              : `${doctors.length} profesional${doctors.length === 1 ? '' : 'es'} encontrado${doctors.length === 1 ? '' : 's'} en la zona`}
+            {!patientCoords
+              ? 'Indica tu ubicación'
+              : loadingDoctors
+                ? 'Cargando…'
+                : `${doctors.length} profesional${doctors.length === 1 ? '' : 'es'} encontrado${doctors.length === 1 ? '' : 's'} en la zona`}
           </span>
         </div>
+
+        <SectionCard className="mt-5 space-y-3 p-4">
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-[var(--color-texto-2)]">
+              Tu dirección
+            </label>
+            <input
+              type="text"
+              value={addressText}
+              onChange={(e) => setAddressText(e.target.value)}
+              placeholder="Calle, número, comuna"
+              className="w-full rounded-[10px] border border-[var(--color-borde-card)] px-3 py-2 text-sm text-[var(--color-texto-1)]"
+            />
+          </div>
+          {locationHint && (
+            <p className="text-[11px] text-[var(--color-azul-primario)]">{locationHint}</p>
+          )}
+          {geocodeState.loading && (
+            <p className="text-[11px] text-[var(--color-texto-3)]">Buscando ubicación…</p>
+          )}
+          {geocodeState.error && (
+            <p className="text-xs text-amber-700">{geocodeState.error}</p>
+          )}
+          <MapaDireccion
+            position={patientCoords}
+            onChangeCoords={(c) => {
+              if (c) {
+                skipNextGeocodeRef.current = true;
+              }
+              handleCoordsChange(c);
+            }}
+            label="Confirma tu ubicación en el mapa (radio 10 km)"
+            mapClassName="h-56 w-full overflow-hidden rounded-xl border border-gray-200 bg-gray-100 shadow-sm sm:h-72"
+          />
+          {!patientCoords && (
+            <p className="text-xs text-[var(--color-texto-3)]">
+              En sitios sin HTTPS el GPS del navegador suele estar bloqueado. Escribe tu dirección o
+              mueve el pin para ver médicos cercanos.
+            </p>
+          )}
+        </SectionCard>
+
         <div className="mt-5 space-y-4">
-          {locationError && (
+          {doctorsError && (
             <SectionCard className="border-[var(--color-rojo-borde)] bg-[var(--color-rojo-claro)] p-4 text-sm text-[var(--color-rojo-urgencia)]">
-              {locationError}
+              {doctorsError}
             </SectionCard>
           )}
-          {loadingDoctors && (
+          {loadingDoctors && patientCoords && (
             <SectionCard className="p-4 text-sm text-[var(--color-texto-3)]">
-              Detectando tu ubicación y buscando médicos a menos de 10 km…
+              Buscando médicos a menos de 10 km…
             </SectionCard>
           )}
-          {!loadingDoctors && !locationError && doctors.length === 0 && (
+          {!loadingDoctors && patientCoords && !doctorsError && doctors.length === 0 && (
             <SectionCard className="p-4 text-sm text-[var(--color-texto-3)]">
               No hay profesionales de {selectedSpecialty} a menos de 10 km de tu ubicación. Prueba otra
-              especialidad o muévete más cerca de la zona de cobertura.
-            </SectionCard>
-          )}
-          {!loadingDoctors && doctors.length === 0 && locationError && (
-            <SectionCard className="p-4 text-sm text-[var(--color-texto-3)]">
-              Sin ubicación no podemos mostrar prestadores cercanos.
+              especialidad o ajusta el pin.
             </SectionCard>
           )}
           {!loadingDoctors &&
