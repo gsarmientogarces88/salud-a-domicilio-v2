@@ -1,13 +1,12 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api';
 import { formatLocalYmd } from '@/lib/formatLocalYmd';
-import { buildChileGeocodeQuery, geocodeChileAddressLine } from '@/lib/mapboxGeocode';
+import { geocodeChileAddressLine, reverseGeocodeChile } from '@/lib/mapboxGeocode';
 import DateRangePicker from './DateRangePicker';
 import MapaDireccion from '@/components/MapaDireccion';
-import LocationSelector from '@/components/ui/LocationSelector';
 
 interface Doctor {
   id: string;
@@ -16,6 +15,7 @@ interface Doctor {
   photo?: string;
 }
 
+/** @deprecated La ubicación se deriva del mapa; se mantiene por compatibilidad de imports. */
 export interface ScheduleLocationContext {
   region: string;
   province: string;
@@ -32,21 +32,17 @@ interface ScheduleModalProps {
   isOpen: boolean;
   onClose: () => void;
   doctor: Doctor | null;
-  location: ScheduleLocationContext;
-  onLocationRegion: (v: string) => void;
-  onLocationProvince: (v: string) => void;
-  onLocationCommune: (v: string) => void;
+  /** @deprecated Ignorado: región/provincia/comuna salen del pin. */
+  location?: ScheduleLocationContext;
+  onLocationRegion?: (v: string) => void;
+  onLocationProvince?: (v: string) => void;
+  onLocationCommune?: (v: string) => void;
 }
 
-export default function ScheduleModal({
-  isOpen,
-  onClose,
-  doctor,
-  location,
-  onLocationRegion,
-  onLocationProvince,
-  onLocationCommune,
-}: ScheduleModalProps) {
+const GEOCODE_DEBOUNCE_MS = 700;
+const MIN_ADDRESS_LENGTH = 8;
+
+export default function ScheduleModal({ isOpen, onClose, doctor }: ScheduleModalProps) {
   const router = useRouter();
   const [step, setStep] = useState<1 | 2>(1);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -56,17 +52,26 @@ export default function ScheduleModal({
   const [slotsError, setSlotsError] = useState('');
 
   const [addressText, setAddressText] = useState('');
+  const [confirmedAddress, setConfirmedAddress] = useState('');
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [adminArea, setAdminArea] = useState({
+    region: 'Chile',
+    province: 'Sin especificar',
+    commune: 'Sin especificar',
+  });
   const [geocodeState, setGeocodeState] = useState<{ loading: boolean; error: string | null }>({
     loading: false,
     error: null,
   });
-  /** Clave normalizada de la última búsqueda exitosa; evita enviar con pin movido sin geocodificar antes. */
-  const [searchKey, setSearchKey] = useState<string | null>(null);
+  const [gpsHint, setGpsHint] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+
+  const skipNextGeocodeRef = useRef(false);
+  const geocodeRequestIdRef = useRef(0);
+  const reverseRequestIdRef = useRef(0);
 
   const reset = useCallback(() => {
     setStep(1);
@@ -75,12 +80,15 @@ export default function ScheduleModal({
     setSelectedSlot(null);
     setSlotsError('');
     setAddressText('');
+    setConfirmedAddress('');
     setCoords(null);
-    setSearchKey(null);
+    setAdminArea({ region: 'Chile', province: 'Sin especificar', commune: 'Sin especificar' });
     setGeocodeState({ loading: false, error: null });
+    setGpsHint(null);
     setNotes('');
     setSubmitError('');
     setSuccessMessage('');
+    skipNextGeocodeRef.current = false;
   }, []);
 
   useEffect(() => {
@@ -88,20 +96,73 @@ export default function ScheduleModal({
     reset();
   }, [isOpen, doctor?.id, reset]);
 
-  const norm = (s: string) => s.replace(/\s+/g, ' ').trim();
-  const currentAddressKey = useMemo(
-    () =>
-      [norm(addressText), norm(location.commune), norm(location.province), norm(location.region)].join('|'),
-    [addressText, location.commune, location.province, location.region],
-  );
+  // GPS inicial al entrar al paso 2
+  useEffect(() => {
+    if (!isOpen || step !== 2) return;
+    if (!navigator.geolocation) return;
+    if (coords) return;
 
-  /** Si cambia región/provincia/comuna en paso 2, la ubicación geocodificada deja de ser válida. */
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const next = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setCoords(next);
+        setGpsHint('Usamos tu ubicación actual. Ajusta el pin o la dirección si es necesario.');
+
+        const reverseId = ++reverseRequestIdRef.current;
+        const result = await reverseGeocodeChile(next.lat, next.lng);
+        if (reverseId !== reverseRequestIdRef.current) return;
+
+        if (result.ok) {
+          skipNextGeocodeRef.current = true;
+          setConfirmedAddress(result.placeName);
+          setAddressText((prev) => prev || result.placeName);
+          setAdminArea({
+            region: result.region || 'Chile',
+            province: result.province || 'Sin especificar',
+            commune: result.commune || 'Sin especificar',
+          });
+        }
+      },
+      () => setGpsHint(null),
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60_000 },
+    );
+  }, [isOpen, step, coords]);
+
+  // Geocodificación automática al escribir dirección
   useEffect(() => {
     if (step !== 2) return;
-    setCoords(null);
-    setSearchKey(null);
-    setGeocodeState((s) => ({ ...s, error: null }));
-  }, [location.region, location.province, location.commune, step]);
+    if (skipNextGeocodeRef.current) {
+      skipNextGeocodeRef.current = false;
+      return;
+    }
+
+    const query = addressText.replace(/\s+/g, ' ').trim();
+    if (query.length < MIN_ADDRESS_LENGTH) return;
+
+    const timer = window.setTimeout(async () => {
+      const requestId = ++geocodeRequestIdRef.current;
+      setGeocodeState({ loading: true, error: null });
+
+      const result = await geocodeChileAddressLine(`${query}, Chile`);
+      if (requestId !== geocodeRequestIdRef.current) return;
+
+      if (!result.ok) {
+        setGeocodeState({ loading: false, error: result.error });
+        return;
+      }
+
+      setCoords({ lat: result.lat, lng: result.lng });
+      setConfirmedAddress(result.placeName || query);
+      setAdminArea({
+        region: result.region || 'Chile',
+        province: result.province || 'Sin especificar',
+        commune: result.commune || 'Sin especificar',
+      });
+      setGeocodeState({ loading: false, error: null });
+    }, GEOCODE_DEBOUNCE_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [addressText, step]);
 
   useEffect(() => {
     const load = async () => {
@@ -125,51 +186,35 @@ export default function ScheduleModal({
     load();
   }, [doctor, selectedDate]);
 
-  const canGoStep2 = doctor && selectedDate && selectedSlot;
-  const canSubmit =
-    doctor &&
-    selectedSlot &&
-    location.region &&
-    location.province &&
-    location.commune &&
-    addressText.trim().length >= 8 &&
-    coords != null &&
-    searchKey != null &&
-    searchKey === currentAddressKey;
+  const handleCoordsChange = async (next: { lat: number; lng: number } | null) => {
+    setCoords(next);
+    if (!next) return;
 
-  const handleSearchLocation = async () => {
-    const street = norm(addressText);
-    const comuna = norm(location.commune);
-    const provincia = norm(location.province);
-    const region = norm(location.region);
+    const reverseId = ++reverseRequestIdRef.current;
+    const result = await reverseGeocodeChile(next.lat, next.lng);
+    if (reverseId !== reverseRequestIdRef.current) return;
 
-    if (!region || !provincia || !comuna || !street) {
-      setGeocodeState({
-        loading: false,
-        error: 'Completa región, provincia, comuna y dirección (calle y número) para buscar.',
+    if (result.ok) {
+      skipNextGeocodeRef.current = true;
+      setConfirmedAddress(result.placeName);
+      setAddressText(result.placeName);
+      setAdminArea({
+        region: result.region || 'Chile',
+        province: result.province || 'Sin especificar',
+        commune: result.commune || 'Sin especificar',
       });
-      return;
+      setGeocodeState({ loading: false, error: null });
     }
-
-    setGeocodeState({ loading: true, error: null });
-    const fullAddress = buildChileGeocodeQuery({
-      streetLine: street,
-      commune: comuna,
-      province: provincia,
-      region,
-    });
-    const result = await geocodeChileAddressLine(fullAddress);
-    if (!result.ok) {
-      setCoords(null);
-      setSearchKey(null);
-      setGeocodeState({ loading: false, error: result.error });
-      return;
-    }
-    const key = [street, comuna, provincia, region].join('|');
-    setCoords({ lat: result.lat, lng: result.lng });
-    setSearchKey(key);
-    setGeocodeState({ loading: false, error: null });
   };
+
+  const canGoStep2 = Boolean(doctor && selectedDate && selectedSlot);
+  const canSubmit =
+    Boolean(doctor) &&
+    Boolean(selectedSlot) &&
+    addressText.trim().length >= MIN_ADDRESS_LENGTH &&
+    coords != null &&
+    Number.isFinite(coords.lat) &&
+    Number.isFinite(coords.lng);
 
   const handleSubmit = async () => {
     if (!canSubmit || !doctor || !selectedSlot || !coords) return;
@@ -181,11 +226,11 @@ export default function ScheduleModal({
         body: JSON.stringify({
           professionalId: doctor.id,
           slotId: selectedSlot.id,
-          addressText: addressText.trim(),
-          region: location.region,
-          province: location.province,
-          city: location.province,
-          commune: location.commune,
+          addressText: (confirmedAddress || addressText).trim(),
+          region: adminArea.region || 'Chile',
+          province: adminArea.province || 'Sin especificar',
+          city: adminArea.province || 'Sin especificar',
+          commune: adminArea.commune || 'Sin especificar',
           lat: coords.lat,
           lng: coords.lng,
           notes: notes.trim() || undefined,
@@ -269,50 +314,42 @@ export default function ScheduleModal({
         {step === 2 && (
           <div className="space-y-4">
             <p className="text-sm text-gray-600">
-              Confirma el domicilio de la visita. El médico verá mapa y distancia antes de aceptar.
+              Confirma el domicilio en el mapa. Región, provincia y comuna se obtienen del pin.
             </p>
-            <LocationSelector
-              region={location.region}
-              province={location.province}
-              commune={location.commune}
-              onRegionChange={onLocationRegion}
-              onProvinceChange={onLocationProvince}
-              onCommuneChange={onLocationCommune}
-            />
             <div>
-              <label className="mb-1 block text-xs font-semibold text-gray-700">Dirección (calle y número) *</label>
+              <label className="mb-1 block text-xs font-semibold text-gray-700">Dirección *</label>
               <input
                 value={addressText}
                 onChange={(e) => setAddressText(e.target.value)}
-                placeholder="Ej: Los Alerces 123, depto 45"
+                placeholder="Calle, número, comuna"
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
               />
             </div>
-            <button
-              type="button"
-              onClick={() => void handleSearchLocation()}
-              disabled={geocodeState.loading}
-              className="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
-            >
-              {geocodeState.loading ? 'Buscando ubicación...' : coords ? 'Volver a buscar ubicación' : 'Buscar ubicación'}
-            </button>
+            {gpsHint && <p className="text-[11px] text-sky-700">{gpsHint}</p>}
+            {geocodeState.loading && <p className="text-[11px] text-gray-500">Buscando ubicación…</p>}
             {geocodeState.error && <p className="text-xs text-amber-700">{geocodeState.error}</p>}
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-gray-700">
-                Mapa — puedes arrastrar el pin solo si necesitas afinar la ubicación
-              </label>
-              <MapaDireccion
-                position={coords}
-                onChangeCoords={(c) => {
-                  setCoords(c);
-                  if (c) setGeocodeState((s) => ({ ...s, error: null }));
-                }}
-              />
-            </div>
-            {!coords && !geocodeState.loading && (
+            <MapaDireccion
+              position={coords}
+              onChangeCoords={(c) => {
+                void handleCoordsChange(c);
+              }}
+              label="Confirma la ubicación en el mapa"
+            />
+            {confirmedAddress ? (
+              <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2">
+                <p className="text-[10px] font-medium uppercase tracking-wide text-gray-500">
+                  Dirección confirmada
+                </p>
+                <p className="mt-0.5 text-xs font-medium text-gray-900">{confirmedAddress}</p>
+                {coords && (
+                  <p className="mt-0.5 text-[10px] text-gray-400">
+                    {coords.lat.toFixed(5)}, {coords.lng.toFixed(5)}
+                  </p>
+                )}
+              </div>
+            ) : (
               <p className="text-xs text-gray-500">
-                Busca la dirección para confirmar la ubicación. El envío se habilita cuando haya coordenadas válidas
-                (geocodificación o ajuste opcional del pin).
+                Escribe tu dirección o mueve el pin para confirmar la ubicación.
               </p>
             )}
             <div>
@@ -335,7 +372,7 @@ export default function ScheduleModal({
               if (step === 2) {
                 setStep(1);
                 setCoords(null);
-                setSearchKey(null);
+                setConfirmedAddress('');
                 setGeocodeState({ loading: false, error: null });
               } else onClose();
             }}
@@ -359,7 +396,7 @@ export default function ScheduleModal({
             <button
               type="button"
               disabled={!canSubmit || submitting || geocodeState.loading}
-              onClick={handleSubmit}
+              onClick={() => void handleSubmit()}
               className={`flex-1 rounded-lg px-4 py-2 font-medium text-white ${
                 canSubmit && !submitting && !geocodeState.loading
                   ? 'bg-emerald-600 hover:bg-emerald-700'

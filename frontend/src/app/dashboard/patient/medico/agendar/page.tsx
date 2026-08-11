@@ -1,8 +1,10 @@
 'use client';
 
-import { useState } from 'react';
-import ScheduleModal, { type ScheduleLocationContext } from '@/components/medico/ScheduleModal';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import ScheduleModal from '@/components/medico/ScheduleModal';
 import type { DoctorCard } from '@/components/medico/DoctorList';
+import { apiFetch } from '@/lib/api';
 import {
   FloatingAction,
   InitialAvatar,
@@ -15,6 +17,34 @@ import {
 } from '@/components/medicilio/MedicilioUI';
 
 type AgendaIconName = Parameters<typeof SvgIcon>[0]['name'];
+type AvatarTone = NonNullable<Parameters<typeof InitialAvatar>[0]['tone']>;
+
+type RecentRequest = {
+  id: string;
+  kind: 'URGENT' | 'AGENDA';
+  title: string;
+  subtitle: string;
+  status: string;
+  createdAt: string;
+  href: string;
+};
+
+type ProfessionalApi = {
+  id: string;
+  specialty: string;
+  baseFee: number;
+  region?: string | null;
+  province?: string | null;
+  commune?: string | null;
+  user: { firstName: string; lastName: string };
+};
+
+type ListedDoctor = DoctorCard & {
+  initials: string;
+  price: string;
+  tone: AvatarTone;
+  locationLabel: string;
+};
 
 const specialties = [
   ['Medicina general', 'Desde $39.990', 'Disponible en 18 min', 'briefcase'],
@@ -27,89 +57,182 @@ const specialties = [
   ['Medicina interna', 'Desde $55.990', 'Disponible en 40 min', 'crosshair'],
 ] as const;
 
-const doctors: (DoctorCard & {
-  initials: string;
-  badge: string;
-  tone: 'blue' | 'green' | 'purple' | 'amber';
-  price: string;
-  eta: string;
-  experience: string;
-})[] = [
-  {
-    id: '1',
-    name: 'Dr. Carlos Muñoz',
-    specialty: 'Medicina General',
-    initials: 'CM',
-    badge: 'Más solicitado',
-    tone: 'blue',
-    price: '$39.990',
-    eta: 'Llega en 15 min',
-    experience: '12 años exp.',
-    availabilityLabel: 'Disponible ahora',
-    ratingAverage: 4.9,
-    ratingCount: 142,
-  },
-  {
-    id: '2',
-    name: 'Dra. Ana Pérez',
-    specialty: 'Pediatría',
-    initials: 'AP',
-    badge: 'Alta valoración',
-    tone: 'green',
-    price: '$44.990',
-    eta: 'Llega en 22 min',
-    experience: '8 años exp.',
-    availabilityLabel: 'Disponible ahora',
-    ratingAverage: 5.0,
-    ratingCount: 98,
-  },
-  {
-    id: '3',
-    name: 'Dr. Felipe Lagos',
-    specialty: 'Medicina General',
-    initials: 'FL',
-    badge: 'SIS activo',
-    tone: 'purple',
-    price: '$39.990',
-    eta: 'Llega en 24 min',
-    experience: '6 años exp.',
-    availabilityLabel: 'Disponible ahora',
-    ratingAverage: 4.8,
-    ratingCount: 64,
-  },
-  {
-    id: '4',
-    name: 'Dra. María Torres',
-    specialty: 'Geriatría',
-    initials: 'MT',
-    badge: 'Especialista',
-    tone: 'amber',
-    price: '$49.990',
-    eta: 'Llega en 28 min',
-    experience: '11 años exp.',
-    availabilityLabel: 'Disponible ahora',
-    ratingAverage: 4.9,
-    ratingCount: 80,
-  },
-];
+const tones: AvatarTone[] = ['blue', 'green', 'purple', 'amber'];
 
 const reasons = [
   ['Profesionales verificados', 'Registro SIS activo', 'shield'],
   ['Atención en domicilio', 'Sin traslado ni filas', 'home'],
   ['Pago seguro Webpay', 'Bono Isapre o efectivo', 'lock'],
-  ['Receta médica digital', 'Documentos al finalizar', 'file'],
+  ['Documentación digital', 'Documentos al finalizar', 'file'],
   ['Adultos y niños', 'Pediatría disponible', 'heart'],
   ['Cobertura Gran Concepción', 'Talcahuano y comunas', 'pin'],
 ] as const;
 
+function formatStatus(status: string) {
+  const map: Record<string, string> = {
+    PENDING: 'Pendiente',
+    QUEUED: 'En cola',
+    ACCEPTED: 'Aceptada',
+    IN_PROGRESS: 'En curso',
+    COMPLETED: 'Completada',
+    CANCELLED: 'Cancelada',
+    CONFIRMED: 'Confirmada',
+    REJECTED: 'Rechazada',
+    EXPIRED: 'Expirada',
+  };
+  return map[status] || status;
+}
+
+function initialsFromName(name: string) {
+  const parts = name
+    .replace(/^Dr\.?\s*/i, '')
+    .replace(/^Dra\.?\s*/i, '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] || ''}${parts[parts.length - 1][0] || ''}`.toUpperCase();
+}
+
+function formatLocation(p: ProfessionalApi) {
+  return [p.commune, p.province, p.region].filter(Boolean).join(', ') || 'Gran Concepción';
+}
+
+function mapProfessional(p: ProfessionalApi, index: number): ListedDoctor {
+  const firstName = (p.user?.firstName || '').trim();
+  const lastName = (p.user?.lastName || '').trim();
+  const name = `Dr. ${[firstName, lastName].filter(Boolean).join(' ')}`.trim();
+  const fee = typeof p.baseFee === 'number' ? p.baseFee : 0;
+  return {
+    id: p.id,
+    name,
+    specialty: p.specialty || 'Medicina general',
+    initials: initialsFromName(name),
+    price: `$${fee.toLocaleString('es-CL')}`,
+    tone: tones[index % tones.length],
+    locationLabel: formatLocation(p),
+    region: p.region,
+    province: p.province,
+    commune: p.commune,
+    availabilityLabel: 'Agenda disponible',
+  };
+}
+
 export default function AgendarPage() {
   const [selectedSpecialty, setSelectedSpecialty] = useState('Medicina general');
   const [modalDoctor, setModalDoctor] = useState<DoctorCard | null>(null);
-  const [location, setLocation] = useState<ScheduleLocationContext>({
-    region: 'Biobío',
-    province: 'Concepción',
-    commune: 'Concepción',
-  });
+  const [doctors, setDoctors] = useState<ListedDoctor[]>([]);
+  const [loadingDoctors, setLoadingDoctors] = useState(true);
+  const [recent, setRecent] = useState<RecentRequest[]>([]);
+  const [loadingRecent, setLoadingRecent] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadDoctors = async () => {
+      setLoadingDoctors(true);
+      try {
+        let path = '/professionals?forAgenda=1';
+        if (selectedSpecialty) {
+          path += `&type=${encodeURIComponent(selectedSpecialty)}`;
+        }
+        const res = await apiFetch<{ data: ProfessionalApi[] }>(path);
+        if (!cancelled) {
+          setDoctors((res.data || []).map(mapProfessional));
+        }
+      } catch {
+        if (!cancelled) setDoctors([]);
+      } finally {
+        if (!cancelled) setLoadingDoctors(false);
+      }
+    };
+
+    void loadDoctors();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedSpecialty]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      setLoadingRecent(true);
+      try {
+        const [servicesRes, agendaRes] = await Promise.allSettled([
+          apiFetch<{
+            data: Array<{
+              id: string;
+              type?: string;
+              description?: string;
+              status: string;
+              createdAt: string;
+              address?: string;
+            }>;
+          }>('/services/me'),
+          apiFetch<{
+            data: Array<{
+              id: string;
+              status: string;
+              createdAt: string;
+              addressText?: string;
+              notes?: string | null;
+              professional?: { user?: { firstName?: string; lastName?: string } };
+            }>;
+          }>('/agenda/requests'),
+        ]);
+
+        const items: RecentRequest[] = [];
+
+        if (servicesRes.status === 'fulfilled') {
+          for (const s of servicesRes.value.data || []) {
+            items.push({
+              id: s.id,
+              kind: 'URGENT',
+              title: s.type === 'SCHEDULED' ? 'Consulta programada' : 'Urgencia a domicilio',
+              subtitle: s.description || s.address || 'Sin detalle',
+              status: s.status,
+              createdAt: s.createdAt,
+              href:
+                s.type === 'URGENT'
+                  ? `/dashboard/patient/medico/urgente/estado?id=${encodeURIComponent(s.id)}`
+                  : `/dashboard/patient/historial`,
+            });
+          }
+        }
+
+        if (agendaRes.status === 'fulfilled') {
+          for (const a of agendaRes.value.data || []) {
+            const docName = a.professional?.user
+              ? `${a.professional.user.firstName || ''} ${a.professional.user.lastName || ''}`.trim()
+              : '';
+            items.push({
+              id: a.id,
+              kind: 'AGENDA',
+              title: docName ? `Agenda · ${docName}` : 'Agenda médica',
+              subtitle: a.notes || a.addressText || 'Visita programada',
+              status: a.status,
+              createdAt: a.createdAt,
+              href: `/dashboard/patient/agenda/estado/${a.id}`,
+            });
+          }
+        }
+
+        items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        if (!cancelled) setRecent(items.slice(0, 3));
+      } catch {
+        if (!cancelled) setRecent([]);
+      } finally {
+        if (!cancelled) setLoadingRecent(false);
+      }
+    };
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -117,7 +240,9 @@ export default function AgendarPage() {
         <div>
           <Pill>
             <StatusDot />
-            12 médicos disponibles ahora · Gran Concepción
+            {loadingDoctors
+              ? 'Buscando médicos disponibles…'
+              : `${doctors.length} médicos disponibles · Gran Concepción`}
           </Pill>
           <h1 className="mt-5 text-[38px] font-semibold leading-tight text-[var(--color-azul-oscuro)]">
             Agenda tu médico
@@ -129,7 +254,7 @@ export default function AgendarPage() {
           </p>
           <div className="mt-5 grid gap-3 md:grid-cols-2">
             {[
-              ['12', 'Médicos disponibles'],
+              [loadingDoctors ? '—' : String(doctors.length), 'Médicos disponibles'],
               ['4.9/5', 'Valoración promedio'],
               ['20 min', 'Tiempo promedio'],
               ['+5.000', 'Atenciones realizadas'],
@@ -140,13 +265,13 @@ export default function AgendarPage() {
               </div>
             ))}
           </div>
-          <button
-            type="button"
+          <a
+            href="#medicos-disponibles"
             className="mt-5 inline-flex items-center gap-2 rounded-[10px] bg-[var(--color-azul-primario)] px-5 py-3 text-sm font-semibold text-white hover:bg-[#0C447C]"
           >
             <SvgIcon name="search" className="h-4 w-4" />
             Encontrar médico ahora
-          </button>
+          </a>
         </div>
 
         <SectionCard className="p-4">
@@ -162,12 +287,6 @@ export default function AgendarPage() {
             <span>
               Más cercano: <span className="font-semibold text-[var(--color-azul-primario)]">15 min</span>
             </span>
-            <button
-              type="button"
-              className="rounded-[8px] border border-[var(--color-azul-borde)] px-3 py-1.5 text-[var(--color-azul-primario)]"
-            >
-              Detectar
-            </button>
           </div>
         </SectionCard>
       </section>
@@ -184,13 +303,6 @@ export default function AgendarPage() {
               placeholder="Buscar especialidad o nombre de médico..."
             />
           </div>
-          <button
-            type="button"
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-[10px] border border-[var(--color-azul-borde)] bg-[var(--color-azul-claro)] px-4 text-sm font-medium text-[var(--color-azul-primario)]"
-          >
-            <SvgIcon name="crosshair" className="h-4 w-4" />
-            Detectar mi ubicación
-          </button>
           <button
             type="button"
             className="inline-flex h-11 items-center justify-center gap-2 rounded-[10px] bg-[var(--color-azul-primario)] px-4 text-sm font-semibold text-white"
@@ -213,7 +325,7 @@ export default function AgendarPage() {
               >
                 {filter}
               </button>
-            )
+            ),
           )}
         </div>
       </SectionCard>
@@ -249,7 +361,7 @@ export default function AgendarPage() {
         </div>
       </section>
 
-      <section>
+      <section id="medicos-disponibles">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--color-texto-4)]">
@@ -257,48 +369,74 @@ export default function AgendarPage() {
             </p>
             <h2 className="mt-1 text-xl font-semibold text-[var(--color-texto-1)]">Profesionales cerca de ti</h2>
           </div>
-          <span className="text-sm text-[var(--color-texto-3)]">8 profesionales encontrados en la zona</span>
+          <span className="text-sm text-[var(--color-texto-3)]">
+            {loadingDoctors
+              ? 'Cargando…'
+              : `${doctors.length} profesional${doctors.length === 1 ? '' : 'es'} encontrado${doctors.length === 1 ? '' : 's'} en la zona`}
+          </span>
         </div>
         <div className="mt-5 space-y-4">
-          {doctors.map((doctor, index) => (
-            <article
-              key={doctor.id}
-              className={`rounded-[14px] border bg-white p-5 ${
-                index === 0 ? 'border-2 border-[var(--color-azul-primario)]' : 'border-[var(--color-borde-card)]'
-              }`}
-            >
-              <div className="flex flex-col gap-4 md:flex-row md:items-center">
-                <InitialAvatar initials={doctor.initials} tone={doctor.tone} />
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-base font-semibold text-[var(--color-texto-1)]">{doctor.name}</h3>
-                    <span className="rounded-full bg-[var(--color-verde-claro)] px-2 py-1 text-[10px] font-medium text-[#27500A]">
-                      {doctor.badge}
-                    </span>
+          {loadingDoctors && (
+            <SectionCard className="p-4 text-sm text-[var(--color-texto-3)]">
+              Cargando profesionales…
+            </SectionCard>
+          )}
+          {!loadingDoctors && doctors.length === 0 && (
+            <SectionCard className="p-4 text-sm text-[var(--color-texto-3)]">
+              No hay profesionales disponibles para {selectedSpecialty}. Prueba otra especialidad.
+            </SectionCard>
+          )}
+          {!loadingDoctors &&
+            doctors.map((doctor, index) => (
+              <article
+                key={doctor.id}
+                className={`rounded-[14px] border bg-white p-5 ${
+                  index === 0 ? 'border-2 border-[var(--color-azul-primario)]' : 'border-[var(--color-borde-card)]'
+                }`}
+              >
+                <div className="flex flex-col gap-4 md:flex-row md:items-center">
+                  <InitialAvatar initials={doctor.initials} tone={doctor.tone} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-base font-semibold text-[var(--color-texto-1)]">{doctor.name}</h3>
+                      <span className="rounded-full bg-[var(--color-verde-claro)] px-2 py-1 text-[10px] font-medium text-[#27500A]">
+                        Agenda disponible
+                      </span>
+                    </div>
+                    <p className="text-sm text-[var(--color-texto-3)]">{doctor.specialty}</p>
+                    <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-[var(--color-texto-3)]">
+                      <span className="inline-flex items-center gap-1">
+                        <RatingStars />
+                      </span>
+                      <span>{doctor.locationLabel}</span>
+                      <span>Registro SIS activo</span>
+                    </div>
+                    <p className="mt-3 text-lg font-semibold text-[var(--color-azul-primario)]">{doctor.price}</p>
                   </div>
-                  <p className="text-sm text-[var(--color-texto-3)]">{doctor.specialty}</p>
-                  <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-[var(--color-texto-3)]">
-                    <span className="inline-flex items-center gap-1">
-                      <RatingStars /> {doctor.ratingAverage}
-                    </span>
-                    <span>{doctor.ratingCount} atenciones</span>
-                    <span>{doctor.experience}</span>
-                    <span>{doctor.eta}</span>
-                    <span>Registro SIS activo</span>
-                  </div>
-                  <p className="mt-3 text-lg font-semibold text-[var(--color-azul-primario)]">{doctor.price}</p>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setModalDoctor({
+                        id: doctor.id,
+                        name: doctor.name,
+                        specialty: doctor.specialty,
+                      })
+                    }
+                    className="rounded-[10px] bg-[var(--color-azul-primario)] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#0C447C]"
+                  >
+                    Agendar ahora
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setModalDoctor(doctor)}
-                  className="rounded-[10px] bg-[var(--color-azul-primario)] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#0C447C]"
-                >
-                  Agendar ahora
-                </button>
-              </div>
-            </article>
-          ))}
+              </article>
+            ))}
         </div>
+        <p className="mt-3 text-xs text-[var(--color-texto-3)]">
+          Tip: para agenda con profesionales reales de la plataforma también puedes usar{' '}
+          <Link href="/dashboard/patient/agenda" className="font-medium text-[var(--color-azul-primario)] underline">
+            Agenda de profesionales
+          </Link>
+          .
+        </p>
       </section>
 
       <section className="rounded-[16px] bg-[var(--color-azul-claro)] p-6">
@@ -316,6 +454,45 @@ export default function AgendarPage() {
                 <span className="block text-sm font-semibold text-[var(--color-texto-1)]">{title}</span>
                 <span className="text-xs text-[var(--color-texto-3)]">{text}</span>
               </span>
+            </SectionCard>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--color-texto-4)]">Historial</p>
+        <h2 className="mt-1 text-xl font-semibold text-[var(--color-texto-1)]">Tus últimas 3 solicitudes</h2>
+        <div className="mt-4 space-y-3">
+          {loadingRecent && (
+            <SectionCard className="p-4 text-sm text-[var(--color-texto-3)]">Cargando solicitudes…</SectionCard>
+          )}
+          {!loadingRecent && recent.length === 0 && (
+            <SectionCard className="p-4 text-sm text-[var(--color-texto-3)]">
+              Aún no tienes solicitudes. Agenda un médico o solicita una urgencia.
+            </SectionCard>
+          )}
+          {recent.map((item) => (
+            <SectionCard key={`${item.kind}-${item.id}`} className="p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-semibold text-[var(--color-texto-1)]">{item.title}</p>
+                    <span className="rounded-full bg-[var(--color-azul-claro)] px-2 py-0.5 text-[10px] font-medium text-[var(--color-azul-primario)]">
+                      {item.kind === 'URGENT' ? 'Urgencia' : 'Agenda'}
+                    </span>
+                  </div>
+                  <p className="mt-1 truncate text-xs text-[var(--color-texto-3)]">{item.subtitle}</p>
+                  <p className="mt-1 text-[11px] text-[var(--color-texto-4)]">
+                    {new Date(item.createdAt).toLocaleString('es-CL')} · {formatStatus(item.status)}
+                  </p>
+                </div>
+                <Link
+                  href={item.href}
+                  className="inline-flex shrink-0 items-center justify-center rounded-[8px] border border-[var(--color-azul-borde)] px-3 py-2 text-xs font-semibold text-[var(--color-azul-primario)] hover:bg-[var(--color-azul-claro)]"
+                >
+                  Ver detalle
+                </Link>
+              </div>
             </SectionCard>
           ))}
         </div>
@@ -346,16 +523,8 @@ export default function AgendarPage() {
         </div>
       </section>
 
-      <ScheduleModal
-        isOpen={!!modalDoctor}
-        onClose={() => setModalDoctor(null)}
-        doctor={modalDoctor}
-        location={location}
-        onLocationRegion={(region) => setLocation((prev) => ({ ...prev, region }))}
-        onLocationProvince={(province) => setLocation((prev) => ({ ...prev, province }))}
-        onLocationCommune={(commune) => setLocation((prev) => ({ ...prev, commune }))}
-      />
-      <FloatingAction href="/dashboard/patient/medico/agendar">Encontrar médico ahora</FloatingAction>
+      <ScheduleModal isOpen={!!modalDoctor} onClose={() => setModalDoctor(null)} doctor={modalDoctor} />
+      <FloatingAction href="#medicos-disponibles">Encontrar médico ahora</FloatingAction>
     </div>
   );
 }

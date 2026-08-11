@@ -14,10 +14,10 @@ import {
 } from '@/components/medicilio/MedicilioUI';
 
 const quickAccess = [
-  ['Mi historial', 'clock'],
-  ['Mis recetas', 'file'],
-  ['Mis resultados', 'chart'],
-  ['Mis pagos', 'card'],
+  ['Mi historial', 'clock', '/dashboard/patient/consultas'],
+  ['Mis resultados', 'chart', '/dashboard/patient/resultados-examenes'],
+  ['Mi perfil', 'user', '/dashboard/patient/perfil'],
+  ['Soporte', 'shield', '/dashboard/patient/soporte'],
 ] as const;
 
 const services = [
@@ -59,8 +59,8 @@ const services = [
 const trust = [
   ['Médicos con Registro SIS activo', 'shield', 'blue'],
   ['Pago seguro con Webpay', 'lock', 'green'],
-  ['Receta médica digital incluida', 'file', 'amber'],
-  ['Historial clínico digital seguro', 'activity', 'purple'],
+  ['Seguimiento en tiempo real', 'activity', 'amber'],
+  ['Historial clínico digital seguro', 'file', 'purple'],
 ] as const;
 
 export default function PacienteInicioPage() {
@@ -167,10 +167,10 @@ export default function PacienteInicioPage() {
         <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--color-texto-4)]">Acceso rápido</p>
         <h2 className="mt-1 text-xl font-semibold text-[var(--color-texto-1)]">¿Qué necesitas hoy?</h2>
         <div className="mt-4 grid gap-3 md:grid-cols-4">
-          {quickAccess.map(([label, icon]) => (
+          {quickAccess.map(([label, icon, href]) => (
             <Link
               key={label}
-              href="/dashboard/patient/consultas"
+              href={href}
               className="rounded-[14px] border border-[var(--color-borde-card)] bg-white p-5 text-center hover:border-[var(--color-azul-borde)] hover:shadow-[0_2px_12px_rgba(24,95,165,0.08)]"
             >
               <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-[12px] bg-[var(--color-azul-claro)] text-[var(--color-azul-primario)]">

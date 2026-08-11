@@ -7,6 +7,7 @@ interface Earning {
   id: string;
   createdAt: string;
   serviceRequestId: string;
+  solicitante: string;
   amount: number;
   commissionAmount: number;
   doctorNetAmount: number;
@@ -26,6 +27,9 @@ export default function EarningsPage() {
         id: s.id,
         createdAt: s.createdAt,
         serviceRequestId: s.id,
+        solicitante: s.patient?.user
+          ? `${s.patient.user.firstName || ''} ${s.patient.user.lastName || ''}`.trim() || 'Solicitante'
+          : 'Solicitante',
         amount: s.totalAmount,
         commissionAmount: s.commissionAmount ?? Math.round(s.totalAmount * 0.2),
         doctorNetAmount: s.doctorNetAmount,
@@ -112,7 +116,7 @@ export default function EarningsPage() {
             <thead>
               <tr className="border-b text-xs text-gray-500">
                 <th className="px-3 py-2">Fecha</th>
-                <th className="px-3 py-2">Consulta</th>
+                <th className="px-3 py-2">Solicitante</th>
                 <th className="px-3 py-2">Bruto</th>
                 <th className="px-3 py-2">Comisión</th>
                 <th className="px-3 py-2">Neto</th>
@@ -128,7 +132,7 @@ export default function EarningsPage() {
                       timeStyle: 'short',
                     })}
                   </td>
-                  <td className="px-3 py-2 text-xs text-gray-700">{e.serviceRequestId}</td>
+                  <td className="px-3 py-2 text-xs text-gray-700">{e.solicitante}</td>
                   <td className="px-3 py-2 text-xs text-gray-700">
                     ${e.amount.toLocaleString('es-CL')}
                   </td>

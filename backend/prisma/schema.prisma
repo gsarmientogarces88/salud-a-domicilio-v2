@@ -61,6 +61,27 @@ enum LocationPrecision {
   UNKNOWN
 }
 
+enum ArrivalConfirmedBy {
+  PIN
+  PATIENT
+}
+
+enum DoctorDocumentType {
+  CEDULA_ANVERSO
+  CEDULA_REVERSO
+  SELFIE_CON_CEDULA
+  TITULO_MEDICO
+  CERTIFICADO_SIS
+  CERTIFICADO_ESPECIALIDAD
+}
+
+enum DoctorVerificationStatus {
+  INCOMPLETE
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
 // ========== USERS ==========
 
 model User {
@@ -103,8 +124,15 @@ model DoctorProfile {
   commune       String?
   baseLat       Float?   // lat base para cálculo de cobertura
   baseLng       Float?   // lng base para cálculo de cobertura
+  baseAddress   String?
   coverageKm    Int?     @default(15) // radio de cobertura en km
   excludedZones Json?    // ["comunaX", "sectorY"] zonas no atendidas
+  bankName           String?
+  bankAccountType    String?
+  bankAccountNumber  String?
+  verificationStatus DoctorVerificationStatus @default(INCOMPLETE)
+  verificationNote   String?
+  documentsSubmittedAt DateTime?
   verifiedAt    DateTime?
   verifiedBy    String?
   createdAt     DateTime @default(now())
@@ -117,8 +145,26 @@ model DoctorProfile {
   appointmentRequests AppointmentRequest[]
   liveLocation        DoctorLiveLocation?
   serviceRejections   ServiceRequestRejection[]
+  verificationDocs    DoctorVerificationDocument[]
 
   @@map("doctor_profiles")
+}
+
+model DoctorVerificationDocument {
+  id           String             @id @default(cuid())
+  doctorId     String
+  doctor       DoctorProfile      @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  type         DoctorDocumentType
+  storageKey   String
+  originalName String
+  mimeType     String
+  sizeBytes    Int
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  @@unique([doctorId, type])
+  @@index([doctorId])
+  @@map("doctor_verification_documents")
 }
 
 model DoctorLiveLocation {
@@ -153,6 +199,7 @@ model PatientProfile {
   userId    String   @unique
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   rut       String?  @unique
+  dateOfBirth DateTime?
   address   String?
   commune   String?
   province  String?  @map("city")
@@ -190,6 +237,7 @@ model ServiceRequest {
   referencias      String?
   sexo             String?
   telefono         String?
+  pacienteNombre   String?
   edadPaciente     Int?
   esMenorEdad      Boolean       @default(false)
   tieneFiebre      Boolean?
@@ -201,6 +249,9 @@ model ServiceRequest {
   requestLocationSource LocationSource? @default(UNKNOWN)
   requestLocationPrecision LocationPrecision? @default(UNKNOWN)
   requestLocationConfidence Float?
+  arrivalPin            String?
+  arrivedAt             DateTime?
+  arrivalConfirmedBy    ArrivalConfirmedBy?
   totalAmount      Int           // CLP - monto total cobrado
   commissionAmount Int           @default(0) // CLP - comisión plataforma
   doctorNetAmount  Int           @default(0) // CLP - neto médico

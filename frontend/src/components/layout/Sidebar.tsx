@@ -14,7 +14,6 @@ const LINKS: Record<string, { href: string; label: string; icon: string }[]> = {
     { href: '/dashboard/patient/examenes-domicilio', label: 'Exámenes a Domicilio', icon: '🧪' },
     { href: '/dashboard/patient/consultas', label: 'Consultas', icon: '👥' },
     { href: '/dashboard/patient/resultados-examenes', label: 'Resultados de Exámenes', icon: '🔬' },
-    { href: '/dashboard/patient/pagos', label: 'Pagos', icon: '💰' },
     { href: '/dashboard/patient/mensajes', label: 'Mensajes', icon: '💬' },
     { href: '/dashboard/patient/perfil', label: 'Perfil', icon: '👤' },
     { href: '/dashboard/patient/soporte', label: 'Soporte', icon: '⚙️' },
@@ -25,6 +24,7 @@ const LINKS: Record<string, { href: string; label: string; icon: string }[]> = {
     { href: '/dashboard/doctor/my-consultations', label: 'Mis atenciones', icon: '🩺' },
     { href: '/dashboard/doctor/agenda', label: 'Agenda', icon: '📅' },
     { href: '/dashboard/doctor/agenda-requests', label: 'Solicitudes Agenda', icon: '📋' },
+    { href: '/dashboard/doctor/verificacion', label: 'Verificación', icon: '🪪' },
     { href: '/dashboard/doctor/settings', label: 'Configuración', icon: '⚙️' },
     { href: '/dashboard/doctor/metrics', label: 'Métricas', icon: '📈' },
     { href: '/dashboard/doctor/earnings', label: 'Ingresos', icon: '💰' },
@@ -32,6 +32,7 @@ const LINKS: Record<string, { href: string; label: string; icon: string }[]> = {
   ADMIN: [
     { href: '/dashboard/admin', label: 'Dashboard', icon: '📊' },
     { href: '/dashboard/admin/users', label: 'Usuarios', icon: '👥' },
+    { href: '/dashboard/admin/verificaciones', label: 'Verificaciones', icon: '✅' },
     { href: '/dashboard/admin/services', label: 'Servicios', icon: '🩺' },
     { href: '/dashboard/admin/config', label: 'Configuración', icon: '⚙️' },
   ],

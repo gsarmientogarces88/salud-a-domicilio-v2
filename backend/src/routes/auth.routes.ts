@@ -24,7 +24,7 @@ router.get('/me', authenticate, async (req: Request, res: Response) => {
 // POST /auth/register
 router.post('/register', async (req: Request, res: Response) => {
   try {
-    const { email, password, firstName, lastName, phone, role } = req.body;
+    const { email, password, firstName, lastName, phone, role, rut, dateOfBirth } = req.body;
 
     if (!email || !password || !firstName || !lastName) {
       return res.status(400).json({ error: true, message: 'Campos requeridos: email, password, firstName, lastName' });
@@ -38,6 +38,20 @@ router.post('/register', async (req: Request, res: Response) => {
 
     const hashed = await bcrypt.hash(password, 12);
 
+    let patientDob: Date | undefined;
+    if (dateOfBirth) {
+      const parsed = new Date(dateOfBirth);
+      if (Number.isNaN(parsed.getTime())) {
+        return res.status(400).json({ error: true, message: 'Fecha de nacimiento inválida' });
+      }
+      patientDob = parsed;
+    }
+
+    const rutClean =
+      typeof rut === 'string' && rut.trim()
+        ? rut.replace(/[^0-9kK]/g, '').toUpperCase()
+        : undefined;
+
     const user = await prisma.user.create({
       data: {
         email,
@@ -46,12 +60,21 @@ router.post('/register', async (req: Request, res: Response) => {
         lastName,
         phone,
         role: validRole,
-        ...(validRole === 'PATIENT' ? { patientProfile: { create: {} } } : {}),
+        ...(validRole === 'PATIENT'
+          ? {
+              patientProfile: {
+                create: {
+                  ...(rutClean ? { rut: rutClean } : {}),
+                  ...(patientDob ? { dateOfBirth: patientDob } : {}),
+                },
+              },
+            }
+          : {}),
         ...(validRole === 'DOCTOR' ? {
           doctorProfile: {
             create: {
               specialty: req.body.specialty || 'General',
-              licenseNumber: req.body.licenseNumber || '',
+              licenseNumber: req.body.licenseNumber || `TMP-${Date.now()}`,
               baseFee: parseInt(req.body.baseFee) || 30000,
             },
           },

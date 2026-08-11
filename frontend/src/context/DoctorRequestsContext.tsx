@@ -28,6 +28,8 @@ export interface DoctorAvailableRequestItem {
   city?: string | null;
   telefono?: string | null;
   referencias?: string | null;
+  pacienteNombre?: string | null;
+  edadPaciente?: number | null;
   totalAmount: number;
   createdAt: string;
   expiresAt?: string | null;

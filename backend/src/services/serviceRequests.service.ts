@@ -93,6 +93,7 @@ export async function createRequest(data: {
   referencias?: string;
   sexo?: string;
   telefono?: string;
+  pacienteNombre?: string;
   edadPaciente?: number;
   esMenorEdad?: boolean;
   tieneFiebre?: boolean;
@@ -181,6 +182,7 @@ export async function createRequest(data: {
       referencias: data.referencias,
       sexo: data.sexo,
       telefono: data.telefono,
+      pacienteNombre: data.pacienteNombre?.trim() || null,
       edadPaciente: data.edadPaciente,
       esMenorEdad: data.esMenorEdad ?? false,
       tieneFiebre: data.tieneFiebre,
@@ -243,6 +245,8 @@ export async function acceptRequest(serviceId: string, doctorId: string) {
   const nextStatus: ServiceStatus = active ? 'QUEUED' : 'IN_PROGRESS';
   const nowAccept = new Date();
   const startedAt = active ? undefined : nowAccept;
+  const arrivalPin =
+    sr.arrivalPin || String(Math.floor(1000 + Math.random() * 9000));
 
   const updated = await prisma.serviceRequest.update({
     where: { id: serviceId },
@@ -252,6 +256,7 @@ export async function acceptRequest(serviceId: string, doctorId: string) {
       totalAmount,
       commissionAmount,
       doctorNetAmount: totalAmount - commissionAmount,
+      arrivalPin,
       /** Evita que clientes o reportes interpreten el TTL de PENDING tras asignar médico. */
       expiresAt: null,
       ...(nextStatus === 'QUEUED'
@@ -469,5 +474,50 @@ export async function cancelByDoctor(serviceId: string, doctorId: string, reason
   return prisma.serviceRequest.update({
     where: { id: serviceId },
     data: { status: 'CANCELLED', cancelledAt: new Date(), cancelReason: reason },
+  });
+}
+
+function generateArrivalPin() {
+  return String(Math.floor(1000 + Math.random() * 9000));
+}
+
+/** Paciente confirma que el médico ya llegó. */
+export async function confirmArrivalByPatient(serviceId: string, userId: string) {
+  const patient = await prisma.patientProfile.findUnique({ where: { userId } });
+  if (!patient) throw new Error('Perfil paciente no encontrado');
+
+  const sr = await prisma.serviceRequest.findUnique({ where: { id: serviceId } });
+  if (!sr) throw new Error('Solicitud no encontrada');
+  if (sr.patientId !== patient.id) throw new Error('No autorizado');
+  if (!['ACCEPTED', 'QUEUED', 'IN_PROGRESS'].includes(sr.status)) {
+    throw new Error('La solicitud no está en un estado que permita confirmar llegada');
+  }
+  if (sr.arrivedAt) return sr;
+
+  return prisma.serviceRequest.update({
+    where: { id: serviceId },
+    data: {
+      arrivedAt: new Date(),
+      arrivalConfirmedBy: 'PATIENT',
+      arrivalPin: sr.arrivalPin || generateArrivalPin(),
+    },
+  });
+}
+
+/** Médico confirma llegada con el PIN del paciente. */
+export async function confirmArrivalByPin(serviceId: string, doctorId: string, pin: string) {
+  const sr = await prisma.serviceRequest.findUnique({ where: { id: serviceId } });
+  if (!sr) throw new Error('Solicitud no encontrada');
+  if (sr.doctorId !== doctorId) throw new Error('No es tu solicitud');
+  if (!sr.arrivalPin) throw new Error('Esta solicitud no tiene PIN de llegada');
+  if (String(pin).trim() !== sr.arrivalPin) throw new Error('PIN incorrecto');
+  if (sr.arrivedAt) return sr;
+
+  return prisma.serviceRequest.update({
+    where: { id: serviceId },
+    data: {
+      arrivedAt: new Date(),
+      arrivalConfirmedBy: 'PIN',
+    },
   });
 }

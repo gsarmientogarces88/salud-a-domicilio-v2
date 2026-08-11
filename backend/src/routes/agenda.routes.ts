@@ -34,18 +34,18 @@ router.post('/requests', authorize('PATIENT'), async (req: Request, res: Respons
       professionalId,
       slotId,
       addressText,
-      region,
-      commune,
       lat,
       lng,
       notes,
     } = body;
-    const province = coalesceProvinceFromPayload(body);
+    const region = (body.region || '').trim() || 'Chile';
+    const province = (coalesceProvinceFromPayload(body) || '').trim() || 'Sin especificar';
+    const commune = (body.commune || '').trim() || 'Sin especificar';
 
-    if (!professionalId || !slotId || !addressText || !region || !province || !commune) {
+    if (!professionalId || !slotId || !addressText) {
       return res.status(400).json({
         error: true,
-        message: 'Faltan campos: professionalId, slotId, addressText, region, province (o city legacy), commune',
+        message: 'Faltan campos: professionalId, slotId, addressText',
       });
     }
     const latNum = typeof lat === 'number' ? lat : parseFloat(String(lat));

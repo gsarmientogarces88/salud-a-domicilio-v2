@@ -183,4 +183,95 @@ router.get('/laboratories', async (_req: Request, res: Response) => {
   }
 });
 
+// ========== Verificación de médicos ==========
+
+router.get('/verifications', async (req: Request, res: Response) => {
+  try {
+    const status = typeof req.query.status === 'string' ? req.query.status : '';
+    const where: any = {};
+    if (status) where.verificationStatus = status;
+
+    const list = await prisma.doctorProfile.findMany({
+      where,
+      orderBy: [{ documentsSubmittedAt: 'desc' }, { updatedAt: 'desc' }],
+      include: {
+        user: {
+          select: { id: true, email: true, firstName: true, lastName: true, phone: true },
+        },
+        verificationDocs: {
+          orderBy: { updatedAt: 'desc' },
+          select: {
+            id: true,
+            type: true,
+            originalName: true,
+            mimeType: true,
+            sizeBytes: true,
+            updatedAt: true,
+          },
+        },
+      },
+    });
+
+    res.json({ data: list });
+  } catch (e: any) {
+    res.status(500).json({ error: true, message: e.message });
+  }
+});
+
+router.get('/verifications/documents/:id/view', async (req: Request, res: Response) => {
+  try {
+    const { resolvePrivateDocPath } = await import('../lib/privateDoctorDocs');
+    const doc = await prisma.doctorVerificationDocument.findUnique({
+      where: { id: req.params.id },
+    });
+    if (!doc) return res.status(404).json({ error: true, message: 'Documento no encontrado' });
+
+    const abs = resolvePrivateDocPath(doc.storageKey);
+    if (!abs) return res.status(404).json({ error: true, message: 'Archivo no disponible' });
+
+    res.setHeader('Content-Type', doc.mimeType);
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(doc.originalName)}"`);
+    res.sendFile(abs);
+  } catch (e: any) {
+    res.status(500).json({ error: true, message: e.message });
+  }
+});
+
+router.patch('/verifications/:id', async (req: Request, res: Response) => {
+  try {
+    const { action, note } = req.body as { action?: 'approve' | 'reject'; note?: string };
+    if (action !== 'approve' && action !== 'reject') {
+      return res.status(400).json({ error: true, message: 'action debe ser approve o reject' });
+    }
+
+    const profile = await prisma.doctorProfile.findUnique({ where: { id: req.params.id } });
+    if (!profile) return res.status(404).json({ error: true, message: 'Médico no encontrado' });
+
+    const updated = await prisma.doctorProfile.update({
+      where: { id: profile.id },
+      data:
+        action === 'approve'
+          ? {
+              verificationStatus: 'APPROVED',
+              isVerified: true,
+              verifiedAt: new Date(),
+              verifiedBy: req.user!.id,
+              verificationNote: note?.trim() || null,
+            }
+          : {
+              verificationStatus: 'REJECTED',
+              isVerified: false,
+              verificationNote: note?.trim() || 'Documentación rechazada',
+            },
+    });
+
+    res.json({
+      message: action === 'approve' ? 'Médico verificado' : 'Verificación rechazada',
+      data: updated,
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: true, message: e.message });
+  }
+});
+
 export default router;

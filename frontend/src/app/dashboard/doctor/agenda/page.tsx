@@ -2,6 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api';
+import {
+  motivoOnly,
+  pacienteInlineLabel,
+  solicitanteLabel,
+} from '@/lib/serviceParties';
 
 interface Service {
   id: string;
@@ -10,6 +15,10 @@ interface Service {
   address: string;
   scheduledAt: string | null;
   createdAt?: string;
+  telefono?: string | null;
+  pacienteNombre?: string | null;
+  edadPaciente?: number | null;
+  patient?: { user: { firstName: string; lastName: string } };
 }
 
 export default function AgendaPage() {
@@ -90,9 +99,14 @@ export default function AgendaPage() {
                     >
                       <div>
                         <p className="text-sm font-medium text-gray-900">
-                          {time} · {s.description}
+                          {time} · {motivoOnly(s)}
                         </p>
+                        <p className="text-xs text-gray-600">Solicitante: {solicitanteLabel(s)}</p>
+                        <p className="text-xs text-gray-600">Paciente: {pacienteInlineLabel(s)}</p>
                         <p className="text-xs text-gray-600">📍 {s.address}</p>
+                        {s.telefono ? (
+                          <p className="text-xs text-gray-500">📞 {s.telefono}</p>
+                        ) : null}
                       </div>
                       <a
                         href={`/dashboard/doctor/consultations/${s.id}`}

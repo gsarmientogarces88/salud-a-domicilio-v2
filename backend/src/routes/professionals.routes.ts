@@ -11,17 +11,21 @@ router.use(authenticate);
 // GET /professionals?type=...&region=...&province=...&commune=... (city= alias legacy)
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const { type, region, commune } = req.query as {
+    const { type, region, commune, forAgenda } = req.query as {
       type?: string;
       region?: string;
       commune?: string;
+      forAgenda?: string;
     };
     const provinceFilter = coalesceProvinceFromQuery(req.query as Record<string, unknown>);
 
     const where: any = {
       isVerified: true,
-      isAvailable: true,
     };
+    // Agenda programada no exige "disponible ahora" (eso es para urgencia).
+    if (String(forAgenda || '') !== '1') {
+      where.isAvailable = true;
+    }
 
     if (region) {
       // Regla: no mostrar profesionales fuera de la región del paciente

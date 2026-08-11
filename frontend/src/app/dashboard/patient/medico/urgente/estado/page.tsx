@@ -7,6 +7,7 @@ import { apiFetch } from '@/lib/api';
 import StepProgress from '@/components/medico/StepProgress';
 import TrackingMapMock from '@/components/medico/TrackingMapMock';
 import ServiceRequestChat from '@/components/chat/ServiceRequestChat';
+import ArrivalPinPanel from '@/components/medico/ArrivalPinPanel';
 import {
   AUTO_EXPIRE_PENDING_CANCEL_REASON,
   isAcceptedTimeoutCancellation,
@@ -26,6 +27,8 @@ type ServiceRequest = {
   expiresAt?: string | null;
   cancelReason?: string | null;
   address: string;
+  arrivalPin?: string | null;
+  arrivedAt?: string | null;
   doctor?: { user: { firstName: string; lastName: string } } | null;
 };
 
@@ -63,6 +66,7 @@ export default function UrgentStatusPage() {
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [confirmingArrival, setConfirmingArrival] = useState(false);
 
   const remainingSeconds = useMemo(() => computeRemainingSeconds(sr, nowMs), [sr, nowMs]);
   const inQueue = sr?.status === 'QUEUED';
@@ -187,6 +191,22 @@ export default function UrgentStatusPage() {
     } finally {
       setCancelling(false);
       setShowCancelConfirm(false);
+    }
+  };
+
+  const handleConfirmArrival = async () => {
+    if (!resolvedRequestId) return;
+    setConfirmingArrival(true);
+    try {
+      await apiFetch(`/services/${resolvedRequestId}/confirm-arrival`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      await load();
+    } catch (e: any) {
+      alert(e?.message || 'No se pudo confirmar la llegada.');
+    } finally {
+      setConfirmingArrival(false);
     }
   };
 
@@ -371,6 +391,15 @@ export default function UrgentStatusPage() {
                 : 'Un médico aceptó tu solicitud, pero está finalizando una atención. Luego irá para atenderte.'}
             </p>
 
+            <div className="mx-auto mt-6 max-w-md">
+              <ArrivalPinPanel
+                pin={sr?.arrivalPin}
+                showConfirmButton={Boolean(sr && !sr.arrivedAt)}
+                confirming={confirmingArrival}
+                onConfirmArrival={() => void handleConfirmArrival()}
+              />
+            </div>
+
             <div className="mt-8">
               <ServiceRequestChat
                 requestId={sr!.id}
@@ -501,6 +530,19 @@ export default function UrgentStatusPage() {
               </div>
             </div>
             <StepProgress currentStep="consulta" />
+            <div className="mb-6">
+              <ArrivalPinPanel
+                pin={sr.arrivalPin}
+                showConfirmButton={!sr.arrivedAt}
+                confirming={confirmingArrival}
+                onConfirmArrival={() => void handleConfirmArrival()}
+              />
+              {sr.arrivedAt ? (
+                <p className="mt-2 text-center text-sm font-medium text-emerald-700">
+                  Llegada confirmada
+                </p>
+              ) : null}
+            </div>
             <div className="mb-6 grid gap-6 md:grid-cols-2">
               <div className="rounded-xl border bg-white p-4 shadow-sm">
                 <p className="mb-2 text-sm font-medium text-gray-700">Profesional</p>
@@ -550,6 +592,14 @@ export default function UrgentStatusPage() {
               </div>
             </div>
             <StepProgress currentStep="camino" />
+            <div className="mb-6">
+              <ArrivalPinPanel
+                pin={sr.arrivalPin}
+                showConfirmButton={!sr.arrivedAt}
+                confirming={confirmingArrival}
+                onConfirmArrival={() => void handleConfirmArrival()}
+              />
+            </div>
             <div className="mb-6 grid gap-6 md:grid-cols-2">
               <div className="rounded-xl border bg-white p-4 shadow-sm">
                 <p className="font-bold text-gray-900">{attendingDoctorLabel(sr)}</p>

@@ -23,19 +23,16 @@ export interface DoctorCard {
 interface DoctorListProps {
   doctors: DoctorCard[];
   filterAvailable?: boolean;
-  location: ScheduleLocationContext;
-  onLocationRegion: (v: string) => void;
-  onLocationProvince: (v: string) => void;
-  onLocationCommune: (v: string) => void;
+  /** @deprecated Ubicación se deriva del mapa en ScheduleModal */
+  location?: ScheduleLocationContext;
+  onLocationRegion?: (v: string) => void;
+  onLocationProvince?: (v: string) => void;
+  onLocationCommune?: (v: string) => void;
 }
 
 export default function DoctorList({
   doctors,
   filterAvailable,
-  location,
-  onLocationRegion,
-  onLocationProvince,
-  onLocationCommune,
 }: DoctorListProps) {
   const [modalDoctor, setModalDoctor] = useState<DoctorCard | null>(null);
 
@@ -119,10 +116,6 @@ export default function DoctorList({
         isOpen={!!modalDoctor}
         onClose={() => setModalDoctor(null)}
         doctor={modalDoctor}
-        location={location}
-        onLocationRegion={onLocationRegion}
-        onLocationProvince={onLocationProvince}
-        onLocationCommune={onLocationCommune}
       />
     </>
   );

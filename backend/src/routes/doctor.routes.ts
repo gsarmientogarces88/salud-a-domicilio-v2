@@ -1,14 +1,34 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/auth';
 import { authorize } from '../middleware/roles';
 import prisma from '../lib/prisma';
 import { z } from 'zod';
 import { config } from '../config';
 import { getEffectiveDoctorLocation } from '../services/geo.service';
+import {
+  REQUIRED_DOC_TYPES,
+  deletePrivateDocIfExists,
+  doctorDocUpload,
+  isDoctorDocumentType,
+} from '../lib/privateDoctorDocs';
+import type { DoctorDocumentType } from '@prisma/client';
 
 const router = Router();
 
 router.use(authenticate, authorize('DOCTOR'));
+
+async function resolveDoctorProfile(req: Request, res: Response, next: NextFunction) {
+  try {
+    const profile = await prisma.doctorProfile.findUnique({ where: { userId: req.user!.id } });
+    if (!profile) {
+      return res.status(404).json({ error: true, message: 'Perfil médico no encontrado' });
+    }
+    (req as Request & { doctorProfileId?: string }).doctorProfileId = profile.id;
+    next();
+  } catch (e: any) {
+    res.status(500).json({ error: true, message: e.message });
+  }
+}
 
 // GET /doctor/me — perfil del médico
 router.get('/me', async (req: Request, res: Response) => {
@@ -200,6 +220,183 @@ router.put('/me/location/live', async (req: Request, res: Response) => {
     });
 
     res.json({ message: 'Ubicación en vivo actualizada', data: upserted });
+  } catch (e: any) {
+    res.status(500).json({ error: true, message: e.message });
+  }
+});
+
+// ========== Verificación de identidad / documentos ==========
+
+router.get('/me/verification', async (req: Request, res: Response) => {
+  try {
+    const profile = await prisma.doctorProfile.findUnique({
+      where: { userId: req.user!.id },
+      include: {
+        verificationDocs: {
+          orderBy: { updatedAt: 'desc' },
+          select: {
+            id: true,
+            type: true,
+            originalName: true,
+            mimeType: true,
+            sizeBytes: true,
+            updatedAt: true,
+          },
+        },
+      },
+    });
+    if (!profile) return res.status(404).json({ error: true, message: 'Perfil médico no encontrado' });
+
+    res.json({
+      data: {
+        verificationStatus: profile.verificationStatus,
+        verificationNote: profile.verificationNote,
+        documentsSubmittedAt: profile.documentsSubmittedAt,
+        isVerified: profile.isVerified,
+        specialty: profile.specialty,
+        bankName: profile.bankName,
+        bankAccountType: profile.bankAccountType,
+        bankAccountNumber: profile.bankAccountNumber,
+        documents: profile.verificationDocs,
+        requiredTypes: REQUIRED_DOC_TYPES,
+      },
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: true, message: e.message });
+  }
+});
+
+router.post(
+  '/me/verification/documents',
+  resolveDoctorProfile,
+  (req: Request, res: Response, next: NextFunction) => {
+    doctorDocUpload.single('file')(req, res, (err: unknown) => {
+      if (err) return res.status(400).json({ error: true, message: (err as Error).message });
+      next();
+    });
+  },
+  async (req: Request, res: Response) => {
+    try {
+      const doctorId = (req as Request & { doctorProfileId?: string }).doctorProfileId!;
+      const typeRaw = String((req.body as { type?: string })?.type || '');
+      if (!isDoctorDocumentType(typeRaw)) {
+        return res.status(400).json({ error: true, message: 'Tipo de documento inválido' });
+      }
+      const type = typeRaw as DoctorDocumentType;
+      const file = (req as Request & { file?: Express.Multer.File }).file;
+      if (!file) return res.status(400).json({ error: true, message: 'Archivo requerido' });
+
+      const storageKey = `${doctorId}/${file.filename}`;
+      const existing = await prisma.doctorVerificationDocument.findUnique({
+        where: { doctorId_type: { doctorId, type } },
+      });
+      if (existing) deletePrivateDocIfExists(existing.storageKey);
+
+      const doc = await prisma.doctorVerificationDocument.upsert({
+        where: { doctorId_type: { doctorId, type } },
+        create: {
+          doctorId,
+          type,
+          storageKey,
+          originalName: file.originalname,
+          mimeType: file.mimetype,
+          sizeBytes: file.size,
+        },
+        update: {
+          storageKey,
+          originalName: file.originalname,
+          mimeType: file.mimetype,
+          sizeBytes: file.size,
+        },
+      });
+
+      // Si estaba rechazado/aprobado, vuelve a incompleto al subir corrección
+      const profile = await prisma.doctorProfile.findUnique({ where: { id: doctorId } });
+      if (profile && (profile.verificationStatus === 'REJECTED' || profile.verificationStatus === 'APPROVED')) {
+        await prisma.doctorProfile.update({
+          where: { id: doctorId },
+          data: {
+            verificationStatus: 'INCOMPLETE',
+            isVerified: false,
+            verificationNote: profile.verificationStatus === 'REJECTED' ? profile.verificationNote : null,
+          },
+        });
+      }
+
+      res.status(201).json({
+        message: 'Documento subido',
+        data: {
+          id: doc.id,
+          type: doc.type,
+          originalName: doc.originalName,
+          mimeType: doc.mimeType,
+          sizeBytes: doc.sizeBytes,
+          updatedAt: doc.updatedAt,
+        },
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: true, message: e.message });
+    }
+  },
+);
+
+router.patch('/me/verification/bank', async (req: Request, res: Response) => {
+  try {
+    const profile = await prisma.doctorProfile.findUnique({ where: { userId: req.user!.id } });
+    if (!profile) return res.status(404).json({ error: true, message: 'Perfil médico no encontrado' });
+
+    const { bankName, bankAccountType, bankAccountNumber } = req.body as {
+      bankName?: string;
+      bankAccountType?: string;
+      bankAccountNumber?: string;
+    };
+    if (!bankName?.trim() || !bankAccountType?.trim() || !bankAccountNumber?.trim()) {
+      return res.status(400).json({ error: true, message: 'Completa los datos bancarios' });
+    }
+
+    const updated = await prisma.doctorProfile.update({
+      where: { id: profile.id },
+      data: {
+        bankName: bankName.trim(),
+        bankAccountType: bankAccountType.trim(),
+        bankAccountNumber: bankAccountNumber.trim(),
+      },
+    });
+    res.json({ message: 'Datos bancarios guardados', data: updated });
+  } catch (e: any) {
+    res.status(500).json({ error: true, message: e.message });
+  }
+});
+
+router.post('/me/verification/submit', async (req: Request, res: Response) => {
+  try {
+    const profile = await prisma.doctorProfile.findUnique({
+      where: { userId: req.user!.id },
+      include: { verificationDocs: { select: { type: true } } },
+    });
+    if (!profile) return res.status(404).json({ error: true, message: 'Perfil médico no encontrado' });
+
+    const uploaded = new Set(profile.verificationDocs.map((d) => d.type));
+    const missing = REQUIRED_DOC_TYPES.filter((t) => !uploaded.has(t));
+    if (missing.length > 0) {
+      return res.status(400).json({
+        error: true,
+        message: `Faltan documentos: ${missing.join(', ')}`,
+      });
+    }
+    if (!profile.bankName || !profile.bankAccountType || !profile.bankAccountNumber) {
+      return res.status(400).json({ error: true, message: 'Completa y guarda los datos bancarios antes de enviar' });
+    }
+
+    const updated = await prisma.doctorProfile.update({
+      where: { id: profile.id },
+      data: {
+        verificationStatus: 'SUBMITTED',
+        documentsSubmittedAt: new Date(),
+        verificationNote: null,
+      },
+    });
+    res.json({ message: 'Documentación enviada a revisión', data: updated });
   } catch (e: any) {
     res.status(500).json({ error: true, message: e.message });
   }

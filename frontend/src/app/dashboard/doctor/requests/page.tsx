@@ -7,6 +7,11 @@ import StatusBadge from '@/components/ui/StatusBadge';
 import { useNow } from '@/hooks/useNow';
 import { useDoctorRequests, type DoctorAvailableRequestItem } from '@/context/DoctorRequestsContext';
 import { pendingExpiresAtMs } from '@/lib/serviceRequestTtl';
+import {
+  motivoOnly,
+  pacienteInlineLabel,
+  solicitanteLabel,
+} from '@/lib/serviceParties';
 
 type RequestItem = DoctorAvailableRequestItem;
 
@@ -15,6 +20,8 @@ type MyAssignment = {
   status: string;
   description: string;
   address: string;
+  pacienteNombre?: string | null;
+  edadPaciente?: number | null;
   patient?: { user: { firstName: string; lastName: string } };
 };
 
@@ -236,10 +243,11 @@ export default function DoctorRequestsPage() {
     if (!search.trim()) return true;
     const q = search.toLowerCase();
     return (
-      s.description.toLowerCase().includes(q) ||
+      motivoOnly(s).toLowerCase().includes(q) ||
       s.address.toLowerCase().includes(q) ||
-      (s.patient &&
-        `${s.patient.user.firstName} ${s.patient.user.lastName}`.toLowerCase().includes(q))
+      solicitanteLabel(s).toLowerCase().includes(q) ||
+      pacienteInlineLabel(s).toLowerCase().includes(q) ||
+      (s.pacienteNombre || '').toLowerCase().includes(q)
     );
   });
 
@@ -268,11 +276,17 @@ export default function DoctorRequestsPage() {
             <div className="min-w-0">
               <p className="text-xs font-bold uppercase tracking-wide text-emerald-900">Atención en curso</p>
               <p className="mt-1 text-lg font-bold text-gray-900">
-                {inProgressAssignment.patient
-                  ? `${inProgressAssignment.patient.user.firstName} ${inProgressAssignment.patient.user.lastName}`
-                  : 'Paciente'}
+                {solicitanteLabel(inProgressAssignment)}
+                {inProgressAssignment.edadPaciente != null
+                  ? ` · ${inProgressAssignment.edadPaciente} años`
+                  : ''}
               </p>
-              <p className="mt-1 line-clamp-2 text-sm text-gray-700">{inProgressAssignment.description}</p>
+              <p className="mt-1 text-sm text-gray-600">
+                Paciente: {pacienteInlineLabel(inProgressAssignment)}
+              </p>
+              <p className="mt-1 line-clamp-2 text-sm text-gray-700">
+                {motivoOnly(inProgressAssignment)}
+              </p>
               <p className="mt-1 text-xs text-gray-600">📍 {inProgressAssignment.address}</p>
               <p className="mt-2 text-sm text-emerald-900">
                 Al aceptar nuevas solicitudes puedes seguir aquí; cuando termines, finaliza para liberar al paciente.
@@ -414,9 +428,8 @@ export default function DoctorRequestsPage() {
                         <div className="flex items-center gap-2">
                           <span className="text-xl leading-none">{s.type === 'URGENT' ? '🚨' : '📅'}</span>
                           <span className="truncate text-base font-semibold text-gray-900">
-                            {s.patient
-                              ? `${s.patient.user.firstName} ${s.patient.user.lastName}`
-                              : 'Paciente'}
+                            {solicitanteLabel(s)}
+                            {s.edadPaciente != null ? ` · ${s.edadPaciente} años` : ''}
                           </span>
                         </div>
                         <div className="mt-1 flex items-center gap-2">
@@ -449,9 +462,23 @@ export default function DoctorRequestsPage() {
 
                     {/* INFO */}
                     <div className="space-y-2">
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <div>
+                          <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400">
+                            Solicitante
+                          </p>
+                          <p className="text-sm font-medium text-gray-900">{solicitanteLabel(s)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400">
+                            Paciente
+                          </p>
+                          <p className="text-sm font-medium text-gray-900">{pacienteInlineLabel(s)}</p>
+                        </div>
+                      </div>
                       <div>
                         <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400">Motivo</p>
-                        <p className="text-sm font-medium text-gray-900">{s.description}</p>
+                        <p className="text-sm font-medium text-gray-900">{motivoOnly(s)}</p>
                       </div>
 
                       <div className="grid gap-2 md:grid-cols-2">

@@ -280,9 +280,7 @@ function PatientSidebar() {
       title: 'Mi cuenta',
       items: [
         { href: '/dashboard/patient/consultas', label: 'Historial', icon: 'clock' },
-        { href: '/dashboard/patient/resultados-examenes', label: 'Recetas', icon: 'file' },
         { href: '/dashboard/patient/resultados-examenes', label: 'Resultados', icon: 'chart' },
-        { href: '/dashboard/patient/pagos', label: 'Pagos', icon: 'card' },
         { href: '/dashboard/patient/mensajes', label: 'Mensajes', icon: 'message', badge: '2' },
       ],
     },
@@ -300,7 +298,6 @@ function PatientSidebar() {
       title: 'Cuenta',
       items: [
         { href: '/dashboard/patient/perfil', label: 'Mi perfil', icon: 'user' },
-        { href: '/dashboard/patient/perfil', label: 'Ajustes', icon: 'settings' },
         { href: '/dashboard/patient/soporte', label: 'Soporte', icon: 'shield' },
       ],
     },

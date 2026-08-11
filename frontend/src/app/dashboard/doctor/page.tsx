@@ -9,6 +9,12 @@ import {
   IN_PROGRESS_WARNING_AFTER_MINUTES,
   inProgressElapsedMinutes,
 } from '@/lib/serviceRequestTtl';
+import {
+  motivoOnly,
+  pacienteAtendidoLabel,
+  pacienteDisplayLabel,
+  solicitanteLabel,
+} from '@/lib/serviceParties';
 
 interface DoctorProfile {
   id: string;
@@ -32,6 +38,8 @@ interface Service {
   commune?: string | null;
   province?: string | null;
   city?: string | null;
+  pacienteNombre?: string | null;
+  edadPaciente?: number | null;
   totalAmount: number;
   doctorNetAmount: number;
   createdAt: string;
@@ -55,8 +63,9 @@ function haversineKm(a: LatLng, b: LatLng) {
   return R * c;
 }
 
-function patientLabel(s: Service) {
-  return s.patient ? `${s.patient.user.firstName} ${s.patient.user.lastName}` : 'Paciente';
+function solicitanteWithAge(s: Service) {
+  const base = solicitanteLabel(s);
+  return s.edadPaciente != null ? `${base} · ${s.edadPaciente} años` : base;
 }
 
 const btnPrimary =
@@ -314,10 +323,21 @@ export default function DoctorDashboard() {
     const distKm = hasCoords
       ? haversineKm(providerPos!, { lat: s.requestLat as number, lng: s.requestLng as number })
       : null;
+    const paciente = pacienteDisplayLabel(s);
     return (
       <div className="space-y-3">
-        <p className="text-lg font-bold leading-snug text-gray-900 md:text-base">{patientLabel(s)}</p>
-        <p className="text-base leading-relaxed text-gray-700 md:text-sm">{s.description}</p>
+        <div>
+          <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400">Solicitante</p>
+          <p className="text-lg font-bold leading-snug text-gray-900 md:text-base">{solicitanteWithAge(s)}</p>
+        </div>
+        <div>
+          <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400">Paciente</p>
+          <p className={`text-sm font-medium ${paciente.className || 'text-gray-800'}`}>{paciente.text}</p>
+        </div>
+        <div>
+          <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400">Motivo</p>
+          <p className="text-base leading-relaxed text-gray-700 md:text-sm">{motivoOnly(s)}</p>
+        </div>
         <p className="text-sm leading-relaxed text-gray-600 md:text-xs">
           📍 {s.address}
           {s.commune ? `, ${s.commune}` : ''}
@@ -424,8 +444,11 @@ export default function DoctorDashboard() {
               <p className="text-sm font-bold text-amber-950">Siguiente en cola</p>
               <StatusBadge status="QUEUED" />
             </div>
-            <p className="text-base font-semibold text-gray-900">{patientLabel(queuedService)}</p>
-            <p className="mt-1 text-sm text-gray-700">{queuedService.description}</p>
+            <p className="text-base font-semibold text-gray-900">{solicitanteWithAge(queuedService)}</p>
+            <p className="mt-1 text-sm text-gray-600">
+              Paciente: {pacienteAtendidoLabel(queuedService)}
+            </p>
+            <p className="mt-1 text-sm text-gray-700">{motivoOnly(queuedService)}</p>
             <p className="mt-1 text-sm text-gray-600">📍 {queuedService.address}</p>
             <p className="mt-3 rounded-lg bg-white/80 px-3 py-2 text-sm font-medium text-amber-900 ring-1 ring-amber-200/80">
               Se iniciará automáticamente al finalizar la atención actual, o puedes usar INICIAR cuando ya no haya otra
@@ -517,18 +540,21 @@ export default function DoctorDashboard() {
         ) : (
           <>
             <ul className="space-y-3 md:hidden">
-              {recent.map((s) => (
+              {recent.map((s) => {
+                const paciente = pacienteDisplayLabel(s);
+                return (
                 <li key={s.id} className="rounded-xl border border-gray-100 bg-gray-50/80 p-3">
                   <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm font-semibold text-gray-900">
-                      {s.patient ? `${s.patient.user.firstName} ${s.patient.user.lastName}` : '—'}
-                    </p>
+                    <p className="text-sm font-semibold text-gray-900">{solicitanteLabel(s)}</p>
                     <StatusBadge status={s.status} />
                   </div>
+                  <p className={`mt-1 text-xs ${paciente.className || 'text-gray-600'}`}>
+                    Paciente: {paciente.text}
+                  </p>
                   <p className="mt-1 text-xs text-gray-500">
                     {new Date(s.createdAt).toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' })}
                   </p>
-                  <p className="mt-2 text-sm text-gray-700">{s.description}</p>
+                  <p className="mt-2 text-sm text-gray-700">{motivoOnly(s)}</p>
                   <p className="mt-2 text-xs text-gray-600">${s.doctorNetAmount.toLocaleString('es-CL')}</p>
                   <a
                     href={`/dashboard/doctor/consultations/${s.id}`}
@@ -537,13 +563,15 @@ export default function DoctorDashboard() {
                     Ver detalle
                   </a>
                 </li>
-              ))}
+              );
+              })}
             </ul>
             <div className="hidden overflow-x-auto md:block">
               <table className="min-w-full text-left text-sm">
                 <thead>
                   <tr className="border-b text-xs text-gray-500">
                     <th className="px-3 py-2">Fecha</th>
+                    <th className="px-3 py-2">Solicitante</th>
                     <th className="px-3 py-2">Paciente</th>
                     <th className="px-3 py-2">Motivo</th>
                     <th className="px-3 py-2">Estado</th>
@@ -552,7 +580,9 @@ export default function DoctorDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {recent.map((s) => (
+                  {recent.map((s) => {
+                    const paciente = pacienteDisplayLabel(s);
+                    return (
                     <tr key={s.id} className="border-b last:border-0">
                       <td className="px-3 py-2 text-xs text-gray-600">
                         {new Date(s.createdAt).toLocaleString('es-CL', {
@@ -560,10 +590,11 @@ export default function DoctorDashboard() {
                           timeStyle: 'short',
                         })}
                       </td>
-                      <td className="px-3 py-2 text-xs text-gray-700">
-                        {s.patient ? `${s.patient.user.firstName} ${s.patient.user.lastName}` : '-'}
+                      <td className="px-3 py-2 text-xs text-gray-700">{solicitanteLabel(s)}</td>
+                      <td className={`px-3 py-2 text-xs ${paciente.className || 'text-gray-700'}`}>
+                        {paciente.text}
                       </td>
-                      <td className="px-3 py-2 text-xs text-gray-600">{s.description}</td>
+                      <td className="px-3 py-2 text-xs text-gray-600">{motivoOnly(s)}</td>
                       <td className="px-3 py-2 text-xs">
                         <StatusBadge status={s.status} />
                       </td>
@@ -577,7 +608,8 @@ export default function DoctorDashboard() {
                         </a>
                       </td>
                     </tr>
-                  ))}
+                  );
+                  })}
                 </tbody>
               </table>
             </div>

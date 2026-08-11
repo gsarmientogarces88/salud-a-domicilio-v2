@@ -462,6 +462,29 @@ router.post('/:id/cancel-by-doctor', authorize('DOCTOR'), async (req: Request, r
   }
 });
 
+// 8c) POST /services/:id/confirm-arrival — Paciente confirma llegada del médico
+router.post('/:id/confirm-arrival', authorize('PATIENT'), async (req: Request, res: Response) => {
+  try {
+    const sr = await svc.confirmArrivalByPatient(req.params.id, req.user!.id);
+    res.json({ message: 'Llegada confirmada', data: sr });
+  } catch (e: any) {
+    res.status(400).json({ error: true, message: e.message });
+  }
+});
+
+// 8d) POST /services/:id/confirm-arrival-pin — Médico confirma con PIN
+router.post('/:id/confirm-arrival-pin', authorize('DOCTOR'), async (req: Request, res: Response) => {
+  try {
+    const doctor = await prisma.doctorProfile.findUnique({ where: { userId: req.user!.id } });
+    if (!doctor) return res.status(404).json({ error: true, message: 'Perfil médico no encontrado' });
+    const pin = String((req.body as { pin?: string })?.pin || '');
+    const sr = await svc.confirmArrivalByPin(req.params.id, doctor.id, pin);
+    res.json({ message: 'Llegada confirmada con PIN', data: sr });
+  } catch (e: any) {
+    res.status(400).json({ error: true, message: e.message });
+  }
+});
+
 // 9) GET /services — Admin: listar todas
 router.get('/', authorize('ADMIN'), async (req: Request, res: Response) => {
   try {

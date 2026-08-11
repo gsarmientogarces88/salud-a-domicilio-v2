@@ -29,8 +29,17 @@ export async function loginRequest(email: string, password: string) {
 }
 
 export async function registerRequest(data: {
-  email: string; password: string; firstName: string; lastName: string;
-  phone?: string; role?: string; specialty?: string; licenseNumber?: string; baseFee?: number;
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  phone?: string;
+  role?: string;
+  specialty?: string;
+  licenseNumber?: string;
+  baseFee?: number;
+  rut?: string;
+  dateOfBirth?: string;
 }) {
   return apiFetch<{ data: { token: string; user: any } }>('/auth/register', {
     method: 'POST',

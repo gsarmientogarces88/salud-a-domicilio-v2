@@ -3,6 +3,11 @@
 import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api';
 import StatusBadge from '@/components/ui/StatusBadge';
+import {
+  motivoOnly,
+  pacienteInlineLabel,
+  solicitanteLabel,
+} from '@/lib/serviceParties';
 
 interface Service {
   id: string;
@@ -11,6 +16,8 @@ interface Service {
   address: string;
   doctorNetAmount: number;
   createdAt: string;
+  pacienteNombre?: string | null;
+  edadPaciente?: number | null;
   patient?: { user: { firstName: string; lastName: string } };
 }
 
@@ -118,10 +125,12 @@ export default function MyConsultationsPage() {
                     <div className="flex items-center gap-2">
                       <StatusBadge status={active.status} />
                       <span className="text-sm font-semibold text-gray-900">
-                        {active.patient ? `${active.patient.user.firstName} ${active.patient.user.lastName}` : 'Paciente'}
+                        {solicitanteLabel(active)}
+                        {active.edadPaciente != null ? ` · ${active.edadPaciente} años` : ''}
                       </span>
                     </div>
-                    <p className="mt-1 text-sm text-gray-700">{active.description}</p>
+                    <p className="mt-1 text-xs text-gray-600">Paciente: {pacienteInlineLabel(active)}</p>
+                    <p className="mt-1 text-sm text-gray-700">{motivoOnly(active)}</p>
                     <p className="mt-1 text-xs text-gray-500">📍 {active.address}</p>
                     <div className="mt-3 flex gap-2">
                       <a
@@ -151,10 +160,12 @@ export default function MyConsultationsPage() {
                     <div className="flex items-center gap-2">
                       <StatusBadge status={queued.status} />
                       <span className="text-sm font-semibold text-gray-900">
-                        {queued.patient ? `${queued.patient.user.firstName} ${queued.patient.user.lastName}` : 'Paciente'}
+                        {solicitanteLabel(queued)}
+                        {queued.edadPaciente != null ? ` · ${queued.edadPaciente} años` : ''}
                       </span>
                     </div>
-                    <p className="mt-1 text-sm text-gray-700">{queued.description}</p>
+                    <p className="mt-1 text-xs text-gray-600">Paciente: {pacienteInlineLabel(queued)}</p>
+                    <p className="mt-1 text-sm text-gray-700">{motivoOnly(queued)}</p>
                     <p className="mt-1 text-xs text-gray-500">📍 {queued.address}</p>
                     <div className="mt-3">
                       <a
@@ -177,6 +188,7 @@ export default function MyConsultationsPage() {
             <thead>
               <tr className="border-b text-xs text-gray-500">
                 <th className="px-3 py-2">Fecha</th>
+                <th className="px-3 py-2">Solicitante</th>
                 <th className="px-3 py-2">Paciente</th>
                 <th className="px-3 py-2">Motivo</th>
                 <th className="px-3 py-2">Estado</th>
@@ -193,10 +205,9 @@ export default function MyConsultationsPage() {
                       timeStyle: 'short',
                     })}
                   </td>
-                  <td className="px-3 py-2 text-xs text-gray-700">
-                    {s.patient ? `${s.patient.user.firstName} ${s.patient.user.lastName}` : '-'}
-                  </td>
-                  <td className="px-3 py-2 text-xs text-gray-600">{s.description}</td>
+                  <td className="px-3 py-2 text-xs text-gray-700">{solicitanteLabel(s)}</td>
+                  <td className="px-3 py-2 text-xs text-gray-700">{pacienteInlineLabel(s)}</td>
+                  <td className="px-3 py-2 text-xs text-gray-600">{motivoOnly(s)}</td>
                   <td className="px-3 py-2 text-xs">
                     <StatusBadge status={s.status} />
                   </td>

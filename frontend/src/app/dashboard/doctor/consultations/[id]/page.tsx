@@ -5,6 +5,11 @@ import { useParams } from 'next/navigation';
 import { apiFetch } from '@/lib/api';
 import StatusBadge from '@/components/ui/StatusBadge';
 import ServiceRequestChat from '@/components/chat/ServiceRequestChat';
+import {
+  motivoOnly,
+  pacienteAtendidoLabel,
+  solicitanteLabel,
+} from '@/lib/serviceParties';
 
 type ServiceRequest = {
   id: string;
@@ -12,6 +17,8 @@ type ServiceRequest = {
   description: string;
   address: string;
   createdAt: string;
+  pacienteNombre?: string | null;
+  edadPaciente?: number | null;
   patient?: { user: { firstName: string; lastName: string; phone?: string | null } };
   doctor?: { user: { firstName: string; lastName: string; phone?: string | null } } | null;
 };
@@ -129,11 +136,24 @@ export default function DoctorConsultationDetailPage() {
             {new Date(sr.createdAt).toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' })}
           </span>
         </div>
-        <p className="text-sm font-semibold text-gray-900">
-          {sr.patient ? `${sr.patient.user.firstName} ${sr.patient.user.lastName}` : 'Paciente'}
-        </p>
-        <p className="mt-1 text-sm text-gray-700">{sr.description}</p>
-        <p className="mt-1 text-sm text-gray-600">📍 {sr.address}</p>
+        <div className="space-y-2">
+          <div>
+            <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400">Solicitante</p>
+            <p className="text-sm font-semibold text-gray-900">
+              {solicitanteLabel(sr)}
+              {sr.edadPaciente != null ? ` · ${sr.edadPaciente} años` : ''}
+            </p>
+          </div>
+          <div>
+            <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400">Paciente atendido</p>
+            <p className="text-sm font-medium text-gray-800">{pacienteAtendidoLabel(sr)}</p>
+          </div>
+          <div>
+            <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400">Motivo</p>
+            <p className="text-sm text-gray-700">{motivoOnly(sr)}</p>
+          </div>
+        </div>
+        <p className="mt-2 text-sm text-gray-600">📍 {sr.address}</p>
         {sr.patient?.user.phone ? (
           <a
             href={`tel:${sr.patient.user.phone}`}
