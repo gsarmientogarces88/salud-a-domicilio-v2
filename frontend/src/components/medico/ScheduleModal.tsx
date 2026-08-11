@@ -384,14 +384,17 @@ export default function ScheduleModal({ isOpen, onClose, doctor }: ScheduleModal
             {gpsHint && <p className="text-[11px] text-sky-700">{gpsHint}</p>}
             {geocodeState.loading && <p className="text-[11px] text-gray-500">Buscando ubicación…</p>}
             {geocodeState.error && <p className="text-xs text-amber-700">{geocodeState.error}</p>}
-            <MapaDireccion
-              position={coords}
-              onChangeCoords={(c) => {
-                void handleCoordsChange(c);
-              }}
-              label="Confirma la ubicación en el mapa"
-            />
-            {confirmedAddress ? (
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-gray-700">
+                Confirma la ubicación en el mapa
+              </label>
+              <MapaDireccion
+                position={coords}
+                onChangeCoords={(c) => {
+                  void handleCoordsChange(c);
+                }}
+              />
+            </div>            {confirmedAddress ? (
               <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2">
                 <p className="text-[10px] font-medium uppercase tracking-wide text-gray-500">
                   Dirección confirmada
