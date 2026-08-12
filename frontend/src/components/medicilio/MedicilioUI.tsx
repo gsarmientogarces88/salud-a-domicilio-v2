@@ -366,7 +366,7 @@ function PatientSidebar() {
           type="button"
           onClick={() => {
             logout();
-            router.push('/auth/login');
+            router.push('/');
           }}
           className="flex h-9 w-full items-center gap-3 rounded-[8px] px-3 text-[13px] font-medium text-[var(--color-texto-3)] hover:bg-[#F3F7FB]"
         >
