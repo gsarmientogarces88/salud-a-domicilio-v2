@@ -9,9 +9,7 @@ export default function TopBar() {
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
             <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
           </span>
-          <span className="truncate">
-            {LANDING_CONTACT.coverage} <span className="text-sky-200">•</span> Disponible ahora
-          </span>
+          <span className="truncate">Disponible ahora</span>
         </p>
         <a
           href={`tel:${LANDING_CONTACT.phoneTel}`}

@@ -3,9 +3,9 @@
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import LoginCard from '@/components/landing/LoginCard';
-import { LANDING_ROUTES, SERVICE_PRICES, whatsappUrl } from '@/lib/landingConfig';
+import { LANDING_ROUTES, LOGIN_ANCHOR_ID, SERVICE_PRICES, whatsappUrl } from '@/lib/landingConfig';
 
-const BADGES = ['Registro SIS activo', 'Atención 24/7', 'Médicos certificados', 'Gran Concepción'] as const;
+const BADGES = ['Registro SIS activo', 'Atención 24/7', 'Médicos certificados', 'Chile'] as const;
 
 export default function Hero() {
   const { user } = useAuth();
@@ -44,11 +44,6 @@ export default function Hero() {
                 Fijo
               </span>
             </div>
-            <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-[#6B7280]">
-              <PayChip label="Webpay" />
-              <PayChip label="Bono Isapre" />
-              <PayChip label="Efectivo" />
-            </div>
           </div>
 
           <div className="mb-6 flex flex-wrap gap-2">
@@ -82,20 +77,11 @@ export default function Hero() {
           </div>
         </div>
 
-        <div className="lg:justify-self-end lg:w-full lg:max-w-[420px]">
+        <div id={LOGIN_ANCHOR_ID} className="scroll-mt-28 lg:justify-self-end lg:w-full lg:max-w-[420px]">
           <LoginCard />
         </div>
       </div>
     </section>
-  );
-}
-
-function PayChip({ label }: { label: string }) {
-  return (
-    <span className="inline-flex items-center gap-1 rounded-md bg-[#F8FAFB] px-2 py-1 ring-1 ring-[#E5EAF0]">
-      <span className="h-1.5 w-1.5 rounded-full bg-[#185FA5]" />
-      {label}
-    </span>
   );
 }
 

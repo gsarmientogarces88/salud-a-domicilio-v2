@@ -26,8 +26,8 @@ export default function Footer() {
         <div>
           <BrandLogo href="/" size={40} onDark className="mb-4" />
           <p className="mb-5 max-w-xs text-[13px] leading-relaxed text-sky-100/80">
-            Plataforma de salud a domicilio en Gran Concepción. Atención médica profesional, verificada y segura
-            donde estés.
+            Plataforma de salud a domicilio en todo Chile. Atención médica profesional, verificada y segura donde
+            estés.
           </p>
           <div className="flex gap-2">
             {['ig', 'fb', 'li', 'wa'].map((net) => (
@@ -101,7 +101,7 @@ export default function Footer() {
 
       <div className="border-t border-white/10">
         <div className="mx-auto flex max-w-[1200px] flex-col items-start justify-between gap-3 px-4 py-4 text-[12px] text-sky-200/70 sm:flex-row sm:items-center sm:px-6">
-          <p>© {year} Medicilio. Todos los derechos reservados. Concepción, Chile.</p>
+          <p>© {year} Medicilio. Todos los derechos reservados. Chile.</p>
           <div className="flex flex-wrap gap-4">
             <a href="#" className="hover:text-white">
               Términos de uso

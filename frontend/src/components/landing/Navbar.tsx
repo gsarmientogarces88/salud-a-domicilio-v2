@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import BrandLogo from '@/components/brand/BrandLogo';
-import { LANDING_ROUTES } from '@/lib/landingConfig';
+import { LANDING_ROUTES, LOGIN_ANCHOR_ID } from '@/lib/landingConfig';
 
 const NAV_LINKS = [
   { href: '#servicios', label: 'Servicios' },
@@ -35,7 +35,7 @@ export default function Navbar() {
 
         <div className="hidden items-center gap-3 sm:flex">
           <Link
-            href={LANDING_ROUTES.login}
+            href={`/#${LOGIN_ANCHOR_ID}`}
             className="rounded-lg px-3 py-2 text-[14px] font-medium text-[#374151] transition hover:bg-[#F0F7FF] hover:text-[#185FA5]"
           >
             Iniciar sesión
@@ -80,7 +80,7 @@ export default function Navbar() {
           </div>
           <div className="mt-4 flex flex-col gap-2 border-t border-[#E5EAF0] pt-4">
             <Link
-              href={LANDING_ROUTES.login}
+              href={`/#${LOGIN_ANCHOR_ID}`}
               onClick={close}
               className="rounded-lg border border-[#B5D4F4] px-4 py-3 text-center text-sm font-semibold text-[#185FA5]"
             >

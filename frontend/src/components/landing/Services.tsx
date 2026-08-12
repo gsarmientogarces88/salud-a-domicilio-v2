@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { LANDING_ROUTES, SERVICE_PRICES } from '@/lib/landingConfig';
+import { LANDING_ROUTES, SERVICE_PRICES, scrollToLoginSection } from '@/lib/landingConfig';
 
 type ServiceCard = {
   id: string;
@@ -87,8 +87,9 @@ const ACCENT = {
 export default function Services() {
   const { user } = useAuth();
 
-  const hrefFor = (path: string) =>
-    user ? path : `${LANDING_ROUTES.login}?redirect=${encodeURIComponent(path)}`;
+  const handleServiceClick = () => {
+    scrollToLoginSection();
+  };
 
   return (
     <section id="servicios" className="scroll-mt-24 bg-[#F8FAFB] py-16 sm:py-20">
@@ -124,12 +125,22 @@ export default function Services() {
                   ) : null}
                   {service.price}
                 </p>
-                <Link
-                  href={hrefFor(service.path)}
-                  className={`inline-flex w-full items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold transition ${a.btn}`}
-                >
-                  {service.cta}
-                </Link>
+                {user ? (
+                  <Link
+                    href={service.path}
+                    className={`inline-flex w-full items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold transition ${a.btn}`}
+                  >
+                    {service.cta}
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleServiceClick}
+                    className={`inline-flex w-full items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold transition ${a.btn}`}
+                  >
+                    {service.cta}
+                  </button>
+                )}
               </article>
             );
           })}

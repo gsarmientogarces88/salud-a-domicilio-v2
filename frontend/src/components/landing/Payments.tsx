@@ -1,11 +1,4 @@
-const METHODS = [
-  'Webpay',
-  'Débito',
-  'Crédito',
-  'Transferencia',
-  'Bono Isapre',
-  'Efectivo',
-] as const;
+const METHODS = ['Webpay', 'Débito', 'Crédito'] as const;
 
 export default function Payments() {
   return (

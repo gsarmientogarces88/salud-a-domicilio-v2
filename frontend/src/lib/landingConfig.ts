@@ -12,17 +12,22 @@ export const LANDING_STATS = {
 } as const;
 
 export const LANDING_CONTACT = {
-  phoneDisplay: '+56 9 8765 4321',
-  phoneTel: '+56987654321',
+  phoneDisplay: '+56 9 9848 7300',
+  phoneTel: '+56998487300',
   email: 'contacto@medicilio.cl',
-  whatsappNumber: '56987654321',
+  whatsappNumber: '56998487300',
   whatsappMessage: 'Hola Medicilio, necesito información sobre atención médica a domicilio.',
-  address: 'Gran Concepción, Chile',
-  coverage: 'Gran Concepción',
+  address: 'Chile',
 } as const;
+
+export const LOGIN_ANCHOR_ID = 'iniciar-sesion';
 
 export function whatsappUrl(message: string = LANDING_CONTACT.whatsappMessage): string {
   return `https://wa.me/${LANDING_CONTACT.whatsappNumber}?text=${encodeURIComponent(message)}`;
+}
+
+export function scrollToLoginSection() {
+  document.getElementById(LOGIN_ANCHOR_ID)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 export const LANDING_ROUTES = {
