@@ -3,15 +3,33 @@
 import Link from 'next/link';
 import {
   FloatingAction,
-  InitialAvatar,
   MetricsStrip,
   Pill,
-  RatingStars,
-  SectionCard,
   StatusDot,
   SvgIcon,
   defaultMetrics,
 } from '@/components/medicilio/MedicilioUI';
+
+const heroServices = [
+  {
+    title: 'Servicio de Urgencia',
+    price: '$50.000',
+    meta: '15–20 min',
+    href: '/dashboard/patient/medico',
+  },
+  {
+    title: 'Servicio Agenda Médico',
+    price: 'desde $39.990',
+    meta: 'A elección',
+    href: '/dashboard/patient/medico/agendar',
+  },
+  {
+    title: 'Programa Baja de Peso',
+    price: 'Ver plan',
+    meta: 'Mensual',
+    href: '/dashboard/patient/baja-peso',
+  },
+] as const;
 
 const quickAccess = [
   ['Mi historial', 'clock', '/dashboard/patient/consultas'],
@@ -82,13 +100,18 @@ export default function PacienteInicioPage() {
           <p className="mt-4 max-w-2xl text-sm leading-6 text-[var(--color-texto-2)]">
             Médicos certificados con registro SIS activo. Sin filas, sin traslado, sin espera.
           </p>
-          <div className="mt-6 w-[190px] rounded-[10px] border border-[var(--color-azul-borde)] bg-white p-4">
-            <p className="text-xs font-medium text-[var(--color-texto-3)]">Urgencia a domicilio</p>
-            <p className="mt-1 text-[22px] font-semibold text-[var(--color-azul-oscuro)]">$50.000</p>
-            <p className="mt-1 flex items-center gap-1 text-xs text-[var(--color-texto-3)]">
-              <SvgIcon name="card" className="h-3.5 w-3.5" />
-              Webpay · Isapre · Efectivo
-            </p>
+          <div className="mt-6 grid max-w-xl gap-3 sm:grid-cols-3">
+            {heroServices.map((service) => (
+              <Link
+                key={service.title}
+                href={service.href}
+                className="rounded-[10px] border border-[var(--color-azul-borde)] bg-white p-4 transition hover:border-[var(--color-azul-primario)] hover:shadow-[0_2px_12px_rgba(24,95,165,0.08)]"
+              >
+                <p className="text-xs font-medium text-[var(--color-texto-3)]">{service.title}</p>
+                <p className="mt-1 text-[18px] font-semibold leading-tight text-[var(--color-azul-oscuro)]">{service.price}</p>
+                <p className="mt-1 text-xs text-[var(--color-texto-3)]">{service.meta}</p>
+              </Link>
+            ))}
           </div>
           <div className="mt-5 flex flex-wrap gap-2">
             {['Registro SIS activo', 'Webpay seguro', '24/7', 'Médicos certificados'].map((item) => (
@@ -104,35 +127,13 @@ export default function PacienteInicioPage() {
           </Link>
         </div>
 
-        <div className="space-y-4">
-          <SectionCard className="p-5">
-            <div className="flex items-start gap-3">
-              <InitialAvatar initials="CM" />
-              <div className="min-w-0 flex-1">
-                <p className="font-semibold text-[var(--color-texto-1)]">Dr. Carlos Muñoz</p>
-                <p className="text-xs text-[var(--color-texto-3)]">Médico General · 8 años exp.</p>
-                <div className="mt-1 flex items-center gap-2 text-xs text-[var(--color-texto-3)]">
-                  <RatingStars />
-                  4.9 · 142
-                </div>
-              </div>
+        <div className="grid grid-cols-2 gap-3 content-start">
+          {defaultMetrics.map((metric) => (
+            <div key={metric.label} className="rounded-[14px] border border-[var(--color-borde-card)] bg-white p-4 text-center">
+              <p className="text-lg font-semibold text-[var(--color-azul-primario)]">{metric.value}</p>
+              <p className="text-xs text-[var(--color-texto-3)]">{metric.label}</p>
             </div>
-            <div className="mt-4 rounded-[10px] bg-[var(--color-azul-claro)] p-4">
-              <p className="text-xs text-[var(--color-texto-3)]">Tiempo estimado de llegada</p>
-              <div className="mt-1 flex items-center justify-between">
-                <span className="text-xl font-semibold text-[var(--color-azul-primario)]">14 minutos</span>
-                <span className="rounded-full bg-[var(--color-verde-claro)] px-3 py-1 text-xs font-medium text-[#27500A]">En camino</span>
-              </div>
-            </div>
-          </SectionCard>
-          <div className="grid grid-cols-2 gap-3">
-            {defaultMetrics.map((metric) => (
-              <div key={metric.label} className="rounded-[14px] border border-[var(--color-borde-card)] bg-white p-4 text-center">
-                <p className="text-lg font-semibold text-[var(--color-azul-primario)]">{metric.value}</p>
-                <p className="text-xs text-[var(--color-texto-3)]">{metric.label}</p>
-              </div>
-            ))}
-          </div>
+          ))}
         </div>
       </section>
 
@@ -143,25 +144,6 @@ export default function PacienteInicioPage() {
         </span>
         <span className="text-xs text-[var(--color-texto-3)]">+3.200 pacientes atendidos · Calificación promedio 4.9/5</span>
       </div>
-
-      <SectionCard className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center gap-4">
-          <span className="flex h-12 w-12 items-center justify-center rounded-[12px] bg-[var(--color-verde-claro)] text-[var(--color-verde)]">
-            <SvgIcon name="calendar" className="h-6 w-6" />
-          </span>
-          <div>
-            <p className="text-sm font-semibold text-[var(--color-texto-1)]">Próxima atención programada</p>
-            <p className="mt-1 text-sm text-[var(--color-texto-2)]">Dr. Carlos Muñoz · Medicina General</p>
-            <p className="text-xs text-[var(--color-texto-3)]">Mañana · 10:00 AM · Domicilio confirmado</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link href="/dashboard/patient/consultas" className="text-xs font-medium text-[var(--color-azul-primario)]">
-            Ver historial →
-          </Link>
-          <span className="rounded-full bg-[var(--color-verde-claro)] px-3 py-1 text-xs font-medium text-[#27500A]">Confirmada</span>
-        </div>
-      </SectionCard>
 
       <section>
         <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--color-texto-4)]">Acceso rápido</p>
