@@ -127,7 +127,10 @@ export default function Sidebar() {
       </ul>
       {isPatient && (
         <button
-          onClick={() => { logout(); router.push('/'); }}
+          onClick={() => {
+            logout();
+            window.location.href = '/';
+          }}
           className="relative z-10 mt-auto flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium text-sky-800 hover:bg-sky-200/60"
         >
           <span>🚪</span>

@@ -13,7 +13,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading && !user) router.push('/auth/login');
+    if (!loading && !user) router.push('/');
   }, [user, loading, router]);
 
   if (loading) return <div className="flex min-h-screen items-center justify-center">Cargando...</div>;

@@ -12,8 +12,18 @@ export default function RoleGuard({ role, children }: { role: string; children: 
     if (loading) return;
     if (user?.role === role) return;
 
-    const redirectTo = role === 'LABORATORY' ? '/auth/laboratorio/login' : '/auth/login';
-    router.push(redirectTo);
+    if (!user) {
+      if (role === 'LABORATORY') {
+        router.push('/auth/laboratorio/login');
+      } else if (role === 'PATIENT') {
+        router.push('/');
+      } else {
+        router.push('/auth/login');
+      }
+      return;
+    }
+
+    router.push('/auth/login');
   }, [user, loading, role, router]);
 
   if (loading || user?.role !== role) return null;

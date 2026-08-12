@@ -1,15 +1,13 @@
 'use client';
 
 import { useAuth } from '@/context/AuthContext';
-import { useRouter } from 'next/navigation';
 
 export default function Navbar() {
   const { user, logout } = useAuth();
-  const router = useRouter();
 
   const handleLogout = () => {
     logout();
-    router.push('/auth/login');
+    window.location.href = '/';
   };
 
   return (

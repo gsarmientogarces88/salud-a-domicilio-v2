@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { ReactNode } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { BajaPesoAgendarProvider } from '@/components/baja-peso/BajaPesoAgendarContext';
@@ -294,7 +294,6 @@ function SidebarLink({ item, active }: { item: SidebarItem; active: boolean }) {
 
 function PatientSidebar() {
   const pathname = usePathname();
-  const router = useRouter();
   const { logout } = useAuth();
   const isBajaPeso = pathname.includes('/baja-peso');
 
@@ -366,7 +365,7 @@ function PatientSidebar() {
           type="button"
           onClick={() => {
             logout();
-            router.push('/');
+            window.location.href = '/';
           }}
           className="flex h-9 w-full items-center gap-3 rounded-[8px] px-3 text-[13px] font-medium text-[var(--color-texto-3)] hover:bg-[#F3F7FB]"
         >
