@@ -6,7 +6,7 @@ import ScheduleModal from '@/components/medico/ScheduleModal';
 import type { DoctorCard } from '@/components/medico/DoctorList';
 import MapaDireccion from '@/components/MapaDireccion';
 import { apiFetch } from '@/lib/api';
-import { geocodeChileAddressLine } from '@/lib/mapboxGeocode';
+import { geocodeChileAddressLine, reverseGeocodeChile } from '@/lib/mapboxGeocode';
 import {
   FloatingAction,
   InitialAvatar,
@@ -138,6 +138,7 @@ export default function AgendarPage() {
   );
   const [patientCoords, setPatientCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [addressText, setAddressText] = useState('');
+  const [confirmedAddress, setConfirmedAddress] = useState('');
   const [geocodeState, setGeocodeState] = useState<{ loading: boolean; error: string | null }>({
     loading: false,
     error: null,
@@ -147,13 +148,53 @@ export default function AgendarPage() {
   const [loadingRecent, setLoadingRecent] = useState(true);
   const skipNextGeocodeRef = useRef(false);
   const geocodeRequestIdRef = useRef(0);
+  const reverseRequestIdRef = useRef(0);
 
-  const handleCoordsChange = (coords: { lat: number; lng: number } | null) => {
+  const handleCoordsChange = async (coords: { lat: number; lng: number } | null) => {
     if (!coords) return;
     setPatientCoords(coords);
     setLocationHint('Buscamos médicos a menos de 10 km del pin. Puedes ajustarlo en el mapa.');
     setDoctorsError('');
+
+    const reverseId = ++reverseRequestIdRef.current;
+    const result = await reverseGeocodeChile(coords.lat, coords.lng);
+    if (reverseId !== reverseRequestIdRef.current) return;
+
+    if (result.ok) {
+      skipNextGeocodeRef.current = true;
+      setConfirmedAddress(result.placeName);
+      setAddressText(result.placeName);
+      setGeocodeState({ loading: false, error: null });
+    }
   };
+
+  // GPS inicial + dirección automática (igual que Urgencias)
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const next = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setPatientCoords(next);
+        setLocationHint('Usamos tu ubicación actual. Ajusta el pin o la dirección si es necesario.');
+        setDoctorsError('');
+
+        const reverseId = ++reverseRequestIdRef.current;
+        const result = await reverseGeocodeChile(next.lat, next.lng);
+        if (reverseId !== reverseRequestIdRef.current) return;
+
+        if (result.ok) {
+          skipNextGeocodeRef.current = true;
+          setConfirmedAddress(result.placeName);
+          setAddressText((prev) => prev || result.placeName);
+        }
+      },
+      () => {
+        // El timeout de 4.5s ya orienta a pin/dirección si no hay GPS
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60_000 },
+    );
+  }, []);
 
   // Si el GPS no responde (común en HTTP), orientar a pin/dirección
   useEffect(() => {
@@ -185,6 +226,7 @@ export default function AgendarPage() {
         return;
       }
       setPatientCoords({ lat: result.lat, lng: result.lng });
+      setConfirmedAddress(result.placeName || query);
       setLocationHint('Ubicación según tu dirección. Ajusta el pin si es necesario.');
       setGeocodeState({ loading: false, error: null });
     }, GEOCODE_DEBOUNCE_MS);
@@ -388,14 +430,28 @@ export default function AgendarPage() {
           <MapaDireccion
             position={patientCoords}
             onChangeCoords={(c) => {
-              if (c) {
-                skipNextGeocodeRef.current = true;
-              }
-              handleCoordsChange(c);
+              void handleCoordsChange(c);
             }}
             label="Confirma tu ubicación en el mapa (radio 10 km)"
             mapClassName="h-56 w-full overflow-hidden rounded-xl border border-gray-200 bg-gray-100 shadow-sm sm:h-72"
           />
+          {confirmedAddress ? (
+            <div className="rounded-[8px] border border-[var(--color-azul-borde)] bg-[var(--color-azul-claro)] px-3 py-2">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-[var(--color-texto-3)]">
+                Dirección confirmada
+              </p>
+              <p className="mt-0.5 text-xs font-medium text-[var(--color-texto-1)]">{confirmedAddress}</p>
+              {patientCoords && (
+                <p className="mt-0.5 text-[10px] text-[var(--color-texto-4)]">
+                  {patientCoords.lat.toFixed(5)}, {patientCoords.lng.toFixed(5)}
+                </p>
+              )}
+            </div>
+          ) : (
+            <p className="text-[11px] text-[var(--color-texto-4)]">
+              Escribe tu dirección o mueve el pin para confirmar la ubicación.
+            </p>
+          )}
           {!patientCoords && (
             <p className="text-xs text-[var(--color-texto-3)]">
               En sitios sin HTTPS el GPS del navegador suele estar bloqueado. Escribe tu dirección o
@@ -558,7 +614,20 @@ export default function AgendarPage() {
         </div>
       </section>
 
-      <ScheduleModal isOpen={!!modalDoctor} onClose={() => setModalDoctor(null)} doctor={modalDoctor} />
+      <ScheduleModal
+        isOpen={!!modalDoctor}
+        onClose={() => setModalDoctor(null)}
+        doctor={modalDoctor}
+        initialLocation={
+          patientCoords
+            ? {
+                lat: patientCoords.lat,
+                lng: patientCoords.lng,
+                address: confirmedAddress || addressText || undefined,
+              }
+            : null
+        }
+      />
       <FloatingAction href="#medicos-disponibles">Ver médicos disponibles</FloatingAction>
     </div>
   );

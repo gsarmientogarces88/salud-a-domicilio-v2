@@ -355,16 +355,10 @@ function ConsultasContent() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6">
         <h1 className="text-2xl font-bold">
           {soloAgendado && selectedServicio ? `Agendar ${selectedServicio.label}` : 'Historial de Consultas'}
         </h1>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="rounded-lg bg-sky-600 px-4 py-2 text-white hover:bg-sky-700"
-        >
-          {showForm ? 'Cancelar' : '+ Nueva Solicitud'}
-        </button>
       </div>
 
       {showForm && (
@@ -515,12 +509,21 @@ function ConsultasContent() {
               className="mb-4 w-full rounded-lg border px-4 py-2"
             />
           )}
-          <button
-            type="submit"
-            className="rounded-lg bg-sky-600 px-6 py-2 text-white hover:bg-sky-700"
-          >
-            Enviar Solicitud
-          </button>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="submit"
+              className="rounded-lg bg-sky-600 px-6 py-2 text-white hover:bg-sky-700"
+            >
+              Enviar Solicitud
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowForm(false)}
+              className="rounded-lg border border-gray-300 px-6 py-2 text-gray-700 hover:bg-gray-50"
+            >
+              Cancelar
+            </button>
+          </div>
         </form>
       )}
 

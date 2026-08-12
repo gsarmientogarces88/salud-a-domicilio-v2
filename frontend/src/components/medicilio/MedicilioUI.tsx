@@ -348,7 +348,7 @@ function PatientSidebar() {
 
   return (
     <aside className="hidden w-[224px] shrink-0 border-r border-[var(--color-borde-card)] bg-white lg:flex lg:flex-col">
-      <div className="flex-1 py-5">
+      <div className="py-5">
         {groups.map((group) => (
           <div key={group.title} className="mb-5">
             <p className="mb-2 px-4 text-[10px] font-medium uppercase tracking-[0.14em] text-[var(--color-texto-4)]">{group.title}</p>
@@ -359,19 +359,19 @@ function PatientSidebar() {
             </div>
           </div>
         ))}
-      </div>
-      <div className="border-t border-[var(--color-borde-card)] p-4">
-        <button
-          type="button"
-          onClick={() => {
-            logout();
-            window.location.href = '/';
-          }}
-          className="flex h-9 w-full items-center gap-3 rounded-[8px] px-3 text-[13px] font-medium text-[var(--color-texto-3)] hover:bg-[#F3F7FB]"
-        >
-          <SvgIcon name="logout" className="h-4 w-4" />
-          Salir
-        </button>
+        <div className="mt-1 border-t border-[var(--color-borde-card)] px-2 pt-3">
+          <button
+            type="button"
+            onClick={() => {
+              logout();
+              window.location.href = '/';
+            }}
+            className="flex h-9 w-full items-center gap-3 rounded-[8px] px-3 text-[13px] font-medium text-[var(--color-texto-3)] hover:bg-[#F3F7FB]"
+          >
+            <SvgIcon name="logout" className="h-4 w-4" />
+            Salir
+          </button>
+        </div>
       </div>
     </aside>
   );

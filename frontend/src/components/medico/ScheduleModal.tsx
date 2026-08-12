@@ -32,6 +32,12 @@ interface ScheduleModalProps {
   isOpen: boolean;
   onClose: () => void;
   doctor: Doctor | null;
+  /** Ubicación ya confirmada en la página de agenda (GPS / pin). */
+  initialLocation?: {
+    lat: number;
+    lng: number;
+    address?: string;
+  } | null;
   /** @deprecated Ignorado: región/provincia/comuna salen del pin. */
   location?: ScheduleLocationContext;
   onLocationRegion?: (v: string) => void;
@@ -42,7 +48,7 @@ interface ScheduleModalProps {
 const GEOCODE_DEBOUNCE_MS = 700;
 const MIN_ADDRESS_LENGTH = 8;
 
-export default function ScheduleModal({ isOpen, onClose, doctor }: ScheduleModalProps) {
+export default function ScheduleModal({ isOpen, onClose, doctor, initialLocation }: ScheduleModalProps) {
   const router = useRouter();
   const [step, setStep] = useState<1 | 2>(1);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -80,24 +86,29 @@ export default function ScheduleModal({ isOpen, onClose, doctor }: ScheduleModal
     setSelectedSlot(null);
     setLoadingSlots(false);
     setSlotsError('');
-    setAddressText('');
-    setConfirmedAddress('');
-    setCoords(null);
+    const seededAddress = (initialLocation?.address || '').trim();
+    setAddressText(seededAddress);
+    setConfirmedAddress(seededAddress);
+    setCoords(
+      initialLocation && Number.isFinite(initialLocation.lat) && Number.isFinite(initialLocation.lng)
+        ? { lat: initialLocation.lat, lng: initialLocation.lng }
+        : null,
+    );
     setAdminArea({ region: 'Chile', province: 'Sin especificar', commune: 'Sin especificar' });
     setGeocodeState({ loading: false, error: null });
-    setGpsHint(null);
+    setGpsHint(seededAddress ? 'Usamos la ubicación que confirmaste en Agenda.' : null);
     setNotes('');
     setSubmitError('');
     setSuccessMessage('');
-    skipNextGeocodeRef.current = false;
-  }, []);
+    skipNextGeocodeRef.current = Boolean(seededAddress);
+  }, [initialLocation]);
 
   useEffect(() => {
     if (!isOpen) return;
     reset();
   }, [isOpen, doctor?.id, reset]);
 
-  // GPS inicial al entrar al paso 2
+  // GPS inicial al entrar al paso 2 (si aún no hay coords)
   useEffect(() => {
     if (!isOpen || step !== 2) return;
     if (!navigator.geolocation) return;
@@ -128,6 +139,32 @@ export default function ScheduleModal({ isOpen, onClose, doctor }: ScheduleModal
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 60_000 },
     );
   }, [isOpen, step, coords]);
+
+  // Completar comuna/región si la ubicación viene precargada desde Agenda
+  useEffect(() => {
+    if (!isOpen || !coords) return;
+    if (adminArea.commune !== 'Sin especificar') return;
+
+    let cancelled = false;
+    (async () => {
+      const reverseId = ++reverseRequestIdRef.current;
+      const result = await reverseGeocodeChile(coords.lat, coords.lng);
+      if (cancelled || reverseId !== reverseRequestIdRef.current) return;
+      if (!result.ok) return;
+      skipNextGeocodeRef.current = true;
+      setConfirmedAddress((prev) => prev || result.placeName);
+      setAddressText((prev) => prev || result.placeName);
+      setAdminArea({
+        region: result.region || 'Chile',
+        province: result.province || 'Sin especificar',
+        commune: result.commune || 'Sin especificar',
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, coords, adminArea.commune]);
 
   // Geocodificación automática al escribir dirección
   useEffect(() => {
