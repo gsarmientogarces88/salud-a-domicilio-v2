@@ -1,14 +1,32 @@
 /**
  * Origen de la API, siempre con sufijo `/api` (sin barra final).
- * Acepta `NEXT_PUBLIC_API_URL` con o sin `/api` para evitar llamadas a rutas como `/auth/login` en el puerto del backend.
+ * Acepta `NEXT_PUBLIC_API_URL` con o sin `/api`.
+ * En el navegador prioriza same-origin `/api` (nginx) para evitar CORS y URLs rotas.
  */
 export function getApiBaseUrl(): string {
+  if (typeof window !== 'undefined') {
+    const env = (process.env.NEXT_PUBLIC_API_URL || '').trim().replace(/\/+$/, '');
+    // Si no hay env, o apunta a localhost, usar el mismo origen (producción vía nginx).
+    if (!env || /localhost|127\.0\.0\.1/i.test(env)) {
+      return `${window.location.origin}/api`;
+    }
+    try {
+      const normalized = env.toLowerCase().endsWith('/api') ? env : `${env}/api`;
+      const u = new URL(normalized);
+      // Mismo host que la página → relative same-origin
+      if (u.host === window.location.host) {
+        return `${window.location.origin}/api`;
+      }
+      return normalized;
+    } catch {
+      return `${window.location.origin}/api`;
+    }
+  }
+
   const trimmed = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/\/+$/, '');
   if (trimmed.toLowerCase().endsWith('/api')) return trimmed;
   return `${trimmed}/api`;
 }
-
-const BASE_URL = getApiBaseUrl();
 
 export class ApiError extends Error {
   status: number;
@@ -22,10 +40,12 @@ export class ApiError extends Error {
 
 export async function apiFetch<T = any>(path: string, opts: RequestInit = {}): Promise<T> {
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  const baseUrl = getApiBaseUrl();
+  const url = `${baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
 
   let res: Response;
   try {
-    res = await fetch(`${BASE_URL}${path}`, {
+    res = await fetch(url, {
       ...opts,
       // Evita 304 sin body en fetch del navegador y asegura polling correcto.
       cache: 'no-store',
@@ -37,8 +57,10 @@ export async function apiFetch<T = any>(path: string, opts: RequestInit = {}): P
         ...opts.headers,
       },
     });
-  } catch (e) {
-    throw new Error('No se pudo conectar con el servidor. Verifica que el backend esté corriendo.');
+  } catch {
+    throw new Error(
+      'No se pudo conectar con el servidor. Verifica que el backend esté corriendo.',
+    );
   }
 
   let json: any = {};
@@ -54,7 +76,9 @@ export async function apiFetch<T = any>(path: string, opts: RequestInit = {}): P
 
 export async function apiFetchForm<T = unknown>(path: string, form: FormData): Promise<T> {
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-  const res = await fetch(`${BASE_URL}${path}`, {
+  const baseUrl = getApiBaseUrl();
+  const url = `${baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
+  const res = await fetch(url, {
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: form,
