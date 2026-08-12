@@ -1,6 +1,8 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { apiFetch } from '@/lib/api';
 import {
   FloatingAction,
   InitialAvatar,
@@ -12,6 +14,94 @@ import {
   SvgIcon,
   defaultMetrics,
 } from '@/components/medicilio/MedicilioUI';
+
+type NearbyDoctor = {
+  id: string;
+  name: string;
+  specialty: string;
+  initials: string;
+  ratingAverage: number;
+  ratingCount: number;
+  etaMinutes: number;
+  distanceKm: number | null;
+};
+
+type ProfessionalApi = {
+  id: string;
+  specialty?: string | null;
+  yearsExperience?: number | null;
+  distanceKm?: number | null;
+  ratingAverage?: number;
+  ratingCount?: number;
+  user?: { firstName?: string | null; lastName?: string | null };
+};
+
+const ROTATE_MS = 4000;
+
+const fallbackDoctors: NearbyDoctor[] = [
+  {
+    id: 'fallback-1',
+    name: 'Dr. Carlos Muñoz',
+    specialty: 'Médico General · 8 años exp.',
+    initials: 'CM',
+    ratingAverage: 4.9,
+    ratingCount: 142,
+    etaMinutes: 14,
+    distanceKm: null,
+  },
+];
+
+function initialsFromName(name: string) {
+  const parts = name
+    .replace(/^Dr\.?\s*/i, '')
+    .replace(/^Dra\.?\s*/i, '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] || ''}${parts[parts.length - 1][0] || ''}`.toUpperCase();
+}
+
+function etaFromDistance(distanceKm: number | null | undefined) {
+  if (typeof distanceKm !== 'number' || !Number.isFinite(distanceKm)) return 15;
+  return Math.max(10, Math.min(25, Math.round(distanceKm * 3 + 10)));
+}
+
+function mapNearbyDoctor(p: ProfessionalApi): NearbyDoctor {
+  const firstName = (p.user?.firstName || '').trim();
+  const lastName = (p.user?.lastName || '').trim();
+  const full = [firstName, lastName].filter(Boolean).join(' ') || 'Médico disponible';
+  const name = `Dr. ${full}`;
+  const years =
+    typeof p.yearsExperience === 'number' && p.yearsExperience > 0
+      ? ` · ${p.yearsExperience} años exp.`
+      : '';
+  return {
+    id: p.id,
+    name,
+    specialty: `${p.specialty || 'Medicina General'}${years}`,
+    initials: initialsFromName(name),
+    ratingAverage: typeof p.ratingAverage === 'number' ? p.ratingAverage : 4.8,
+    ratingCount: typeof p.ratingCount === 'number' ? p.ratingCount : 24,
+    etaMinutes: etaFromDistance(p.distanceKm),
+    distanceKm: typeof p.distanceKm === 'number' ? p.distanceKm : null,
+  };
+}
+
+function readBrowserCoords(): Promise<{ lat: number; lng: number } | null> {
+  return new Promise((resolve) => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      resolve(null);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => resolve(null),
+      { enableHighAccuracy: false, timeout: 6000, maximumAge: 120000 },
+    );
+  });
+}
 
 const quickAccess = [
   ['Mi historial', 'clock', '/dashboard/patient/consultas'],
@@ -64,13 +154,67 @@ const trust = [
 ] as const;
 
 export default function PacienteInicioPage() {
+  const [doctors, setDoctors] = useState<NearbyDoctor[]>(fallbackDoctors);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [fade, setFade] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        const coords = await readBrowserCoords();
+        const params = new URLSearchParams();
+        if (coords) {
+          params.set('forAgenda', '1');
+          params.set('lat', String(coords.lat));
+          params.set('lng', String(coords.lng));
+        }
+        const res = await apiFetch<{ data: ProfessionalApi[] }>(
+          `/professionals${params.toString() ? `?${params.toString()}` : ''}`,
+        );
+        if (cancelled) return;
+        const mapped = (res.data || []).map(mapNearbyDoctor);
+        if (mapped.length > 0) {
+          setDoctors(mapped);
+          setActiveIndex(0);
+        }
+      } catch {
+        // Mantener fallback visual si no hay médicos / sin sesión GPS
+      }
+    };
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (doctors.length <= 1) return;
+    const timer = window.setInterval(() => {
+      setFade(false);
+      window.setTimeout(() => {
+        setActiveIndex((prev) => (prev + 1) % doctors.length);
+        setFade(true);
+      }, 180);
+    }, ROTATE_MS);
+    return () => window.clearInterval(timer);
+  }, [doctors]);
+
+  const activeDoctor = doctors[activeIndex] || doctors[0] || fallbackDoctors[0];
+  const availableLabel =
+    doctors.length === 1 && doctors[0]?.id.startsWith('fallback')
+      ? 'Médicos disponibles · Gran Concepción'
+      : `${doctors.length} médico${doctors.length === 1 ? '' : 's'} cercano${doctors.length === 1 ? '' : 's'} · Gran Concepción`;
+
   return (
     <div className="space-y-6">
       <section className="grid gap-6 rounded-[16px] bg-[var(--color-azul-claro)] p-8 lg:grid-cols-[1.6fr_0.9fr]">
         <div>
           <Pill>
             <StatusDot />
-            3 médicos disponibles · Gran Concepción
+            {availableLabel}
           </Pill>
           <h1 className="mt-5 max-w-xl text-[38px] font-semibold leading-tight text-[var(--color-azul-oscuro)]">
             Atención médica
@@ -106,24 +250,50 @@ export default function PacienteInicioPage() {
 
         <div className="space-y-4">
           <SectionCard className="p-5">
-            <div className="flex items-start gap-3">
-              <InitialAvatar initials="CM" />
-              <div className="min-w-0 flex-1">
-                <p className="font-semibold text-[var(--color-texto-1)]">Dr. Carlos Muñoz</p>
-                <p className="text-xs text-[var(--color-texto-3)]">Médico General · 8 años exp.</p>
-                <div className="mt-1 flex items-center gap-2 text-xs text-[var(--color-texto-3)]">
-                  <RatingStars />
-                  4.9 · 142
+            <div
+              className={`transition-opacity duration-200 ${fade ? 'opacity-100' : 'opacity-0'}`}
+              key={activeDoctor.id}
+            >
+              <div className="flex items-start gap-3">
+                <InitialAvatar initials={activeDoctor.initials} />
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-[var(--color-texto-1)]">{activeDoctor.name}</p>
+                  <p className="text-xs text-[var(--color-texto-3)]">{activeDoctor.specialty}</p>
+                  <div className="mt-1 flex items-center gap-2 text-xs text-[var(--color-texto-3)]">
+                    <RatingStars />
+                    {activeDoctor.ratingAverage.toFixed(1)} · {activeDoctor.ratingCount}
+                    {activeDoctor.distanceKm != null ? (
+                      <span>· A {activeDoctor.distanceKm.toFixed(1)} km</span>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 rounded-[10px] bg-[var(--color-azul-claro)] p-4">
+                <p className="text-xs text-[var(--color-texto-3)]">Tiempo estimado de llegada</p>
+                <div className="mt-1 flex items-center justify-between">
+                  <span className="text-xl font-semibold text-[var(--color-azul-primario)]">
+                    {activeDoctor.etaMinutes} minutos
+                  </span>
+                  <span className="rounded-full bg-[var(--color-verde-claro)] px-3 py-1 text-xs font-medium text-[#27500A]">
+                    Disponible
+                  </span>
                 </div>
               </div>
             </div>
-            <div className="mt-4 rounded-[10px] bg-[var(--color-azul-claro)] p-4">
-              <p className="text-xs text-[var(--color-texto-3)]">Tiempo estimado de llegada</p>
-              <div className="mt-1 flex items-center justify-between">
-                <span className="text-xl font-semibold text-[var(--color-azul-primario)]">14 minutos</span>
-                <span className="rounded-full bg-[var(--color-verde-claro)] px-3 py-1 text-xs font-medium text-[#27500A]">En camino</span>
+            {doctors.length > 1 ? (
+              <div className="mt-3 flex items-center justify-center gap-1.5">
+                {doctors.map((doctor, index) => (
+                  <span
+                    key={doctor.id}
+                    className={`h-1.5 rounded-full transition-all ${
+                      index === activeIndex
+                        ? 'w-4 bg-[var(--color-azul-primario)]'
+                        : 'w-1.5 bg-[var(--color-azul-borde)]'
+                    }`}
+                  />
+                ))}
               </div>
-            </div>
+            ) : null}
           </SectionCard>
           <div className="grid grid-cols-2 gap-3">
             {defaultMetrics.map((metric) => (
@@ -143,25 +313,6 @@ export default function PacienteInicioPage() {
         </span>
         <span className="text-xs text-[var(--color-texto-3)]">+3.200 pacientes atendidos · Calificación promedio 4.9/5</span>
       </div>
-
-      <SectionCard className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center gap-4">
-          <span className="flex h-12 w-12 items-center justify-center rounded-[12px] bg-[var(--color-verde-claro)] text-[var(--color-verde)]">
-            <SvgIcon name="calendar" className="h-6 w-6" />
-          </span>
-          <div>
-            <p className="text-sm font-semibold text-[var(--color-texto-1)]">Próxima atención programada</p>
-            <p className="mt-1 text-sm text-[var(--color-texto-2)]">Dr. Carlos Muñoz · Medicina General</p>
-            <p className="text-xs text-[var(--color-texto-3)]">Mañana · 10:00 AM · Domicilio confirmado</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link href="/dashboard/patient/consultas" className="text-xs font-medium text-[var(--color-azul-primario)]">
-            Ver historial →
-          </Link>
-          <span className="rounded-full bg-[var(--color-verde-claro)] px-3 py-1 text-xs font-medium text-[#27500A]">Confirmada</span>
-        </div>
-      </SectionCard>
 
       <section>
         <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--color-texto-4)]">Acceso rápido</p>
