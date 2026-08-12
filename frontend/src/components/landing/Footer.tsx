@@ -1,13 +1,7 @@
 import Link from 'next/link';
 import BrandLogo from '@/components/brand/BrandLogo';
+import FooterServiceLinks from '@/components/landing/FooterServiceLinks';
 import { LANDING_CONTACT, LANDING_ROUTES, whatsappUrl } from '@/lib/landingConfig';
-
-const SERVICE_LINKS = [
-  { href: LANDING_ROUTES.urgency, label: 'Urgencia médica' },
-  { href: LANDING_ROUTES.schedule, label: 'Agenda médica' },
-  { href: LANDING_ROUTES.exams, label: 'Exámenes a domicilio' },
-  { href: LANDING_ROUTES.weightLoss, label: 'Programa baja de peso' },
-] as const;
 
 const COMPANY_LINKS = [
   { href: '#como-funciona', label: '¿Quiénes somos?' },
@@ -47,15 +41,7 @@ export default function Footer() {
 
         <div>
           <h3 className="mb-4 text-[14px] font-semibold">Servicios</h3>
-          <ul className="space-y-2.5">
-            {SERVICE_LINKS.map((link) => (
-              <li key={link.label}>
-                <Link href={link.href} className="text-[13px] text-sky-100/80 transition hover:text-white">
-                  {link.label}
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <FooterServiceLinks />
         </div>
 
         <div>

@@ -10,14 +10,14 @@ const STEPS = [
     icon: 'pin' as const,
   },
   {
-    title: 'Recibe',
-    description: 'Un profesional certificado llega a tu domicilio en minutos.',
-    icon: 'home' as const,
-  },
-  {
     title: 'Paga',
     description: 'Paga de forma segura con Webpay, bono o efectivo.',
     icon: 'card' as const,
+  },
+  {
+    title: 'Recibe',
+    description: 'Un profesional certificado llega a tu domicilio en minutos.',
+    icon: 'home' as const,
   },
 ];
 

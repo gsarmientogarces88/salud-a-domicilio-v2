@@ -3,15 +3,12 @@
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import LoginCard from '@/components/landing/LoginCard';
-import { LANDING_ROUTES, LOGIN_ANCHOR_ID, SERVICE_PRICES, whatsappUrl } from '@/lib/landingConfig';
+import { LANDING_ROUTES, LOGIN_ANCHOR_ID, SERVICE_PRICES, scrollToLoginSection, whatsappUrl } from '@/lib/landingConfig';
 
 const BADGES = ['Registro SIS activo', 'Atención 24/7', 'Médicos certificados', 'Chile'] as const;
 
 export default function Hero() {
   const { user } = useAuth();
-  const urgencyHref = user
-    ? LANDING_ROUTES.urgency
-    : `${LANDING_ROUTES.login}?redirect=${encodeURIComponent(LANDING_ROUTES.urgency)}`;
 
   return (
     <section className="bg-[#EAF3FB]">
@@ -58,13 +55,24 @@ export default function Hero() {
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-            <Link
-              href={urgencyHref}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#185FA5] px-6 py-3.5 text-[15px] font-semibold text-white shadow-lg shadow-[#185FA5]/25 transition hover:bg-[#144E8A] sm:w-auto"
-            >
-              <PulseIcon />
-              Solicitar atención ahora
-            </Link>
+            {user ? (
+              <Link
+                href={LANDING_ROUTES.urgency}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#185FA5] px-6 py-3.5 text-[15px] font-semibold text-white shadow-lg shadow-[#185FA5]/25 transition hover:bg-[#144E8A] sm:w-auto"
+              >
+                <PulseIcon />
+                Solicitar atención ahora
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={scrollToLoginSection}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#185FA5] px-6 py-3.5 text-[15px] font-semibold text-white shadow-lg shadow-[#185FA5]/25 transition hover:bg-[#144E8A] sm:w-auto"
+              >
+                <PulseIcon />
+                Solicitar atención ahora
+              </button>
+            )}
             <a
               href={whatsappUrl()}
               target="_blank"

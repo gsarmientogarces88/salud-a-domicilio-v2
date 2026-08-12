@@ -43,19 +43,18 @@ export default function NearbyDoctors() {
         </h2>
 
         <div className="overflow-hidden rounded-2xl border border-[#B5D4F4] bg-[#EAF3FB] shadow-sm">
-          <div className="flex items-center justify-between gap-3 border-b border-[#B5D4F4]/60 bg-white/70 px-4 py-3 sm:px-5">
-            <p className="text-sm font-medium text-[#374151]">
-              Tu zona: <span className="text-[#185FA5]">Gran Concepción</span>
-            </p>
-            {status === 'ok' && coords ? (
-              <p className="text-xs text-[#1D9E75]">
-                Ubicación detectada ({coords.lat.toFixed(3)}, {coords.lng.toFixed(3)})
-              </p>
-            ) : null}
-            {status === 'denied' ? (
-              <p className="text-xs text-[#E24B4A]">No pudimos acceder a tu ubicación</p>
-            ) : null}
-          </div>
+          {(status === 'ok' && coords) || status === 'denied' ? (
+            <div className="flex items-center justify-center gap-3 border-b border-[#B5D4F4]/60 bg-white/70 px-4 py-3 sm:px-5">
+              {status === 'ok' && coords ? (
+                <p className="text-xs text-[#1D9E75]">
+                  Ubicación detectada ({coords.lat.toFixed(3)}, {coords.lng.toFixed(3)})
+                </p>
+              ) : null}
+              {status === 'denied' ? (
+                <p className="text-xs text-[#E24B4A]">No pudimos acceder a tu ubicación</p>
+              ) : null}
+            </div>
+          ) : null}
 
           <div className="relative h-[280px] sm:h-[340px]">
             {/* Grid / map illustration */}
