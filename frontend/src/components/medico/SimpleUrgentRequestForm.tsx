@@ -426,6 +426,13 @@ export default function SimpleUrgentRequestForm() {
       <p className="mt-2 text-center text-[11px] text-[var(--color-texto-4)]">
         Precio fijo $50.000 · Un médico aceptará en menos de 2 minutos
       </p>
+      <p className="mt-3 rounded-[10px] border border-[var(--color-rojo-borde)] bg-[var(--color-rojo-claro)] px-3 py-2.5 text-center text-[12px] leading-5 text-[var(--color-rojo-urgencia)]">
+        Medicilio no reemplaza servicios de emergencia: ante una emergencia grave debes llamar al{' '}
+        <a href="tel:131" className="font-semibold underline underline-offset-2">
+          131
+        </a>
+        .
+      </p>
     </form>
   );
 }
