@@ -19,6 +19,7 @@ import patientLabRoutes from './routes/patientLab.routes';
 import patientNotificationsRoutes from './routes/patientNotifications.routes';
 import patientProfileRoutes from './routes/patientProfile.routes';
 import laboratoryRoutes from './routes/laboratory.routes';
+import publicRoutes from './routes/public.routes';
 
 const app = express();
 
@@ -32,6 +33,9 @@ app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', ts: new Date().toISOString() });
 });
+
+// Público (landing)
+app.use('/api/public', publicRoutes);
 
 // Rutas
 app.use('/api/auth', authRoutes);

@@ -6,7 +6,6 @@ import { apiFetch } from '@/lib/api';
 import {
   FloatingAction,
   InitialAvatar,
-  MetricsStrip,
   Pill,
   RatingStars,
   SectionCard,
@@ -168,6 +167,42 @@ export default function PacienteInicioPage() {
   const [doctors, setDoctors] = useState<NearbyDoctor[]>(fallbackDoctors);
   const [activeIndex, setActiveIndex] = useState(0);
   const [fade, setFade] = useState(true);
+  const [metrics, setMetrics] = useState(defaultMetrics);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadStats = async () => {
+      try {
+        const res = await apiFetch<{
+          data: {
+            patientsAttendedDisplay?: string;
+            professionalsActiveDisplay?: string;
+            professionalsRegisteredDisplay?: string;
+          };
+        }>('/public/stats');
+        if (cancelled || !res?.data) return;
+        const patients = res.data.patientsAttendedDisplay || defaultMetrics[0].value;
+        const professionals =
+          res.data.professionalsActiveDisplay ||
+          res.data.professionalsRegisteredDisplay ||
+          defaultMetrics[1].value;
+        setMetrics([
+          { value: patients, label: 'Pacientes atendidos' },
+          { value: professionals, label: 'Profesionales activos' },
+          defaultMetrics[2],
+          defaultMetrics[3],
+        ]);
+      } catch {
+        // Mantener métricas de respaldo
+      }
+    };
+
+    void loadStats();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -307,7 +342,7 @@ export default function PacienteInicioPage() {
             ) : null}
           </SectionCard>
           <div className="grid grid-cols-2 gap-3">
-            {defaultMetrics.map((metric) => (
+            {metrics.map((metric) => (
               <div key={metric.label} className="rounded-[14px] border border-[var(--color-borde-card)] bg-white p-4 text-center">
                 <p className="text-lg font-semibold text-[var(--color-azul-primario)]">{metric.value}</p>
                 <p className="text-xs text-[var(--color-texto-3)]">{metric.label}</p>
@@ -322,7 +357,9 @@ export default function PacienteInicioPage() {
           <StatusDot />
           Médicos disponibles ahora · Tiempo estimado: 15–20 minutos
         </span>
-        <span className="text-xs text-[var(--color-texto-3)]">+3.200 pacientes atendidos · Calificación promedio 4.9/5</span>
+        <span className="text-xs text-[var(--color-texto-3)]">
+          {metrics[0].value} pacientes atendidos · Calificación promedio 4.9/5
+        </span>
       </div>
 
       <section>
@@ -403,8 +440,6 @@ export default function PacienteInicioPage() {
           ))}
         </div>
       </section>
-
-      <MetricsStrip items={defaultMetrics} />
 
       <div className="grid gap-3 rounded-[14px] border border-[var(--color-borde-card)] bg-white p-4 md:grid-cols-4">
         {trust.map(([label, icon, tone]) => (
