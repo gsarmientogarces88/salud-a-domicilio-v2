@@ -37,6 +37,7 @@ type ProfessionalApi = {
 };
 
 const ROTATE_MS = 4000;
+const MAX_FEATURED_DOCTORS = 5;
 
 const fallbackDoctors: NearbyDoctor[] = [
   {
@@ -66,6 +67,16 @@ function initialsFromName(name: string) {
 function etaFromDistance(distanceKm: number | null | undefined) {
   if (typeof distanceKm !== 'number' || !Number.isFinite(distanceKm)) return 15;
   return Math.max(10, Math.min(25, Math.round(distanceKm * 3 + 10)));
+}
+
+function pickRandomDoctors(list: NearbyDoctor[], max = MAX_FEATURED_DOCTORS) {
+  if (list.length <= max) return list;
+  const shuffled = [...list];
+  for (let i = shuffled.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled.slice(0, max);
 }
 
 function mapNearbyDoctor(p: ProfessionalApi): NearbyDoctor {
@@ -176,7 +187,7 @@ export default function PacienteInicioPage() {
         if (cancelled) return;
         const mapped = (res.data || []).map(mapNearbyDoctor);
         if (mapped.length > 0) {
-          setDoctors(mapped);
+          setDoctors(pickRandomDoctors(mapped, MAX_FEATURED_DOCTORS));
           setActiveIndex(0);
         }
       } catch {
@@ -203,10 +214,7 @@ export default function PacienteInicioPage() {
   }, [doctors]);
 
   const activeDoctor = doctors[activeIndex] || doctors[0] || fallbackDoctors[0];
-  const availableLabel =
-    doctors.length === 1 && doctors[0]?.id.startsWith('fallback')
-      ? 'Médicos disponibles · Gran Concepción'
-      : `${doctors.length} médico${doctors.length === 1 ? '' : 's'} cercano${doctors.length === 1 ? '' : 's'} · Gran Concepción`;
+  const isFallback = doctors.length === 1 && doctors[0]?.id.startsWith('fallback');
 
   return (
     <div className="space-y-6">
@@ -214,7 +222,7 @@ export default function PacienteInicioPage() {
         <div>
           <Pill>
             <StatusDot />
-            {availableLabel}
+            {isFallback ? 'Médicos disponibles · Gran Concepción' : 'Algunos de nuestros médicos · Gran Concepción'}
           </Pill>
           <h1 className="mt-5 max-w-xl text-[38px] font-semibold leading-tight text-[var(--color-azul-oscuro)]">
             Atención médica
@@ -250,6 +258,9 @@ export default function PacienteInicioPage() {
 
         <div className="space-y-4">
           <SectionCard className="p-5">
+            <p className="mb-3 text-xs font-medium text-[var(--color-texto-3)]">
+              Estos son algunos de nuestros médicos
+            </p>
             <div
               className={`transition-opacity duration-200 ${fade ? 'opacity-100' : 'opacity-0'}`}
               key={activeDoctor.id}
@@ -315,25 +326,6 @@ export default function PacienteInicioPage() {
       </div>
 
       <section>
-        <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--color-texto-4)]">Acceso rápido</p>
-        <h2 className="mt-1 text-xl font-semibold text-[var(--color-texto-1)]">¿Qué necesitas hoy?</h2>
-        <div className="mt-4 grid gap-3 md:grid-cols-4">
-          {quickAccess.map(([label, icon, href]) => (
-            <Link
-              key={label}
-              href={href}
-              className="rounded-[14px] border border-[var(--color-borde-card)] bg-white p-5 text-center hover:border-[var(--color-azul-borde)] hover:shadow-[0_2px_12px_rgba(24,95,165,0.08)]"
-            >
-              <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-[12px] bg-[var(--color-azul-claro)] text-[var(--color-azul-primario)]">
-                <SvgIcon name={icon} className="h-5 w-5" />
-              </span>
-              <span className="mt-3 block text-sm font-medium text-[var(--color-texto-2)]">{label}</span>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      <section>
         <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--color-texto-4)]">Servicios disponibles</p>
         <h2 className="mt-1 text-xl font-semibold text-[var(--color-texto-1)]">¿Qué más necesitas?</h2>
         <p className="mt-1 text-sm text-[var(--color-texto-3)]">Todos con profesional verificado y boleta electrónica.</p>
@@ -389,6 +381,25 @@ export default function PacienteInicioPage() {
                 {service.cta}
               </Link>
             </article>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--color-texto-4)]">Acceso rápido</p>
+        <h2 className="mt-1 text-xl font-semibold text-[var(--color-texto-1)]">¿Qué necesitas hoy?</h2>
+        <div className="mt-4 grid gap-3 md:grid-cols-4">
+          {quickAccess.map(([label, icon, href]) => (
+            <Link
+              key={label}
+              href={href}
+              className="rounded-[14px] border border-[var(--color-borde-card)] bg-white p-5 text-center hover:border-[var(--color-azul-borde)] hover:shadow-[0_2px_12px_rgba(24,95,165,0.08)]"
+            >
+              <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-[12px] bg-[var(--color-azul-claro)] text-[var(--color-azul-primario)]">
+                <SvgIcon name={icon} className="h-5 w-5" />
+              </span>
+              <span className="mt-3 block text-sm font-medium text-[var(--color-texto-2)]">{label}</span>
+            </Link>
           ))}
         </div>
       </section>
