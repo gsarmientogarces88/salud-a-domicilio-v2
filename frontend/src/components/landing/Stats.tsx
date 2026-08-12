@@ -10,17 +10,24 @@ type PublicStats = {
   professionalsRegisteredDisplay?: string;
 };
 
+type StatItem = {
+  value: string;
+  label: string;
+};
+
 type StatsProps = {
   className?: string;
 };
 
+const FALLBACK_ITEMS: StatItem[] = [
+  { value: LANDING_STATS.patientsServed, label: LANDING_STATS.patientsLabel },
+  { value: LANDING_STATS.professionals, label: LANDING_STATS.professionalsLabel },
+  { value: LANDING_STATS.rating, label: LANDING_STATS.ratingLabel },
+  { value: LANDING_STATS.avgArrival, label: LANDING_STATS.avgArrivalLabel },
+];
+
 export default function Stats({ className = '' }: StatsProps) {
-  const [items, setItems] = useState([
-    { value: LANDING_STATS.patientsServed, label: LANDING_STATS.patientsLabel },
-    { value: LANDING_STATS.professionals, label: LANDING_STATS.professionalsLabel },
-    { value: LANDING_STATS.rating, label: LANDING_STATS.ratingLabel },
-    { value: LANDING_STATS.avgArrival, label: LANDING_STATS.avgArrivalLabel },
-  ]);
+  const [items, setItems] = useState<StatItem[]>(FALLBACK_ITEMS);
 
   useEffect(() => {
     let cancelled = false;
@@ -35,7 +42,10 @@ export default function Stats({ className = '' }: StatsProps) {
             label: LANDING_STATS.patientsLabel,
           },
           {
-            value: res.data.professionalsActiveDisplay || res.data.professionalsRegisteredDisplay || LANDING_STATS.professionals,
+            value:
+              res.data.professionalsActiveDisplay ||
+              res.data.professionalsRegisteredDisplay ||
+              LANDING_STATS.professionals,
             label: LANDING_STATS.professionalsLabel,
           },
           { value: LANDING_STATS.rating, label: LANDING_STATS.ratingLabel },
