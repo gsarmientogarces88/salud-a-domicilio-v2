@@ -521,13 +521,6 @@ export default function AgendarPage() {
               </article>
             ))}
         </div>
-        <p className="mt-3 text-xs text-[var(--color-texto-3)]">
-          Tip: para agenda con profesionales reales de la plataforma también puedes usar{' '}
-          <Link href="/dashboard/patient/agenda" className="font-medium text-[var(--color-azul-primario)] underline">
-            Agenda de profesionales
-          </Link>
-          .
-        </p>
       </section>
 
       <section className="rounded-[16px] bg-[var(--color-azul-claro)] p-6">
