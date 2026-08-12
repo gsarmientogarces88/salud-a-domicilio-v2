@@ -78,6 +78,14 @@ export default function MedicoPage() {
         </div>
       </section>
 
+      <p className="rounded-[12px] border border-[var(--color-rojo-borde)] bg-[var(--color-rojo-claro)] px-4 py-3 text-center text-sm leading-5 text-[var(--color-rojo-urgencia)]">
+        Medicilio no reemplaza servicios de emergencia: ante una emergencia grave debes llamar al{' '}
+        <a href="tel:131" className="font-semibold underline underline-offset-2">
+          131
+        </a>
+        .
+      </p>
+
       <MetricsStrip items={urgentStats} />
 
       <div className="grid gap-3 md:grid-cols-4">
