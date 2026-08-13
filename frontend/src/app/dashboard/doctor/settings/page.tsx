@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api';
-import { MEDICAL_SPECIALTIES, parseSpecialtyList } from '@/data/medicalSpecialties';
+import { MEDICAL_SPECIALTIES, decodeDoctorSpecialty, encodeDoctorSpecialty } from '@/data/medicalSpecialties';
 import WeeklyAvailabilityGrid from '@/components/medico/WeeklyAvailabilityGrid';
 import {
   DEFAULT_BUFFER_MINUTES,
@@ -47,15 +47,9 @@ export default function DoctorSettingsPage() {
         if (typeof p.coverageKm === 'number' && p.coverageKm > 0) {
           setCoverageKm(p.coverageKm);
         }
-        const listed = parseSpecialtyList(p.specialty).filter((s) =>
-          (MEDICAL_SPECIALTIES as readonly string[]).includes(s),
-        );
-        const specialist =
-          listed.length > 0 && listed.some((s) => s.toLowerCase() !== 'medicina general');
-        setIsSpecialist(specialist);
-        setSelectedSpecialties(
-          specialist ? listed : listed.length ? listed : [MEDICAL_SPECIALTIES[0]],
-        );
+        const decoded = decodeDoctorSpecialty(p.specialty);
+        setIsSpecialist(decoded.isSpecialist);
+        setSelectedSpecialties(decoded.areas);
       }
 
       if (scheduleRes && scheduleRes.data) {
@@ -103,8 +97,8 @@ export default function DoctorSettingsPage() {
       setSaving(false);
       return;
     }
-    if (isSpecialist && selectedSpecialties.length === 0) {
-      setMessage('Selecciona al menos un área de conocimiento.');
+    if (selectedSpecialties.length === 0) {
+      setMessage('Selecciona al menos un área de conocimiento o experiencia.');
       setSaving(false);
       return;
     }
@@ -113,12 +107,10 @@ export default function DoctorSettingsPage() {
         apiFetch('/doctor/me/settings', {
           method: 'PATCH',
           body: JSON.stringify({
-            specialty: isSpecialist
-              ? selectedSpecialties.join(', ')
-              : MEDICAL_SPECIALTIES[0],
+            specialty: encodeDoctorSpecialty(isSpecialist, selectedSpecialties),
             baseFee: standardFee,
             coverageKm,
-            selectedSpecialties: isSpecialist ? selectedSpecialties : [MEDICAL_SPECIALTIES[0]],
+            selectedSpecialties,
           }),
         }),
         apiFetch('/scheduling/me', {
@@ -163,12 +155,7 @@ export default function DoctorSettingsPage() {
                   <button
                     key={opt.label}
                     type="button"
-                    onClick={() => {
-                      setIsSpecialist(opt.value);
-                      if (!opt.value) {
-                        setSelectedSpecialties([MEDICAL_SPECIALTIES[0]]);
-                      }
-                    }}
+                    onClick={() => setIsSpecialist(opt.value)}
                     className={`rounded-full px-4 py-1.5 text-sm font-medium ${
                       active
                         ? 'bg-sky-600 text-white'
@@ -180,42 +167,39 @@ export default function DoctorSettingsPage() {
                 );
               })}
             </div>
+            <p className="mt-2 text-xs text-gray-500">
+              Indica si tienes título de especialista. Un médico general también puede marcar
+              áreas con formación avanzada (magíster, diplomado, cursos o experiencia laboral).
+            </p>
           </div>
 
-          {/* Especialidades */}
+          {/* Áreas de conocimiento */}
           <div>
-            <h2 className="mb-2 text-sm font-semibold text-gray-800">
-              Especialidades / Conocimientos
+            <h2 className="mb-1 text-sm font-semibold text-gray-800">
+              Área de conocimientos y experiencias
             </h2>
+            <p className="mb-2 text-xs text-gray-500">
+              Magíster, diplomado, cursos, experiencias laborales
+            </p>
             <div className="flex flex-wrap gap-2">
               {MEDICAL_SPECIALTIES.map((s) => {
                 const active = selectedSpecialties.includes(s);
-                const lockedGeneral = !isSpecialist && s === MEDICAL_SPECIALTIES[0];
                 return (
                   <button
                     key={s}
                     type="button"
-                    disabled={!isSpecialist && !lockedGeneral}
-                    onClick={() => {
-                      if (!isSpecialist) return;
-                      toggleInArray(s, selectedSpecialties, setSelectedSpecialties);
-                    }}
+                    onClick={() => toggleInArray(s, selectedSpecialties, setSelectedSpecialties)}
                     className={`rounded-full px-3 py-1 text-xs font-medium ${
                       active
                         ? 'bg-sky-600 text-white'
                         : 'bg-salud-light text-sky-800 hover:bg-sky-100'
-                    } ${!isSpecialist && !lockedGeneral ? 'cursor-not-allowed opacity-50' : ''}`}
+                    }`}
                   >
                     {s}
                   </button>
                 );
               })}
             </div>
-            {!isSpecialist && (
-              <p className="mt-2 text-xs text-gray-500">
-                Si no eres especialista, tu área queda como Medicina general.
-              </p>
-            )}
           </div>
 
           {/* Cobertura */}

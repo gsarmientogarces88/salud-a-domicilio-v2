@@ -35,7 +35,8 @@ export const MEDICAL_SPECIALTY_CARDS: ReadonlyArray<{
 
 export function parseSpecialtyList(value?: string | null): string[] {
   if (!value) return [];
-  return value
+  const withoutFlag = value.replace(/^Especialista\s*[·:]\s*/i, '');
+  return withoutFlag
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean)
@@ -43,4 +44,26 @@ export function parseSpecialtyList(value?: string | null): string[] {
       const match = MEDICAL_SPECIALTIES.find((listed) => listed.toLowerCase() === s.toLowerCase());
       return match || s;
     });
+}
+
+/** Persiste Sí/No de especialista en el string de specialty (sin migración). */
+export function decodeDoctorSpecialty(value?: string | null): {
+  isSpecialist: boolean;
+  areas: string[];
+} {
+  const raw = (value || '').trim();
+  const isSpecialist = /^Especialista\s*[·:]/i.test(raw);
+  const areas = parseSpecialtyList(raw).filter((s) =>
+    (MEDICAL_SPECIALTIES as readonly string[]).includes(s),
+  );
+  return {
+    isSpecialist,
+    areas: areas.length > 0 ? areas : [MEDICAL_SPECIALTIES[0]],
+  };
+}
+
+export function encodeDoctorSpecialty(isSpecialist: boolean, areas: string[]): string {
+  const list = areas.length > 0 ? areas : [MEDICAL_SPECIALTIES[0]];
+  const joined = list.join(', ');
+  return isSpecialist ? `Especialista · ${joined}` : joined;
 }
