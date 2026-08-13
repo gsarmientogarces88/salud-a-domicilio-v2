@@ -14,6 +14,7 @@ import {
   SectionCard,
   SvgIcon,
 } from '@/components/medicilio/MedicilioUI';
+import { MEDICAL_SPECIALTIES, MEDICAL_SPECIALTY_CARDS } from '@/data/medicalSpecialties';
 
 type AgendaIconName = Parameters<typeof SvgIcon>[0]['name'];
 type AvatarTone = NonNullable<Parameters<typeof InitialAvatar>[0]['tone']>;
@@ -47,18 +48,7 @@ type ListedDoctor = DoctorCard & {
   distanceKm?: number | null;
 };
 
-const specialties = [
-  ['Medicina general', 'Desde $39.990', 'Disponible en 18 min', 'briefcase'],
-  ['Pediatría', 'Desde $49.990', 'Disponible en 30 min', 'heart'],
-  ['Cardiología', 'Desde $59.990', 'Disponible en 45 min', 'activity'],
-  ['Psiquiatría', 'Desde $49.990', 'Disponible en 40 min', 'shield'],
-  ['Traumatología', 'Desde $49.990', 'Disponible en 35 min', 'file'],
-  ['Ginecología', 'Desde $45.990', 'Disponible en 30 min', 'user'],
-  ['Dermatología', 'Desde $39.990', 'Disponible en 25 min', 'pulse'],
-  ['Medicina interna', 'Desde $55.990', 'Disponible en 40 min', 'crosshair'],
-  ['Medicina estética', 'Desde $49.990', 'Disponible en 35 min', 'star'],
-  ['Neurología', 'Desde $59.990', 'Disponible en 40 min', 'activity'],
-] as const;
+const specialties = MEDICAL_SPECIALTY_CARDS;
 
 const tones: AvatarTone[] = ['blue', 'green', 'purple', 'amber'];
 
@@ -115,7 +105,7 @@ function mapProfessional(p: ProfessionalApi, index: number): ListedDoctor {
   return {
     id: p.id,
     name,
-    specialty: p.specialty || 'Medicina general',
+    specialty: p.specialty || MEDICAL_SPECIALTIES[0],
     initials: initialsFromName(name),
     price: `$${fee.toLocaleString('es-CL')}`,
     tone: tones[index % tones.length],
@@ -129,7 +119,7 @@ function mapProfessional(p: ProfessionalApi, index: number): ListedDoctor {
 }
 
 export default function AgendarPage() {
-  const [selectedSpecialty, setSelectedSpecialty] = useState('Medicina general');
+  const [selectedSpecialty, setSelectedSpecialty] = useState<string>(MEDICAL_SPECIALTIES[0]);
   const [modalDoctor, setModalDoctor] = useState<DoctorCard | null>(null);
   const [doctors, setDoctors] = useState<ListedDoctor[]>([]);
   const [loadingDoctors, setLoadingDoctors] = useState(false);
@@ -363,7 +353,7 @@ export default function AgendarPage() {
         </p>
         <h2 className="mt-1 text-xl font-semibold text-[var(--color-texto-1)]">¿Qué tipo de médico necesitas?</h2>
         <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {specialties.map(([title, price, eta, icon]) => {
+          {specialties.map(({ title, price, eta, icon }) => {
             const selected = selectedSpecialty === title;
             return (
               <button

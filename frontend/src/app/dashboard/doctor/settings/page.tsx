@@ -2,27 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api';
-
-const SPECIALTIES = [
-  'Medicina General',
-  'Pediatría',
-  'Geriatría',
-  'Salud Mental',
-  'Cardiología básica',
-  'Urgencias domiciliarias',
-  'Manejo crónicos',
-  'Cuidados paliativos',
-] as const;
-
-const SERVICES = [
-  'Suturas',
-  'ECG portátil',
-  'Ecografía',
-  'Certificados',
-  'Licencias médicas',
-  'Nebulización',
-  'Infiltraciones',
-] as const;
+import { MEDICAL_SPECIALTIES, parseSpecialtyList } from '@/data/medicalSpecialties';
 
 const DAYS = [
   { label: 'Lunes', value: 1 },
@@ -39,11 +19,9 @@ export default function DoctorSettingsPage() {
   const [saving, setSaving] = useState(false);
 
   const [selectedSpecialties, setSelectedSpecialties] = useState<string[]>([]);
-  const [selectedServices, setSelectedServices] = useState<string[]>([]);
+  const [isSpecialist, setIsSpecialist] = useState(false);
   const [coverageKm, setCoverageKm] = useState(5);
-  const [coverageCommunes, setCoverageCommunes] = useState<string>('');
   const [standardFee, setStandardFee] = useState(40000);
-  const [urgentSurcharge, setUrgentSurcharge] = useState(15000);
   const [message, setMessage] = useState('');
 
   type AvailabilityRow = {
@@ -88,6 +66,18 @@ export default function DoctorSettingsPage() {
       const p = profileRes.data;
       if (p) {
         setStandardFee(p.baseFee || 40000);
+        if (typeof p.coverageKm === 'number' && p.coverageKm > 0) {
+          setCoverageKm(p.coverageKm);
+        }
+        const listed = parseSpecialtyList(p.specialty).filter((s) =>
+          (MEDICAL_SPECIALTIES as readonly string[]).includes(s),
+        );
+        const specialist =
+          listed.length > 0 && listed.some((s) => s.toLowerCase() !== 'medicina general');
+        setIsSpecialist(specialist);
+        setSelectedSpecialties(
+          specialist ? listed : listed.length ? listed : [MEDICAL_SPECIALTIES[0]],
+        );
       }
 
       if (scheduleRes && scheduleRes.data) {
@@ -140,6 +130,11 @@ export default function DoctorSettingsPage() {
       setSaving(false);
       return;
     }
+    if (isSpecialist && selectedSpecialties.length === 0) {
+      setMessage('Selecciona al menos un área de conocimiento.');
+      setSaving(false);
+      return;
+    }
     try {
       const availabilityPayload = availabilityRows
         .filter((r) => r.enabled)
@@ -155,13 +150,12 @@ export default function DoctorSettingsPage() {
         apiFetch('/doctor/me/settings', {
           method: 'PATCH',
           body: JSON.stringify({
-            specialty: selectedSpecialties[0] || 'Medicina General',
+            specialty: isSpecialist
+              ? selectedSpecialties.join(', ')
+              : MEDICAL_SPECIALTIES[0],
             baseFee: standardFee,
             coverageKm,
-            coverageCommunes,
-            selectedSpecialties,
-            selectedServices,
-            urgentSurcharge,
+            selectedSpecialties: isSpecialist ? selectedSpecialties : [MEDICAL_SPECIALTIES[0]],
           }),
         }),
         apiFetch('/scheduling/me', {
@@ -185,7 +179,7 @@ export default function DoctorSettingsPage() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Configuración profesional</h1>
         <p className="text-sm text-gray-600">
-          Define tus especialidades, servicios, cobertura y tarifas para la plataforma.
+          Define tus especialidades, cobertura y tarifas para la plataforma.
         </p>
       </div>
 
@@ -193,115 +187,108 @@ export default function DoctorSettingsPage() {
         <p className="text-sm text-gray-500">Cargando configuración...</p>
       ) : (
         <div className="space-y-6 rounded-2xl bg-white p-6 shadow-sm">
+          {/* Especialista */}
+          <div>
+            <h2 className="mb-2 text-sm font-semibold text-gray-800">¿Eres especialista?</h2>
+            <div className="flex gap-2">
+              {[
+                { label: 'Sí', value: true },
+                { label: 'No', value: false },
+              ].map((opt) => {
+                const active = isSpecialist === opt.value;
+                return (
+                  <button
+                    key={opt.label}
+                    type="button"
+                    onClick={() => {
+                      setIsSpecialist(opt.value);
+                      if (!opt.value) {
+                        setSelectedSpecialties([MEDICAL_SPECIALTIES[0]]);
+                      }
+                    }}
+                    className={`rounded-full px-4 py-1.5 text-sm font-medium ${
+                      active
+                        ? 'bg-sky-600 text-white'
+                        : 'bg-salud-light text-sky-800 hover:bg-sky-100'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Especialidades */}
           <div>
             <h2 className="mb-2 text-sm font-semibold text-gray-800">
               Especialidades / Conocimientos
             </h2>
             <div className="flex flex-wrap gap-2">
-              {SPECIALTIES.map((s) => {
+              {MEDICAL_SPECIALTIES.map((s) => {
                 const active = selectedSpecialties.includes(s);
+                const lockedGeneral = !isSpecialist && s === MEDICAL_SPECIALTIES[0];
                 return (
                   <button
                     key={s}
                     type="button"
-                    onClick={() => toggleInArray(s, selectedSpecialties, setSelectedSpecialties)}
+                    disabled={!isSpecialist && !lockedGeneral}
+                    onClick={() => {
+                      if (!isSpecialist) return;
+                      toggleInArray(s, selectedSpecialties, setSelectedSpecialties);
+                    }}
                     className={`rounded-full px-3 py-1 text-xs font-medium ${
                       active
                         ? 'bg-sky-600 text-white'
                         : 'bg-salud-light text-sky-800 hover:bg-sky-100'
-                    }`}
+                    } ${!isSpecialist && !lockedGeneral ? 'cursor-not-allowed opacity-50' : ''}`}
                   >
                     {s}
                   </button>
                 );
               })}
             </div>
-          </div>
-
-          {/* Servicios */}
-          <div>
-            <h2 className="mb-2 text-sm font-semibold text-gray-800">Servicios que realizas</h2>
-            <div className="flex flex-wrap gap-2">
-              {SERVICES.map((s) => {
-                const active = selectedServices.includes(s);
-                return (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => toggleInArray(s, selectedServices, setSelectedServices)}
-                    className={`rounded-full px-3 py-1 text-xs font-medium ${
-                      active
-                        ? 'bg-emerald-500 text-white'
-                        : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                    }`}
-                  >
-                    {s}
-                  </button>
-                );
-              })}
-            </div>
+            {!isSpecialist && (
+              <p className="mt-2 text-xs text-gray-500">
+                Si no eres especialista, tu área queda como Medicina general.
+              </p>
+            )}
           </div>
 
           {/* Cobertura */}
-          <div className="grid gap-4 md:grid-cols-[1fr,2fr]">
-            <div>
-              <h2 className="mb-2 text-sm font-semibold text-gray-800">Cobertura</h2>
-              <label className="mb-1 block text-xs text-gray-600">Radio (km)</label>
-              <input
-                type="number"
-                min={1}
-                max={50}
-                value={coverageKm}
-                onChange={(e) => setCoverageKm(Number(e.target.value))}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-gray-600">
-                Comunas (separadas por coma)
-              </label>
-              <textarea
-                value={coverageCommunes}
-                onChange={(e) => setCoverageCommunes(e.target.value)}
-                rows={3}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                placeholder="Ej: San Miguel, Ñuñoa, Providencia"
-              />
-            </div>
+          <div className="max-w-sm">
+            <h2 className="mb-2 text-sm font-semibold text-gray-800">Cobertura</h2>
+            <label className="mb-1 block text-xs text-gray-600">Radio (km)</label>
+            <input
+              type="number"
+              min={1}
+              max={50}
+              value={coverageKm}
+              onChange={(e) => setCoverageKm(Number(e.target.value))}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Distancia máxima desde tu ubicación para atender por georreferencia.
+            </p>
           </div>
 
           {/* Tarifas */}
-          <div className="grid gap-4 md:grid-cols-3">
-            <div>
-              <h2 className="mb-2 text-sm font-semibold text-gray-800">Tarifas</h2>
-              <label className="mb-1 block text-xs text-gray-600">
-                Valor consulta a domicilio (CLP) <span className="text-red-600">*</span>
-              </label>
-              <input
-                type="number"
-                min={1}
-                required
-                value={standardFee}
-                onChange={(e) => setStandardFee(Number(e.target.value))}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-              />
-              <p className="mt-1 text-xs text-gray-500">
-                Obligatorio para Agenda Médico a Domicilio. Debe ser mayor a $0.
-              </p>
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-gray-600">
-                Recargo urgencia/nocturno (CLP)
-              </label>
-              <input
-                type="number"
-                min={0}
-                value={urgentSurcharge}
-                onChange={(e) => setUrgentSurcharge(Number(e.target.value))}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-              />
-            </div>
+          <div className="max-w-sm">
+            <h2 className="mb-2 text-sm font-semibold text-gray-800">Tarifas</h2>
+            <label className="mb-1 block text-xs text-gray-600">
+              Valor consulta a domicilio (CLP) <span className="text-red-600">*</span>
+            </label>
+            <input
+              type="number"
+              min={1}
+              required
+              value={standardFee}
+              onChange={(e) => setStandardFee(Number(e.target.value))}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Obligatorio para Agenda Médico a Domicilio. Debe ser mayor a $0.
+            </p>
           </div>
 
           {/* Agenda y horarios */}
