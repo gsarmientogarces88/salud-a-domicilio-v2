@@ -2,7 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api';
-import { MEDICAL_SPECIALTIES, decodeDoctorSpecialty, encodeDoctorSpecialty } from '@/data/medicalSpecialties';
+import {
+  MEDICAL_SPECIALTIES,
+  KNOWLEDGE_CREDENTIALS,
+  decodeDoctorSpecialty,
+  encodeDoctorSpecialty,
+} from '@/data/medicalSpecialties';
 import WeeklyAvailabilityGrid from '@/components/medico/WeeklyAvailabilityGrid';
 import {
   DEFAULT_BUFFER_MINUTES,
@@ -15,7 +20,7 @@ export default function DoctorSettingsPage() {
   const [saving, setSaving] = useState(false);
 
   const [selectedSpecialties, setSelectedSpecialties] = useState<string[]>([]);
-  const [isSpecialist, setIsSpecialist] = useState(false);
+  const [selectedCredentials, setSelectedCredentials] = useState<string[]>([]);
   const [coverageKm, setCoverageKm] = useState(5);
   const [standardFee, setStandardFee] = useState(40000);
   const [message, setMessage] = useState('');
@@ -48,7 +53,7 @@ export default function DoctorSettingsPage() {
           setCoverageKm(p.coverageKm);
         }
         const decoded = decodeDoctorSpecialty(p.specialty);
-        setIsSpecialist(decoded.isSpecialist);
+        setSelectedCredentials(decoded.credentials);
         setSelectedSpecialties(decoded.areas);
       }
 
@@ -107,10 +112,11 @@ export default function DoctorSettingsPage() {
         apiFetch('/doctor/me/settings', {
           method: 'PATCH',
           body: JSON.stringify({
-            specialty: encodeDoctorSpecialty(isSpecialist, selectedSpecialties),
+            specialty: encodeDoctorSpecialty(selectedCredentials, selectedSpecialties),
             baseFee: standardFee,
             coverageKm,
             selectedSpecialties,
+            selectedCredentials,
           }),
         }),
         apiFetch('/scheduling/me', {
@@ -142,44 +148,40 @@ export default function DoctorSettingsPage() {
         <p className="text-sm text-gray-500">Cargando configuración...</p>
       ) : (
         <div className="space-y-6 rounded-2xl bg-white p-6 shadow-sm">
-          {/* Especialista */}
-          <div>
-            <h2 className="mb-2 text-sm font-semibold text-gray-800">¿Eres especialista?</h2>
-            <div className="flex gap-2">
-              {[
-                { label: 'Sí', value: true },
-                { label: 'No', value: false },
-              ].map((opt) => {
-                const active = isSpecialist === opt.value;
-                return (
-                  <button
-                    key={opt.label}
-                    type="button"
-                    onClick={() => setIsSpecialist(opt.value)}
-                    className={`rounded-full px-4 py-1.5 text-sm font-medium ${
-                      active
-                        ? 'bg-sky-600 text-white'
-                        : 'bg-salud-light text-sky-800 hover:bg-sky-100'
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                );
-              })}
-            </div>
-            <p className="mt-2 text-xs text-gray-500">
-              Indica si tienes título de especialista. Un médico general también puede marcar
-              áreas con formación avanzada (magíster, diplomado, cursos o experiencia laboral).
-            </p>
-          </div>
-
           {/* Áreas de conocimiento */}
           <div>
             <h2 className="mb-1 text-sm font-semibold text-gray-800">
               Área de conocimientos y experiencias
             </h2>
             <p className="mb-2 text-xs text-gray-500">
-              Magíster, diplomado, cursos, experiencias laborales
+              Marca tu formación (puedes elegir más de una) y las áreas clínicas en las que atiendes.
+            </p>
+
+            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+              Formación
+            </p>
+            <div className="mb-4 flex flex-wrap gap-2">
+              {KNOWLEDGE_CREDENTIALS.map((c) => {
+                const active = selectedCredentials.includes(c);
+                return (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => toggleInArray(c, selectedCredentials, setSelectedCredentials)}
+                    className={`rounded-full px-3 py-1 text-xs font-medium ${
+                      active
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                    }`}
+                  >
+                    {c}
+                  </button>
+                );
+              })}
+            </div>
+
+            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+              Áreas clínicas
             </p>
             <div className="flex flex-wrap gap-2">
               {MEDICAL_SPECIALTIES.map((s) => {

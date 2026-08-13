@@ -7,12 +7,24 @@ export const MEDICAL_SPECIALTIES = [
   'Ginecología',
   'Dermatología',
   'Medicina interna',
-  'Medicina estética',
   'Neurología',
   'Reumatología',
+  'Geriatría',
+  'Broncopulmonar',
 ] as const;
 
 export type MedicalSpecialty = (typeof MEDICAL_SPECIALTIES)[number];
+
+/** Tipo de formación / experiencia (independiente del área clínica). */
+export const KNOWLEDGE_CREDENTIALS = [
+  'Especialista',
+  'Magíster',
+  'Diplomado',
+  'Cursos',
+  'Experiencias laborales',
+] as const;
+
+export type KnowledgeCredential = (typeof KNOWLEDGE_CREDENTIALS)[number];
 
 export const MEDICAL_SPECIALTY_CARDS: ReadonlyArray<{
   title: MedicalSpecialty;
@@ -28,42 +40,68 @@ export const MEDICAL_SPECIALTY_CARDS: ReadonlyArray<{
   { title: 'Ginecología', price: 'Desde $45.990', eta: 'Disponible en 30 min', icon: 'user' },
   { title: 'Dermatología', price: 'Desde $39.990', eta: 'Disponible en 25 min', icon: 'pulse' },
   { title: 'Medicina interna', price: 'Desde $55.990', eta: 'Disponible en 40 min', icon: 'crosshair' },
-  { title: 'Medicina estética', price: 'Desde $49.990', eta: 'Disponible en 35 min', icon: 'star' },
   { title: 'Neurología', price: 'Desde $59.990', eta: 'Disponible en 40 min', icon: 'activity' },
   { title: 'Reumatología', price: 'Desde $49.990', eta: 'Disponible en 40 min', icon: 'pulse' },
+  { title: 'Geriatría', price: 'Desde $49.990', eta: 'Disponible en 35 min', icon: 'user' },
+  { title: 'Broncopulmonar', price: 'Desde $55.990', eta: 'Disponible en 40 min', icon: 'activity' },
 ];
+
+function normalizeListed(value: string, list: readonly string[]): string | null {
+  const match = list.find((item) => item.toLowerCase() === value.toLowerCase());
+  return match || null;
+}
 
 export function parseSpecialtyList(value?: string | null): string[] {
   if (!value) return [];
-  const withoutFlag = value.replace(/^Especialista\s*[·:]\s*/i, '');
+  const withoutFlag = value
+    .replace(/^Formación:\s*.+?\s*·\s*/i, '')
+    .replace(/^Especialista\s*[·:]\s*/i, '');
   return withoutFlag
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean)
-    .map((s) => {
-      const match = MEDICAL_SPECIALTIES.find((listed) => listed.toLowerCase() === s.toLowerCase());
-      return match || s;
-    });
+    .map((s) => normalizeListed(s, MEDICAL_SPECIALTIES) || s);
 }
 
-/** Persiste Sí/No de especialista en el string de specialty (sin migración). */
+/** Persiste formación + áreas clínicas en specialty (sin migración). */
 export function decodeDoctorSpecialty(value?: string | null): {
   isSpecialist: boolean;
+  credentials: string[];
   areas: string[];
 } {
   const raw = (value || '').trim();
-  const isSpecialist = /^Especialista\s*[·:]/i.test(raw);
-  const areas = parseSpecialtyList(raw).filter((s) =>
+  let credentials: string[] = [];
+  let rest = raw;
+
+  const formacionMatch = raw.match(/^Formación:\s*(.+?)\s*·\s*(.*)$/i);
+  if (formacionMatch) {
+    credentials = formacionMatch[1]
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((s) => normalizeListed(s, KNOWLEDGE_CREDENTIALS) || s)
+      .filter((s) => (KNOWLEDGE_CREDENTIALS as readonly string[]).includes(s));
+    rest = formacionMatch[2];
+  } else if (/^Especialista\s*[·:]/i.test(raw)) {
+    credentials = ['Especialista'];
+    rest = raw.replace(/^Especialista\s*[·:]\s*/i, '');
+  }
+
+  const areas = parseSpecialtyList(rest).filter((s) =>
     (MEDICAL_SPECIALTIES as readonly string[]).includes(s),
   );
+
   return {
-    isSpecialist,
+    isSpecialist: credentials.includes('Especialista'),
+    credentials,
     areas: areas.length > 0 ? areas : [MEDICAL_SPECIALTIES[0]],
   };
 }
 
-export function encodeDoctorSpecialty(isSpecialist: boolean, areas: string[]): string {
+export function encodeDoctorSpecialty(credentials: string[], areas: string[]): string {
+  const creds = credentials.filter((c) => (KNOWLEDGE_CREDENTIALS as readonly string[]).includes(c));
   const list = areas.length > 0 ? areas : [MEDICAL_SPECIALTIES[0]];
-  const joined = list.join(', ');
-  return isSpecialist ? `Especialista · ${joined}` : joined;
+  const joinedAreas = list.join(', ');
+  if (creds.length === 0) return joinedAreas;
+  return `Formación: ${creds.join(', ')} · ${joinedAreas}`;
 }
