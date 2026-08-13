@@ -111,7 +111,23 @@ export async function setScheduleForProfessional(
     }
   });
 
+  // Evita ofrecer cupos materializados de una plantilla anterior.
+  await purgeFutureAvailableSlots(professionalId);
+
   return getScheduleForProfessional(professionalId);
+}
+
+/** Borra cupos AVAILABLE futuros (sin hold vigente). Conserva BOOKED/HELD activos. */
+async function purgeFutureAvailableSlots(professionalId: string) {
+  const now = new Date();
+  await prisma.availabilitySlot.deleteMany({
+    where: {
+      professionalId,
+      status: 'AVAILABLE',
+      startAt: { gte: now },
+      OR: [{ heldUntil: null }, { heldUntil: { lte: now } }],
+    },
+  });
 }
 
 /**
@@ -352,6 +368,7 @@ export async function listMaterializedAgendaSlotsForDate(
 
   const raw = await getAgendaSlotCandidatesRaw(professionalId, ymd);
   const afterRules = raw.filter((c) => evaluateBookingSlot(zonedSlotStartUtc(ymd, c.hhmm), now).ok);
+  const allowedHhmm = new Set(afterRules.map((c) => c.hhmm));
 
   const { newRowsCreated } = await ensureMaterializedAgendaSlotsForDate(
     professionalId,
@@ -364,12 +381,34 @@ export async function listMaterializedAgendaSlotsForDate(
       professionalId,
       startAt: { gte: dayStart, lt: dayEndExclusive },
       status: 'AVAILABLE',
-      OR: [{ heldUntil: null }, { heldUntil: { gt: now } }],
     },
     orderBy: { startAt: 'asc' },
   });
 
-  const allowed = dbSlots.filter((s) => evaluateBookingSlot(s.startAt, now).ok);
+  const staleIds = dbSlots
+    .filter((s) => {
+      const hm = formatInTimeZone(s.startAt, BOOKING_TIMEZONE, 'HH:mm');
+      if (allowedHhmm.has(hm)) return false;
+      // Conservar holds activos aunque ya no estén en la plantilla.
+      if (s.heldUntil && s.heldUntil > now) return false;
+      return true;
+    })
+    .map((s) => s.id);
+
+  if (staleIds.length > 0) {
+    await prisma.availabilitySlot.deleteMany({
+      where: { id: { in: staleIds }, status: 'AVAILABLE' },
+    });
+  }
+
+  const staleIdSet = new Set(staleIds);
+  const allowed = dbSlots.filter((s) => {
+    if (staleIdSet.has(s.id)) return false;
+    const hm = formatInTimeZone(s.startAt, BOOKING_TIMEZONE, 'HH:mm');
+    if (!allowedHhmm.has(hm)) return false;
+    if (s.heldUntil && s.heldUntil > now) return false;
+    return evaluateBookingSlot(s.startAt, now).ok;
+  });
 
   if (options?.debug) {
     // eslint-disable-next-line no-console
@@ -380,6 +419,7 @@ export async function listMaterializedAgendaSlotsForDate(
       rawCandidates: raw.length,
       afterBookingRules: afterRules.length,
       newMaterializedRows: newRowsCreated,
+      stalePurged: staleIds.length,
       dbAvailableBeforeFilter: dbSlots.length,
       finalReturned: allowed.length,
       sampleRaw: raw.slice(0, 6).map((c) => c.hhmm),
