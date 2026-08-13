@@ -70,19 +70,14 @@ const CAPA1: DocFieldConfig[] = [
     required: true,
   },
   {
-    type: 'CEDULA_REVERSO',
-    label: 'Cédula de identidad — cara posterior',
-    required: true,
-  },
-  {
     type: 'SELFIE_CON_CEDULA',
-    label: 'Foto sosteniendo tu cédula junto a tu rostro',
+    label: 'Foto de tu rostro',
     helper:
-      'Sujeta tu cédula al lado de tu cara de modo que ambos sean claramente visibles. Para mayor seguridad, incluye un papel escrito a mano con la fecha de hoy.',
+      'Tómate una foto de frente, bien iluminada, con el rostro claramente visible y sin lentes de sol ni gorra.',
     required: true,
     showExample: true,
     warning:
-      'La cédula no debe estar tapada, borrosa ni cortada. Las fotos que no cumplan serán rechazadas.',
+      'La foto debe mostrar tu rostro completo, nítido y con buena luz. Las fotos oscuras, borrosas o parciales serán rechazadas.',
   },
 ];
 
@@ -98,7 +93,7 @@ const CAPA2: DocFieldConfig[] = [
     type: 'CERTIFICADO_SIS',
     label: 'Certificado del Registro SIS',
     helper:
-      'Descárgalo desde supersalud.gob.cl → Prestadores → Consulta de Registro. Acredita que estás habilitado para ejercer la medicina en Chile.',
+      'Descárgalo desde rnpi.superdesalud.gob.cl. Acredita que estás habilitado para ejercer la medicina en Chile.',
     required: true,
     sisLink: true,
   },
@@ -452,7 +447,7 @@ function DocUploadRow({
           {field.helper ? <p className="mt-1 text-xs text-gray-500">{field.helper}</p> : null}
           {field.sisLink ? (
             <a
-              href="https://www.supersalud.gob.cl/prestadores"
+              href="https://rnpi.superdesalud.gob.cl/#"
               target="_blank"
               rel="noopener noreferrer"
               className="mt-2 inline-flex text-xs font-semibold text-[#185FA5] hover:underline"
@@ -492,7 +487,7 @@ function DocUploadRow({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/images/selfie-cedula-ejemplo.svg"
-            alt="Ejemplo ilustrativo: sostén tu cédula junto al rostro e incluye la fecha escrita a mano"
+            alt="Ejemplo ilustrativo: foto de frente del rostro bien iluminada"
             className="mx-auto h-auto w-full max-w-sm"
           />
           <p className="border-t border-gray-100 px-3 py-2 text-center text-[11px] text-gray-500">

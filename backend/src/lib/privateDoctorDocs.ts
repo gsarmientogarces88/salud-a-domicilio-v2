@@ -17,7 +17,6 @@ const ALLOWED_TYPES: DoctorDocumentType[] = [
 
 export const REQUIRED_DOC_TYPES: DoctorDocumentType[] = [
   'CEDULA_ANVERSO',
-  'CEDULA_REVERSO',
   'SELFIE_CON_CEDULA',
   'TITULO_MEDICO',
   'CERTIFICADO_SIS',

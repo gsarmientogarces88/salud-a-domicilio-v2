@@ -38,8 +38,8 @@ type VerificationRow = {
 
 const DOC_LABELS: Record<string, string> = {
   CEDULA_ANVERSO: 'Cédula — frontal',
-  CEDULA_REVERSO: 'Cédula — posterior',
-  SELFIE_CON_CEDULA: 'Selfie con cédula',
+  CEDULA_REVERSO: 'Cédula — posterior (opcional / legado)',
+  SELFIE_CON_CEDULA: 'Foto de rostro',
   TITULO_MEDICO: 'Título médico',
   CERTIFICADO_SIS: 'Certificado SIS',
   CERTIFICADO_ESPECIALIDAD: 'Especialidad',
