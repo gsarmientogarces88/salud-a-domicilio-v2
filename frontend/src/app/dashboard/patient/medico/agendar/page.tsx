@@ -55,10 +55,9 @@ const tones: AvatarTone[] = ['blue', 'green', 'purple', 'amber'];
 const reasons = [
   ['Profesionales verificados', 'Registro SIS activo', 'shield'],
   ['Atención en domicilio', 'Sin traslado ni filas', 'home'],
-  ['Pago seguro Webpay', 'Bono Isapre o efectivo', 'lock'],
+  ['Pago seguro Webpay', 'Pago en línea', 'lock'],
   ['Documentación digital', 'Documentos al finalizar', 'file'],
   ['Adultos y niños', 'Pediatría disponible', 'heart'],
-  ['Cobertura Gran Concepción', 'Talcahuano y comunas', 'pin'],
 ] as const;
 
 const MIN_ADDRESS_LENGTH = 8;
@@ -352,6 +351,10 @@ export default function AgendarPage() {
           Especialidades disponibles
         </p>
         <h2 className="mt-1 text-xl font-semibold text-[var(--color-texto-1)]">¿Qué tipo de médico necesitas?</h2>
+        <p className="mt-2 max-w-2xl text-sm text-[var(--color-texto-3)]">
+          Puedes elegir el área que necesitas. Te atenderá un especialista o un médico con formación avanzada en esa
+          área.
+        </p>
         <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {specialties.map(({ title, price, eta, icon }) => {
             const selected = selectedSpecialty === title;
