@@ -35,7 +35,7 @@ const DEFAULT_WEEKDAY_RULE: DayRule = {
   startTime: '09:00',
   endTime: '18:00',
   slotDuration: 60,
-  bufferMinutes: 15,
+  bufferMinutes: 0,
 };
 
 /** Genera bloques HH:MM a partir de reglas diarias, excluyendo rangos bloqueados. */
@@ -52,7 +52,7 @@ function computeSlotStarts(rules: DayRule[], blockedRanges: { start: number; end
       const slotEnd = current + rule.slotDuration;
       const overlapsBlocked = blockedRanges.some((b) => !(slotEnd <= b.start || slotStart >= b.end));
       if (!overlapsBlocked) starts.push(slotStart);
-      current = slotEnd + rule.bufferMinutes;
+      current = slotEnd; // sin buffer: bloques contiguos según slotDuration
     }
   }
 

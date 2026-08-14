@@ -132,7 +132,7 @@ async function purgeFutureAvailableSlots(professionalId: string) {
 
 /**
  * Si el prestador no tiene reglas en `availabilities` (nunca abrió ajustes o seed incompleto),
- * crea lunes a viernes 09:00–18:00, 30 min, buffer 15 (misma base que /doctor settings).
+ * crea lunes a viernes 09:00–18:00, 30 min, sin buffer (misma base que /doctor settings).
  * Sin esto, GET /agenda/slots no puede generar filas a partir de `availability_slots` vacía.
  */
 export async function ensureDefaultMonFriAvailabilityIfEmpty(professionalId: string): Promise<{
@@ -151,7 +151,7 @@ export async function ensureDefaultMonFriAvailabilityIfEmpty(professionalId: str
       startTime: '09:00',
       endTime: '18:00',
       slotDuration: 30,
-      bufferMinutes: 15,
+      bufferMinutes: 0,
     })),
   });
   const rowsAfter = await prisma.availability.count({ where: { professionalId } });
@@ -238,7 +238,7 @@ export async function getAgendaSlotCandidatesRaw(
         slotStartMinutes.push({ startMin: slotStart, durationMin: rule.slotDuration });
       }
 
-      current = slotEnd + rule.bufferMinutes;
+      current = slotEnd; // buffer 0: mismos bloques de 30 min que configura el doctor
     }
   });
 

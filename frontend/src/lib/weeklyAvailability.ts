@@ -18,7 +18,8 @@ export const WEEK_DAYS = [
 ] as const;
 
 export const DEFAULT_SLOT_MINUTES = 30;
-export const DEFAULT_BUFFER_MINUTES = 15;
+/** Sin margen entre citas: el paciente ve los mismos bloques de 30 min que el doctor. */
+export const DEFAULT_BUFFER_MINUTES = 0;
 
 export function padTime(h: number, m: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;

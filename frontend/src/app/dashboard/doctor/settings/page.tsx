@@ -67,7 +67,7 @@ export default function DoctorSettingsPage() {
               startTime: a.startTime ?? '09:00',
               endTime: a.endTime ?? '18:00',
               slotDuration: a.slotDuration ?? DEFAULT_SLOT_MINUTES,
-              bufferMinutes: a.bufferMinutes ?? DEFAULT_BUFFER_MINUTES,
+              bufferMinutes: DEFAULT_BUFFER_MINUTES,
             })),
           );
         }
