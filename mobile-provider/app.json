@@ -1,0 +1,57 @@
+{
+  "expo": {
+    "name": "Medicilio Prestador",
+    "slug": "medicilio-prestador",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "medicilio-prestador",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "cl.medicilio.prestador",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Medicilio usa tu ubicación para mostrar solicitudes cercanas y guiarte al domicilio del paciente.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "En una visita activa Medicilio puede actualizar tu ubicación para el seguimiento en camino."
+      }
+    },
+    "android": {
+      "package": "cl.medicilio.prestador",
+      "adaptiveIcon": {
+        "backgroundColor": "#E0F2FE",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#0ea5e9"
+        }
+      ],
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Medicilio usa tu ubicación para mostrar solicitudes cercanas y navegar al domicilio."
+        }
+      ],
+      "expo-notifications"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

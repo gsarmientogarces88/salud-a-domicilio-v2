@@ -29,6 +29,11 @@ Thumbs.db
 *.swp
 *.swo
 
+# Expo
+.expo/
+mobile-provider/.expo/
+mobile-provider/dist/
+
 # Misc
 coverage/
 *.tsbuildinfo

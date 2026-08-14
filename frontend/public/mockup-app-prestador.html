@@ -1,0 +1,1232 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Medicilio Prestador — Mockup App</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --sky-50: #f0f9ff;
+    --sky-100: #e0f2fe;
+    --sky-200: #bae6fd;
+    --sky-500: #0ea5e9;
+    --sky-600: #0284c7;
+    --sky-700: #0369a1;
+    --sky-800: #075985;
+    --ink: #0f172a;
+    --muted: #64748b;
+    --line: #e2e8f0;
+    --ok: #16a34a;
+    --ok-soft: #dcfce7;
+    --warn: #d97706;
+    --danger: #dc2626;
+    --surface: #ffffff;
+    --bg: #0b1220;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    min-height: 100vh;
+    font-family: "DM Sans", system-ui, sans-serif;
+    color: var(--ink);
+    background:
+      radial-gradient(900px 500px at 15% -10%, rgba(14,165,233,.35), transparent 55%),
+      radial-gradient(700px 420px at 90% 10%, rgba(2,132,199,.22), transparent 50%),
+      linear-gradient(160deg, #071018 0%, #0f1c2e 45%, #102033 100%);
+    display: grid;
+    place-items: center;
+    padding: 28px 16px 40px;
+  }
+
+  .stage {
+    width: min(1120px, 100%);
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 36px;
+    align-items: center;
+  }
+
+  .brief {
+    color: #e2e8f0;
+    max-width: 420px;
+  }
+  .brief .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: #7dd3fc;
+    margin-bottom: 14px;
+  }
+  .brief h1 {
+    font-family: "Fraunces", Georgia, serif;
+    font-size: clamp(28px, 4vw, 40px);
+    line-height: 1.1;
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+  .brief p {
+    color: #94a3b8;
+    font-size: 15px;
+    line-height: 1.55;
+    margin-bottom: 22px;
+  }
+  .screen-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .screen-chip {
+    border: 1px solid rgba(148,163,184,.25);
+    background: rgba(15,23,42,.45);
+    color: #cbd5e1;
+    font-size: 12px;
+    padding: 7px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: .15s ease;
+  }
+  .screen-chip:hover, .screen-chip.active {
+    background: rgba(14,165,233,.18);
+    border-color: rgba(125,211,252,.55);
+    color: #e0f2fe;
+  }
+  .hint {
+    margin-top: 20px;
+    font-size: 12px;
+    color: #64748b;
+  }
+
+  /* Phone */
+  .phone-wrap { position: relative; }
+  .phone {
+    width: 390px;
+    height: 800px;
+    border-radius: 42px;
+    background: #020617;
+    padding: 10px;
+    box-shadow:
+      0 0 0 1px rgba(255,255,255,.08),
+      0 30px 80px rgba(0,0,0,.55),
+      inset 0 0 0 1px rgba(255,255,255,.04);
+    position: relative;
+  }
+  .phone-screen {
+    width: 100%;
+    height: 100%;
+    border-radius: 34px;
+    overflow: hidden;
+    background: var(--sky-50);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+  .notch {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 118px;
+    height: 28px;
+    background: #020617;
+    border-radius: 0 0 18px 18px;
+    z-index: 30;
+  }
+  .status-bar {
+    height: 48px;
+    padding: 14px 22px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink);
+    position: relative;
+    z-index: 20;
+    flex-shrink: 0;
+  }
+  .status-icons { display: flex; gap: 6px; opacity: .7; font-size: 11px; }
+
+  .screen { display: none; flex: 1; flex-direction: column; min-height: 0; }
+  .screen.active { display: flex; }
+
+  .content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 18px 18px;
+    scrollbar-width: thin;
+  }
+
+  .tabbar {
+    flex-shrink: 0;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 2px;
+    padding: 8px 8px 18px;
+    background: rgba(255,255,255,.92);
+    border-top: 1px solid var(--line);
+    backdrop-filter: blur(10px);
+  }
+  .tab {
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font-family: inherit;
+    font-size: 10px;
+    font-weight: 500;
+    padding: 6px 2px;
+    border-radius: 12px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+  }
+  .tab svg { width: 20px; height: 20px; }
+  .tab.active { color: var(--sky-700); background: var(--sky-100); }
+  .tab .badge {
+    position: absolute;
+    margin-left: 18px;
+    margin-top: -4px;
+    background: var(--danger);
+    color: #fff;
+    font-size: 9px;
+    min-width: 14px;
+    height: 14px;
+    border-radius: 99px;
+    display: grid;
+    place-items: center;
+    font-weight: 700;
+  }
+  .tab-icon-wrap { position: relative; }
+
+  /* Shared UI */
+  .brand-mark {
+    width: 42px; height: 42px; border-radius: 12px;
+    background: linear-gradient(145deg, var(--sky-500), var(--sky-700));
+    display: grid; place-items: center;
+    box-shadow: 0 8px 20px rgba(2,132,199,.35);
+  }
+  .brand-mark svg { width: 22px; height: 22px; fill: #fff; }
+
+  .btn {
+    border: 0;
+    border-radius: 14px;
+    font-family: inherit;
+    font-weight: 600;
+    font-size: 14px;
+    padding: 14px 16px;
+    cursor: pointer;
+    transition: transform .12s ease, opacity .12s;
+  }
+  .btn:active { transform: scale(.98); }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--sky-500), var(--sky-700));
+    color: #fff;
+    box-shadow: 0 10px 24px rgba(2,132,199,.28);
+  }
+  .btn-ghost {
+    background: #fff;
+    color: var(--sky-800);
+    border: 1px solid var(--sky-200);
+  }
+  .btn-danger {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+  .btn-ok {
+    background: linear-gradient(135deg, #22c55e, #15803d);
+    color: #fff;
+    box-shadow: 0 10px 24px rgba(22,163,74,.25);
+  }
+  .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  .field label { font-size: 12px; font-weight: 600; color: var(--muted); }
+  .field input {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 13px 14px;
+    font: inherit;
+    background: #fff;
+    outline: none;
+  }
+  .field input:focus { border-color: var(--sky-500); box-shadow: 0 0 0 3px rgba(14,165,233,.15); }
+
+  .section-title {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 8px 0 10px;
+  }
+
+  .card-action {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 14px;
+    margin-bottom: 10px;
+  }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 999px;
+  }
+  .pill-ok { background: var(--ok-soft); color: #166534; }
+  .pill-sky { background: var(--sky-100); color: var(--sky-800); }
+  .pill-warn { background: #fef3c7; color: #92400e; }
+  .pill-live {
+    background: #dcfce7;
+    color: #166534;
+  }
+  .pill-live::before {
+    content: "";
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--ok);
+    box-shadow: 0 0 0 0 rgba(22,163,74,.6);
+    animation: pulse 1.6s infinite;
+  }
+  @keyframes pulse {
+    70% { box-shadow: 0 0 0 8px rgba(22,163,74,0); }
+    100% { box-shadow: 0 0 0 0 rgba(22,163,74,0); }
+  }
+
+  /* LOGIN */
+  #screen-login {
+    background:
+      linear-gradient(180deg, rgba(7,16,24,.15), rgba(240,249,255,.92) 42%),
+      radial-gradient(120% 80% at 50% 0%, #38bdf8 0%, #0284c7 42%, #0c4a6e 100%);
+  }
+  .login-hero {
+    padding: 28px 8px 18px;
+    color: #fff;
+    text-align: center;
+  }
+  .login-hero .brand-word {
+    font-family: "Fraunces", Georgia, serif;
+    font-size: 34px;
+    font-weight: 700;
+    margin-top: 14px;
+    letter-spacing: -.02em;
+  }
+  .login-hero .sub {
+    margin-top: 6px;
+    font-size: 14px;
+    color: rgba(255,255,255,.82);
+  }
+  .login-panel {
+    background: rgba(255,255,255,.96);
+    border-radius: 24px 24px 0 0;
+    padding: 22px 18px 28px;
+    margin-top: auto;
+    box-shadow: 0 -20px 40px rgba(2,50,80,.18);
+  }
+  .login-panel h2 {
+    font-size: 18px;
+    margin-bottom: 4px;
+  }
+  .login-panel .muted {
+    color: var(--muted);
+    font-size: 13px;
+    margin-bottom: 16px;
+  }
+
+  /* HOME */
+  .home-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .home-head h1 {
+    font-family: "Fraunces", Georgia, serif;
+    font-size: 26px;
+    line-height: 1.15;
+  }
+  .home-head .meta { color: var(--muted); font-size: 13px; margin-top: 4px; }
+
+  .avail-card {
+    background:
+      linear-gradient(145deg, rgba(255,255,255,.12), transparent),
+      linear-gradient(135deg, #0369a1, #0ea5e9 55%, #38bdf8);
+    color: #fff;
+    border-radius: 22px;
+    padding: 18px;
+    margin-bottom: 14px;
+    position: relative;
+    overflow: hidden;
+  }
+  .avail-card::after {
+    content: "";
+    position: absolute;
+    right: -30px; top: -40px;
+    width: 140px; height: 140px;
+    border-radius: 50%;
+    background: rgba(255,255,255,.12);
+  }
+  .avail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
+    z-index: 1;
+  }
+  .avail-label { font-size: 12px; opacity: .85; }
+  .avail-state { font-size: 22px; font-weight: 700; margin-top: 2px; }
+  .toggle {
+    width: 56px; height: 32px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.28);
+    border: 0;
+    position: relative;
+    cursor: pointer;
+  }
+  .toggle.on { background: rgba(34,197,94,.95); }
+  .toggle span {
+    position: absolute;
+    top: 3px; left: 3px;
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: #fff;
+    transition: .2s ease;
+  }
+  .toggle.on span { left: 27px; }
+  .avail-foot {
+    margin-top: 14px;
+    font-size: 12px;
+    opacity: .9;
+    position: relative;
+    z-index: 1;
+  }
+
+  .visit-banner {
+    background: #fff;
+    border: 1px solid var(--sky-200);
+    border-radius: 18px;
+    padding: 14px;
+    margin-bottom: 14px;
+    display: grid;
+    gap: 10px;
+  }
+  .visit-banner .top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .visit-banner h3 { font-size: 15px; }
+  .visit-banner p { font-size: 12px; color: var(--muted); }
+
+  .stat-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .stat {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 12px 10px;
+    text-align: center;
+  }
+  .stat .n {
+    font-family: "Fraunces", Georgia, serif;
+    font-size: 22px;
+    color: var(--sky-800);
+  }
+  .stat .l { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  /* REQUESTS */
+  .req-card {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 14px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: .15s ease;
+  }
+  .req-card:hover { border-color: var(--sky-200); box-shadow: 0 8px 20px rgba(2,132,199,.08); }
+  .req-card.urgent {
+    border-color: #fecaca;
+    background: linear-gradient(180deg, #fff 60%, #fef2f2);
+  }
+  .req-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .req-title { font-weight: 700; font-size: 15px; }
+  .req-meta { font-size: 12px; color: var(--muted); line-height: 1.45; }
+  .req-foot {
+    margin-top: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .fee { font-weight: 700; color: var(--ok); font-size: 15px; }
+  .timer {
+    font-size: 11px;
+    font-weight: 700;
+    color: #b91c1c;
+    background: #fee2e2;
+    padding: 4px 8px;
+    border-radius: 8px;
+  }
+
+  /* DETAIL / VISIT */
+  .map-block {
+    height: 180px;
+    border-radius: 18px;
+    margin: 0 0 14px;
+    background:
+      linear-gradient(180deg, rgba(15,23,42,.08), rgba(15,23,42,.35)),
+      radial-gradient(circle at 62% 48%, #38bdf8 0 8px, transparent 9px),
+      repeating-linear-gradient(0deg, transparent, transparent 18px, rgba(2,132,199,.08) 18px, rgba(2,132,199,.08) 19px),
+      repeating-linear-gradient(90deg, transparent, transparent 18px, rgba(2,132,199,.08) 18px, rgba(2,132,199,.08) 19px),
+      linear-gradient(145deg, #dbeafe, #e0f2fe 40%, #bae6fd);
+    position: relative;
+    overflow: hidden;
+  }
+  .map-pin {
+    position: absolute;
+    left: 58%;
+    top: 42%;
+    transform: translate(-50%, -100%);
+    background: var(--sky-700);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 6px 10px;
+    border-radius: 10px;
+    white-space: nowrap;
+  }
+  .map-pin::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: -6px;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-top-color: var(--sky-700);
+  }
+  .route-line {
+    position: absolute;
+    left: 18%;
+    top: 70%;
+    width: 42%;
+    height: 3px;
+    background: #0284c7;
+    transform: rotate(-28deg);
+    border-radius: 4px;
+    opacity: .7;
+  }
+  .doctor-dot {
+    position: absolute;
+    left: 18%;
+    top: 68%;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: #16a34a;
+    border: 3px solid #fff;
+    box-shadow: 0 2px 8px rgba(0,0,0,.2);
+  }
+
+  .back-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .back-btn {
+    border: 0;
+    background: #fff;
+    border: 1px solid var(--line);
+    width: 34px; height: 34px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 16px;
+  }
+
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin-bottom: 14px;
+  }
+  .step {
+    text-align: center;
+    font-size: 10px;
+    color: var(--muted);
+  }
+  .step .dot {
+    height: 4px;
+    border-radius: 99px;
+    background: var(--line);
+    margin-bottom: 6px;
+  }
+  .step.done .dot, .step.current .dot { background: var(--sky-500); }
+  .step.current { color: var(--sky-800); font-weight: 700; }
+
+  .pin-box {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin: 10px 0 14px;
+  }
+  .pin-box span {
+    width: 42px; height: 48px;
+    border-radius: 12px;
+    border: 1px solid var(--sky-200);
+    background: #fff;
+    display: grid;
+    place-items: center;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--sky-800);
+  }
+
+  .chat-preview {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 12px;
+    margin-bottom: 12px;
+  }
+  .bubble {
+    max-width: 80%;
+    padding: 8px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    margin-bottom: 6px;
+  }
+  .bubble.in { background: var(--sky-100); color: var(--sky-800); }
+  .bubble.out {
+    background: #f1f5f9;
+    margin-left: auto;
+    color: #334155;
+  }
+
+  .list-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 2px;
+    border-bottom: 1px solid var(--line);
+    font-size: 14px;
+  }
+  .list-row:last-child { border-bottom: 0; }
+  .list-row span:last-child { color: var(--muted); font-size: 12px; }
+
+  .agenda-item {
+    display: grid;
+    grid-template-columns: 52px 1fr auto;
+    gap: 10px;
+    align-items: start;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .agenda-item:last-child { border-bottom: 0; }
+  .agenda-time { font-weight: 700; color: var(--sky-700); font-size: 13px; }
+  .agenda-item h4 { font-size: 14px; }
+  .agenda-item p { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  .empty {
+    text-align: center;
+    padding: 28px 12px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .toast {
+    position: absolute;
+    left: 16px; right: 16px; top: 56px;
+    z-index: 40;
+    background: #0f172a;
+    color: #fff;
+    border-radius: 14px;
+    padding: 12px 14px;
+    display: none;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 12px 30px rgba(0,0,0,.3);
+    animation: slideIn .35s ease;
+  }
+  .toast.show { display: flex; }
+  .toast strong { display: block; font-size: 13px; }
+  .toast small { color: #94a3b8; font-size: 11px; }
+  @keyframes slideIn {
+    from { transform: translateY(-12px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+
+  @media (max-width: 920px) {
+    .stage { grid-template-columns: 1fr; justify-items: center; }
+    .brief { text-align: center; max-width: 520px; }
+    .screen-list { justify-content: center; }
+  }
+</style>
+</head>
+<body>
+  <div class="stage">
+    <aside class="brief">
+      <div class="eyebrow">Medicilio · Solo prestador</div>
+      <h1>Mockup app iOS / Android</h1>
+      <p>
+        Prototipo navegable del flujo en terreno: login, disponible, solicitudes urgentes,
+        visita activa con mapa/PIN y agenda del día.
+      </p>
+      <div class="screen-list" id="chipList"></div>
+      <p class="hint">Usa los chips o la tab bar del teléfono. Toca una solicitud para ver el detalle.</p>
+    </aside>
+
+    <div class="phone-wrap">
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="phone-screen">
+          <div class="toast" id="toast">
+            <div>
+              <strong>Nueva solicitud urgente</strong>
+              <small>Paciente a 2,1 km · $45.000</small>
+            </div>
+          </div>
+
+          <!-- LOGIN -->
+          <section class="screen active" id="screen-login" data-name="Login" data-tab="">
+            <div class="status-bar" style="color:#fff">
+              <span>9:41</span>
+              <div class="status-icons">5G · 🔋</div>
+            </div>
+            <div class="content" style="display:flex;flex-direction:column;padding:0">
+              <div class="login-hero">
+                <div class="brand-mark" style="margin:0 auto">
+                  <svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+                </div>
+                <div class="brand-word">Medicilio</div>
+                <div class="sub">App Prestador · Salud a domicilio</div>
+              </div>
+              <div class="login-panel">
+                <h2>Entra a atender</h2>
+                <p class="muted">Solo para profesionales verificados</p>
+                <div class="field">
+                  <label>Email</label>
+                  <input type="email" value="rodrigo.silva@medicilio.cl" readonly />
+                </div>
+                <div class="field">
+                  <label>Contraseña</label>
+                  <input type="password" value="********" readonly />
+                </div>
+                <button class="btn btn-primary" style="width:100%;margin-top:6px" onclick="go('home')">Iniciar sesión</button>
+                <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="go('verify')">Soy nuevo · Verificar cuenta</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- HOME -->
+          <section class="screen" id="screen-home" data-name="Inicio" data-tab="home">
+            <div class="status-bar"><span>9:41</span><div class="status-icons">GPS · 5G · 🔋</div></div>
+            <div class="content">
+              <div class="home-head">
+                <div>
+                  <h1>Hola, Rodrigo</h1>
+                  <div class="meta">Medicina General · Verificado</div>
+                </div>
+                <span class="pill pill-ok">SIS OK</span>
+              </div>
+
+              <div class="avail-card">
+                <div class="avail-row">
+                  <div>
+                    <div class="avail-label">Estado operativo</div>
+                    <div class="avail-state" id="availText">Disponible</div>
+                  </div>
+                  <button class="toggle on" id="availToggle" aria-label="Disponible" onclick="toggleAvail()">
+                    <span></span>
+                  </button>
+                </div>
+                <div class="avail-foot" id="availFoot">Recibiendo solicitudes en radio 5 km · Concepción</div>
+              </div>
+
+              <div class="visit-banner">
+                <div class="top">
+                  <span class="pill pill-live">Visita en curso</span>
+                  <span class="pill pill-sky">En camino</span>
+                </div>
+                <div>
+                  <h3>María González · Fiebre y tos</h3>
+                  <p>Av. Collao 1201 · ETA 8 min</p>
+                </div>
+                <button class="btn btn-primary" onclick="go('visit')">Continuar visita</button>
+              </div>
+
+              <div class="stat-row">
+                <div class="stat"><div class="n">3</div><div class="l">Hoy</div></div>
+                <div class="stat"><div class="n">2</div><div class="l">Cola</div></div>
+                <div class="stat"><div class="n">$128k</div><div class="l">Hoy</div></div>
+              </div>
+
+              <div class="section-title">Próximo en agenda</div>
+              <div class="card-action" onclick="go('agenda')" style="cursor:pointer">
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                  <div>
+                    <strong>15:30 · Control post-op</strong>
+                    <div style="font-size:12px;color:var(--muted);margin-top:2px">Pedro Muñoz · Hualpén</div>
+                  </div>
+                  <span class="pill pill-sky">Agenda</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- REQUESTS -->
+          <section class="screen" id="screen-requests" data-name="Solicitudes" data-tab="requests">
+            <div class="status-bar"><span>9:41</span><div class="status-icons">GPS · 5G · 🔋</div></div>
+            <div class="content">
+              <div class="home-head">
+                <div>
+                  <h1>Solicitudes</h1>
+                  <div class="meta">Urgentes cerca de ti</div>
+                </div>
+                <span class="pill pill-live">Online</span>
+              </div>
+
+              <div class="req-card urgent" onclick="go('request-detail')">
+                <div class="req-top">
+                  <span class="pill pill-warn">Urgente</span>
+                  <span class="timer">0:18</span>
+                </div>
+                <div class="req-title">Camila Rojas · 34 años</div>
+                <div class="req-meta">Dolor abdominal intenso · 2,1 km<br/>San Pedro de la Paz</div>
+                <div class="req-foot">
+                  <span class="fee">$45.000</span>
+                  <span style="font-size:12px;color:var(--muted)">Toca para ver</span>
+                </div>
+              </div>
+
+              <div class="req-card" onclick="go('request-detail')">
+                <div class="req-top">
+                  <span class="pill pill-sky">Prioridad media</span>
+                  <span style="font-size:11px;color:var(--muted)">hace 1 min</span>
+                </div>
+                <div class="req-title">Luis Herrera · 61 años</div>
+                <div class="req-meta">Control presión · 3,8 km<br/>Concepción centro</div>
+                <div class="req-foot">
+                  <span class="fee">$38.000</span>
+                  <span style="font-size:12px;color:var(--muted)">Toca para ver</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- REQUEST DETAIL -->
+          <section class="screen" id="screen-request-detail" data-name="Detalle solicitud" data-tab="">
+            <div class="status-bar"><span>9:41</span><div class="status-icons">GPS · 5G · 🔋</div></div>
+            <div class="content">
+              <div class="back-row">
+                <button class="back-btn" onclick="go('requests')">←</button>
+                <strong>Nueva solicitud</strong>
+              </div>
+              <div class="map-block">
+                <div class="route-line"></div>
+                <div class="doctor-dot"></div>
+                <div class="map-pin">Paciente · 2,1 km</div>
+              </div>
+              <div class="card-action">
+                <div style="display:flex;justify-content:space-between;align-items:start;gap:8px">
+                  <div>
+                    <div class="req-title">Camila Rojas</div>
+                    <div class="req-meta">34 años · F · San Pedro</div>
+                  </div>
+                  <span class="timer">0:18</span>
+                </div>
+                <p style="margin-top:12px;font-size:14px;line-height:1.45">
+                  Dolor abdominal intenso desde hace 3 horas, náuseas. Sin fiebre reportada.
+                </p>
+                <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+                  <span class="pill pill-sky">2,1 km</span>
+                  <span class="pill pill-sky">ETA ~9 min</span>
+                  <span class="pill pill-ok">$45.000</span>
+                </div>
+              </div>
+              <div class="btn-row">
+                <button class="btn btn-danger" onclick="go('requests')">Rechazar</button>
+                <button class="btn btn-ok" onclick="acceptRequest()">Aceptar</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- VISIT -->
+          <section class="screen" id="screen-visit" data-name="Visita activa" data-tab="">
+            <div class="status-bar"><span>9:41</span><div class="status-icons">GPS · 5G · 🔋</div></div>
+            <div class="content">
+              <div class="back-row">
+                <button class="back-btn" onclick="go('home')">←</button>
+                <strong>Visita activa</strong>
+                <span class="pill pill-live" style="margin-left:auto">GPS ON</span>
+              </div>
+
+              <div class="steps">
+                <div class="step done"><div class="dot"></div>Aceptada</div>
+                <div class="step current"><div class="dot"></div>En camino</div>
+                <div class="step"><div class="dot"></div>En domicilio</div>
+                <div class="step"><div class="dot"></div>Cerrar</div>
+              </div>
+
+              <div class="map-block">
+                <div class="route-line"></div>
+                <div class="doctor-dot"></div>
+                <div class="map-pin">Av. Collao 1201</div>
+              </div>
+
+              <div class="card-action">
+                <h3 style="font-size:16px">María González</h3>
+                <p style="font-size:13px;color:var(--muted);margin-top:4px">Fiebre y tos · ETA 8 min</p>
+                <div class="btn-row" style="margin-top:12px">
+                  <button class="btn btn-ghost">Abrir mapas</button>
+                  <button class="btn btn-primary" onclick="arrived()">Llegué</button>
+                </div>
+              </div>
+
+              <div class="section-title">Confirmar llegada (PIN)</div>
+              <div class="pin-box">
+                <span>4</span><span>7</span><span>2</span><span>1</span>
+              </div>
+              <button class="btn btn-ghost" style="width:100%;margin-bottom:12px" onclick="startCare()">Confirmar PIN e iniciar</button>
+
+              <div class="section-title">Chat con paciente</div>
+              <div class="chat-preview">
+                <div class="bubble in">Estoy en el portón azul, segundo piso.</div>
+                <div class="bubble out">Voy llegando, 5 minutos.</div>
+              </div>
+
+              <div class="btn-row">
+                <button class="btn btn-danger">Cancelar</button>
+                <button class="btn btn-ok" onclick="completeVisit()">Completar</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- AGENDA -->
+          <section class="screen" id="screen-agenda" data-name="Agenda" data-tab="agenda">
+            <div class="status-bar"><span>9:41</span><div class="status-icons">5G · 🔋</div></div>
+            <div class="content">
+              <div class="home-head">
+                <div>
+                  <h1>Agenda</h1>
+                  <div class="meta">Martes 11 ago</div>
+                </div>
+                <span class="pill pill-warn">1 pendiente</span>
+              </div>
+
+              <div class="card-action" style="border-color:#fde68a;background:#fffbeb">
+                <div style="display:flex;justify-content:space-between;gap:8px;align-items:start">
+                  <div>
+                    <strong>Solicitud de agenda</strong>
+                    <p style="font-size:12px;color:var(--muted);margin-top:4px">Ana Pérez · Jue 10:00 · Control general</p>
+                  </div>
+                </div>
+                <div class="btn-row" style="margin-top:12px">
+                  <button class="btn btn-danger" style="padding:10px">Rechazar</button>
+                  <button class="btn btn-ok" style="padding:10px">Aceptar</button>
+                </div>
+              </div>
+
+              <div class="section-title">Hoy</div>
+              <div class="card-action">
+                <div class="agenda-item">
+                  <div class="agenda-time">11:00</div>
+                  <div>
+                    <h4>María González</h4>
+                    <p>Urgencia · En curso</p>
+                  </div>
+                  <span class="pill pill-live">Live</span>
+                </div>
+                <div class="agenda-item">
+                  <div class="agenda-time">15:30</div>
+                  <div>
+                    <h4>Pedro Muñoz</h4>
+                    <p>Control post-op · Hualpén</p>
+                  </div>
+                  <span class="pill pill-sky">Agenda</span>
+                </div>
+                <div class="agenda-item">
+                  <div class="agenda-time">18:00</div>
+                  <div>
+                    <h4>Bloqueo</h4>
+                    <p>Tiempo personal</p>
+                  </div>
+                  <span class="pill" style="background:#f1f5f9;color:#64748b">Off</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- HISTORY -->
+          <section class="screen" id="screen-history" data-name="Atenciones" data-tab="history">
+            <div class="status-bar"><span>9:41</span><div class="status-icons">5G · 🔋</div></div>
+            <div class="content">
+              <div class="home-head">
+                <div>
+                  <h1>Atenciones</h1>
+                  <div class="meta">Historial reciente</div>
+                </div>
+              </div>
+              <div class="card-action">
+                <div class="list-row">
+                  <div>
+                    <strong>María González</strong>
+                    <div style="font-size:12px;color:var(--muted)">Hoy · En camino</div>
+                  </div>
+                  <span class="pill pill-sky">Activa</span>
+                </div>
+                <div class="list-row">
+                  <div>
+                    <strong>Jorge Vidal</strong>
+                    <div style="font-size:12px;color:var(--muted)">Ayer · Completada</div>
+                  </div>
+                  <span style="color:var(--ok);font-weight:700">$42.000</span>
+                </div>
+                <div class="list-row">
+                  <div>
+                    <strong>Elena Soto</strong>
+                    <div style="font-size:12px;color:var(--muted)">Lun · Completada</div>
+                  </div>
+                  <span style="color:var(--ok);font-weight:700">$38.000</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- MORE -->
+          <section class="screen" id="screen-more" data-name="Más" data-tab="more">
+            <div class="status-bar"><span>9:41</span><div class="status-icons">5G · 🔋</div></div>
+            <div class="content">
+              <div class="home-head">
+                <div>
+                  <h1>Más</h1>
+                  <div class="meta">Dr. Rodrigo Silva</div>
+                </div>
+              </div>
+              <div class="card-action">
+                <div class="list-row" onclick="go('earnings')" style="cursor:pointer">
+                  <strong>Ingresos</strong><span>$1.24M este mes →</span>
+                </div>
+                <div class="list-row" onclick="go('verify')" style="cursor:pointer">
+                  <strong>Verificación</strong><span class="pill pill-ok">Aprobada</span>
+                </div>
+                <div class="list-row" style="cursor:pointer">
+                  <strong>Horarios semanales</strong><span>Editar →</span>
+                </div>
+                <div class="list-row" style="cursor:pointer">
+                  <strong>Tarifa base</strong><span>$38.000</span>
+                </div>
+                <div class="list-row" style="cursor:pointer">
+                  <strong>Soporte</strong><span>WhatsApp →</span>
+                </div>
+                <div class="list-row" onclick="go('login')" style="cursor:pointer">
+                  <strong style="color:var(--danger)">Cerrar sesión</strong><span></span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- EARNINGS -->
+          <section class="screen" id="screen-earnings" data-name="Ingresos" data-tab="">
+            <div class="status-bar"><span>9:41</span><div class="status-icons">5G · 🔋</div></div>
+            <div class="content">
+              <div class="back-row">
+                <button class="back-btn" onclick="go('more')">←</button>
+                <strong>Ingresos</strong>
+              </div>
+              <div class="avail-card" style="background:linear-gradient(135deg,#0f766e,#0ea5e9)">
+                <div class="avail-label">Este mes</div>
+                <div class="avail-state">$1.240.000</div>
+                <div class="avail-foot">28 atenciones · comisión ya descontada</div>
+              </div>
+              <div class="stat-row">
+                <div class="stat"><div class="n">$128k</div><div class="l">Hoy</div></div>
+                <div class="stat"><div class="n">$410k</div><div class="l">Semana</div></div>
+                <div class="stat"><div class="n">4.9</div><div class="l">Rating</div></div>
+              </div>
+              <div class="section-title">Últimos pagos</div>
+              <div class="card-action">
+                <div class="list-row"><span>Jorge Vidal</span><span style="color:var(--ok);font-weight:700">+$42.000</span></div>
+                <div class="list-row"><span>Elena Soto</span><span style="color:var(--ok);font-weight:700">+$38.000</span></div>
+                <div class="list-row"><span>Comisión plataforma</span><span style="color:var(--danger)">-$12.400</span></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- VERIFY -->
+          <section class="screen" id="screen-verify" data-name="Verificación" data-tab="">
+            <div class="status-bar"><span>9:41</span><div class="status-icons">5G · 🔋</div></div>
+            <div class="content">
+              <div class="back-row">
+                <button class="back-btn" onclick="go('login')">←</button>
+                <strong>Verificación</strong>
+              </div>
+              <h1 style="font-family:Fraunces,Georgia,serif;font-size:24px;margin-bottom:6px">Valida tu perfil</h1>
+              <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Sube documentos con la cámara. El equipo Medicilio revisa en 24–48 h.</p>
+              <div class="card-action">
+                <div class="list-row"><strong>Cédula (ambos lados)</strong><span class="pill pill-ok">Listo</span></div>
+                <div class="list-row"><strong>Título / certificado</strong><span class="pill pill-warn">Pendiente</span></div>
+                <div class="list-row"><strong>Registro Superintendencia</strong><span class="pill pill-sky">Opcional</span></div>
+                <div class="list-row"><strong>Datos bancarios</strong><span class="pill pill-ok">Listo</span></div>
+              </div>
+              <button class="btn btn-primary" style="width:100%;margin-top:8px">Tomar foto / Subir</button>
+              <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="go('home')">Enviar a revisión</button>
+            </div>
+          </section>
+
+          <!-- TAB BAR -->
+          <nav class="tabbar" id="tabbar" style="display:none">
+            <button class="tab" data-go="home">
+              <span class="tab-icon-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5z"/></svg>
+              </span>
+              Inicio
+            </button>
+            <button class="tab" data-go="requests">
+              <span class="tab-icon-wrap">
+                <span class="badge">2</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 5h14v4H5zM5 11h14v8H5z"/><path d="M9 15h6"/></svg>
+              </span>
+              Solicitudes
+            </button>
+            <button class="tab" data-go="agenda">
+              <span class="tab-icon-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>
+              </span>
+              Agenda
+            </button>
+            <button class="tab" data-go="history">
+              <span class="tab-icon-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg>
+              </span>
+              Atenciones
+            </button>
+            <button class="tab" data-go="more">
+              <span class="tab-icon-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="18" cy="12" r="1.5"/></svg>
+              </span>
+              Más
+            </button>
+          </nav>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const tabsWithBar = new Set(["home", "requests", "agenda", "history", "more"]);
+  const order = [
+    "login", "home", "requests", "request-detail", "visit",
+    "agenda", "history", "more", "earnings", "verify"
+  ];
+
+  function go(id) {
+    document.querySelectorAll(".screen").forEach((s) => s.classList.remove("active"));
+    const el = document.getElementById("screen-" + id);
+    if (!el) return;
+    el.classList.add("active");
+
+    const tab = el.dataset.tab;
+    const tabbar = document.getElementById("tabbar");
+    tabbar.style.display = tabsWithBar.has(id) ? "grid" : "none";
+    document.querySelectorAll(".tab").forEach((t) => {
+      t.classList.toggle("active", t.dataset.go === (tab || id));
+    });
+
+    document.querySelectorAll(".screen-chip").forEach((c) => {
+      c.classList.toggle("active", c.dataset.id === id);
+    });
+  }
+
+  function toggleAvail() {
+    const btn = document.getElementById("availToggle");
+    const on = btn.classList.toggle("on");
+    document.getElementById("availText").textContent = on ? "Disponible" : "No disponible";
+    document.getElementById("availFoot").textContent = on
+      ? "Recibiendo solicitudes en radio 5 km · Concepción"
+      : "No recibirás nuevas urgencias hasta reconectarte";
+    if (on) showToast();
+  }
+
+  function showToast() {
+    const t = document.getElementById("toast");
+    t.classList.add("show");
+    setTimeout(() => t.classList.remove("show"), 2800);
+  }
+
+  function acceptRequest() {
+    go("visit");
+    showToast();
+    const toast = document.getElementById("toast");
+    toast.querySelector("strong").textContent = "Solicitud aceptada";
+    toast.querySelector("small").textContent = "Navegación y GPS activados";
+  }
+
+  function arrived() {
+    const toast = document.getElementById("toast");
+    toast.querySelector("strong").textContent = "Llegaste al domicilio";
+    toast.querySelector("small").textContent = "Pide el PIN al paciente para iniciar";
+    showToast();
+  }
+
+  function startCare() {
+    const toast = document.getElementById("toast");
+    toast.querySelector("strong").textContent = "Atención iniciada";
+    toast.querySelector("small").textContent = "Estado: EN DOMICILIO / IN_PROGRESS";
+    showToast();
+  }
+
+  function completeVisit() {
+    const toast = document.getElementById("toast");
+    toast.querySelector("strong").textContent = "Visita completada";
+    toast.querySelector("small").textContent = "+$45.000 · Sube comprobante si aplica";
+    showToast();
+    setTimeout(() => go("home"), 900);
+  }
+
+  // chips + tabs
+  const chipList = document.getElementById("chipList");
+  order.forEach((id) => {
+    const screen = document.getElementById("screen-" + id);
+    const chip = document.createElement("button");
+    chip.className = "screen-chip" + (id === "login" ? " active" : "");
+    chip.textContent = screen.dataset.name;
+    chip.dataset.id = id;
+    chip.onclick = () => go(id);
+    chipList.appendChild(chip);
+  });
+
+  document.querySelectorAll(".tab").forEach((t) => {
+    t.addEventListener("click", () => go(t.dataset.go));
+  });
+
+  // demo push shortly after load when entering home later
+  setTimeout(() => {
+    if (document.getElementById("screen-home").classList.contains("active")) showToast();
+  }, 1200);
+</script>
+</body>
+</html>
