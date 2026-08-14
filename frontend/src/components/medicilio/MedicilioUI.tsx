@@ -318,7 +318,6 @@ function PatientSidebar() {
       items: [
         { href: '/dashboard/patient/consultas', label: 'Historial', icon: 'clock' },
         { href: '/dashboard/patient/resultados-examenes', label: 'Resultados', icon: 'chart' },
-        { href: '/dashboard/patient/mensajes', label: 'Mensajes', icon: 'message', badge: '2' },
       ],
     },
     ...(isBajaPeso
@@ -326,7 +325,6 @@ function PatientSidebar() {
           title: 'Mi programa',
           items: [
             { href: '/dashboard/patient/baja-peso#planes', label: 'Ver plan', icon: 'scale' as const, tone: 'green' as const },
-            { href: '/dashboard/patient/mensajes', label: 'Mensajes', icon: 'message' as const, badge: '2' },
           ],
         } satisfies { title: string; items: SidebarItem[] }]
       : []),

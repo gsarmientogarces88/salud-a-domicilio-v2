@@ -232,7 +232,7 @@ export default function SimpleUrgentRequestForm() {
         <div>
           <h2 className="flex items-center gap-2 text-base font-semibold text-[var(--color-texto-1)]">
             <span aria-hidden>🚑</span>
-            Solicitud Simple
+            Solicitud de médico a domicilio
           </h2>
           <p className="mt-1 text-xs text-[var(--color-texto-3)]">
             Completa los datos y confirma tu ubicación. Menos de 60 segundos.

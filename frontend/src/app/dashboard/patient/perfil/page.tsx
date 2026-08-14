@@ -101,10 +101,6 @@ export default function PerfilPage() {
         <p className="text-sm leading-relaxed text-gray-600">
           Completa tu perfil para una atención más rápida y segura.
         </p>
-        <p className="rounded-xl border border-amber-100 bg-amber-50/80 px-3 py-2 text-xs text-amber-950">
-          Por ahora solo puedes editar datos de cuenta (nombre, apellido, correo y teléfono). Cuando la base de datos
-          incluya el resto de campos clínicos, volverán a mostrarse aquí.
-        </p>
       </header>
 
       {error && (

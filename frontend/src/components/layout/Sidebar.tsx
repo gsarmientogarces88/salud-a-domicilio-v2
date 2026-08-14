@@ -15,7 +15,6 @@ const LINKS: Record<string, { href: string; label: string; icon: string }[]> = {
     { href: '/dashboard/patient/resultados-examenes', label: 'Historial de Exámenes', icon: '🔬' },
     { href: '/dashboard/patient/consultas', label: 'Consultas', icon: '👥' },
     { href: '/dashboard/patient/pagos', label: 'Pagos', icon: '💰' },
-    { href: '/dashboard/patient/mensajes', label: 'Mensajes', icon: '💬' },
     { href: '/dashboard/patient/perfil', label: 'Perfil', icon: '👤' },
     { href: '/dashboard/patient/soporte', label: 'Soporte', icon: '⚙️' },
   ],

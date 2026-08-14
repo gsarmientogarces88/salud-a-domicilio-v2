@@ -12,10 +12,22 @@ const COLORS: Record<string, string> = {
   EXPIRED: 'bg-gray-200 text-gray-800',
 };
 
+const LABELS: Record<string, string> = {
+  PENDING: 'Pendiente',
+  QUEUED: 'En cola',
+  ACCEPTED: 'Aceptada',
+  IN_PROGRESS: 'En curso',
+  COMPLETED: 'Completada',
+  CANCELLED: 'Cancelada',
+  REFUNDED: 'Reembolsada',
+  REJECTED: 'Rechazada',
+  EXPIRED: 'Expirada',
+};
+
 export default function StatusBadge({ status, label }: { status: string; label?: string }) {
   return (
     <span className={`rounded-full px-2 py-1 text-xs font-medium ${COLORS[status] || 'bg-gray-100'}`}>
-      {label?.trim() || status.replace(/_/g, ' ')}
+      {label?.trim() || LABELS[status] || status.replace(/_/g, ' ')}
     </span>
   );
 }
