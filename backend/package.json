@@ -9,6 +9,7 @@
     "db:push": "prisma db push",
     "db:seed": "ts-node prisma/seed.ts",
     "db:reset-requests": "ts-node prisma/resetTestRequests.ts",
+    "db:backfill-loyalty": "ts-node prisma/backfillDoctorLoyalty.ts",
     "db:studio": "prisma studio"
   },
   "dependencies": {

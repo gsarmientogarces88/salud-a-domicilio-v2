@@ -50,6 +50,7 @@ function RootLayoutNav() {
         <Stack.Screen name="request/[id]" options={{ title: 'Nueva solicitud' }} />
         <Stack.Screen name="visit/[id]" options={{ title: 'Visita activa' }} />
         <Stack.Screen name="earnings" options={{ title: 'Ingresos' }} />
+        <Stack.Screen name="puntos" options={{ title: 'Medicilio Puntos' }} />
         <Stack.Screen name="verify" options={{ title: 'Verificación' }} />
       </Stack>
     </ThemeProvider>

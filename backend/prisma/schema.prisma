@@ -152,6 +152,7 @@ model DoctorProfile {
   liveLocation        DoctorLiveLocation?
   serviceRejections   ServiceRequestRejection[]
   verificationDocs    DoctorVerificationDocument[]
+  loyalty             DoctorLoyalty?
 
   @@map("doctor_profiles")
 }
@@ -666,4 +667,145 @@ model Notification {
 
   @@index([userId, read])
   @@map("notifications")
+}
+
+// ========== MEDICILIO PUNTOS (fidelización médicos) ==========
+
+enum LoyaltyTransactionType {
+  VISIT_COMPLETED
+  BONUS
+  CAMPAIGN
+  ADJUSTMENT
+}
+
+enum LoyaltySourceType {
+  SERVICE_REQUEST
+  CAMPAIGN
+  MANUAL
+  SYSTEM
+}
+
+enum LoyaltyBenefitType {
+  NONE
+  COURSE
+  TRIP
+  PRIZE
+  OTHER
+}
+
+enum LoyaltyBenefitStatus {
+  NOT_CONFIGURED
+  AVAILABLE
+  CLAIMED
+  EXPIRED
+}
+
+/// Configuración global del programa. Evita hardcodear “1 atención = 1 punto” en toda la app.
+model LoyaltySetting {
+  id                       String   @id @default("default")
+  pointsPerCompletedVisit  Int      @default(1)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@map("loyalty_settings")
+}
+
+/// Niveles por rango de puntos. El `code` es estable; `name` se puede cambiar a Bronze/Silver/Gold sin tocar lógica.
+model LoyaltyLevel {
+  id        String   @id
+  code      String   @unique
+  name      String
+  minPoints Int
+  maxPoints Int?
+  sortOrder Int
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([minPoints])
+  @@map("loyalty_levels")
+}
+
+/// Metas configurables. Los campos de beneficio quedan listos para una etapa posterior.
+model LoyaltyMilestone {
+  id                   String               @id
+  code                 String               @unique
+  pointsRequired       Int
+  sortOrder            Int
+  isActive             Boolean              @default(true)
+  title                String
+  congratulationTitle  String
+  congratulationBody   String
+  benefitName          String?
+  benefitDescription   String?
+  benefitImageUrl      String?
+  benefitValue         Int?
+  benefitType          LoyaltyBenefitType   @default(NONE)
+  benefitStatus        LoyaltyBenefitStatus @default(NOT_CONFIGURED)
+  benefitConditions    String?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  achievements DoctorLoyaltyMilestone[]
+
+  @@index([pointsRequired])
+  @@map("loyalty_milestones")
+}
+
+model DoctorLoyalty {
+  id                   String    @id @default(cuid())
+  doctorId             String    @unique
+  doctor               DoctorProfile @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  pointsBalance        Int       @default(0)
+  completedVisitsCount Int       @default(0)
+  currentLevelCode     String    @default("LEVEL_INITIAL")
+  lastCompletedAt      DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  transactions LoyaltyTransaction[]
+  milestones   DoctorLoyaltyMilestone[]
+
+  @@index([pointsBalance])
+  @@index([currentLevelCode])
+  @@map("doctor_loyalty")
+}
+
+model LoyaltyTransaction {
+  id              String                 @id @default(cuid())
+  doctorLoyaltyId String
+  doctorLoyalty   DoctorLoyalty          @relation(fields: [doctorLoyaltyId], references: [id], onDelete: Cascade)
+  type            LoyaltyTransactionType
+  sourceType      LoyaltySourceType
+  sourceId        String
+  points          Int
+  balanceAfter    Int
+  concept         String
+  metadata        Json?
+  occurredAt      DateTime               @default(now())
+  createdAt       DateTime               @default(now())
+
+  @@unique([sourceType, sourceId, type])
+  @@index([doctorLoyaltyId, occurredAt])
+  @@index([sourceId])
+  @@map("loyalty_transactions")
+}
+
+model DoctorLoyaltyMilestone {
+  id                String           @id @default(cuid())
+  doctorLoyaltyId   String
+  doctorLoyalty     DoctorLoyalty    @relation(fields: [doctorLoyaltyId], references: [id], onDelete: Cascade)
+  milestoneId       String
+  milestone         LoyaltyMilestone @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  achievedAt        DateTime         @default(now())
+  notifiedAt        DateTime?
+  notificationId    String?
+  benefitClaimed    Boolean          @default(false)
+  benefitClaimedAt  DateTime?
+  benefitUnlockedAt DateTime?
+  createdAt         DateTime         @default(now())
+
+  @@unique([doctorLoyaltyId, milestoneId])
+  @@index([milestoneId])
+  @@map("doctor_loyalty_milestones")
 }

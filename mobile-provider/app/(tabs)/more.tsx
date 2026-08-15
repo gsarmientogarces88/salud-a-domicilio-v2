@@ -36,6 +36,7 @@ export default function MoreScreen() {
       />
       <Card>
         <Row title="Ingresos" right={`${clp(monthNet)} este mes →`} onPress={() => router.push('/earnings')} />
+        <Row title="Medicilio Puntos" right="Ver progreso →" onPress={() => router.push('/puntos')} />
         <Row
           title="Verificación"
           right={profile?.isVerified ? 'Aprobada' : profile?.verificationStatus || 'Pendiente'}

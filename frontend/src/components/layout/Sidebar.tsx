@@ -27,6 +27,7 @@ const LINKS: Record<string, { href: string; label: string; icon: string }[]> = {
     { href: '/dashboard/doctor/verificacion', label: 'Verificación', icon: '🪪' },
     { href: '/dashboard/doctor/settings', label: 'Configuración', icon: '⚙️' },
     { href: '/dashboard/doctor/metrics', label: 'Métricas', icon: '📈' },
+    { href: '/dashboard/doctor/puntos', label: 'Medicilio Puntos', icon: '🏅' },
     { href: '/dashboard/doctor/earnings', label: 'Ingresos', icon: '💰' },
   ],
   ADMIN: [
@@ -34,6 +35,7 @@ const LINKS: Record<string, { href: string; label: string; icon: string }[]> = {
     { href: '/dashboard/admin/users', label: 'Usuarios', icon: '👥' },
     { href: '/dashboard/admin/verificaciones', label: 'Verificaciones', icon: '✅' },
     { href: '/dashboard/admin/services', label: 'Servicios', icon: '🩺' },
+    { href: '/dashboard/admin/fidelizacion', label: 'Fidelización Médicos', icon: '🏅' },
     { href: '/dashboard/admin/config', label: 'Configuración', icon: '⚙️' },
   ],
   LABORATORY: [

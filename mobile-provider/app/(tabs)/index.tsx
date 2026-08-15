@@ -5,13 +5,33 @@ import { useAuth } from '@/context/AuthContext';
 import { useDoctor } from '@/context/DoctorContext';
 import { Button, Card, Pill, ScreenTitle } from '@/components/ui';
 import { clp, formatTime, patientName, placeLabel } from '@/lib/format';
+import { formatPoints, type LoyaltySummary } from '@/lib/loyalty';
+import { apiFetch } from '@/lib/api';
 import { colors } from '@/lib/theme';
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 export default function HomeScreen() {
   const { user } = useAuth();
   const { profile, myServices, available, loading, load, setAvailableOnline } = useDoctor();
   const [toggling, setToggling] = useState(false);
+  const [loyalty, setLoyalty] = useState<LoyaltySummary | null>(null);
+
+  const loadLoyalty = useCallback(async () => {
+    try {
+      const res = await apiFetch<{ data: LoyaltySummary }>('/doctor/loyalty');
+      setLoyalty(res.data);
+    } catch {
+      setLoyalty(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadLoyalty();
+  }, [loadLoyalty]);
+
+  const refresh = async () => {
+    await Promise.all([load(), loadLoyalty()]);
+  };
 
   const firstName = profile?.user?.firstName || user?.firstName || 'Doctor';
   const active = myServices.find((s) => ['ACCEPTED', 'QUEUED', 'IN_PROGRESS'].includes(s.status));
@@ -37,7 +57,7 @@ export default function HomeScreen() {
     <ScrollView
       style={styles.screen}
       contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={loading} onRefresh={() => load()} />}>
+      refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void refresh()} />}>
       <View style={styles.head}>
         <View style={{ flex: 1 }}>
           <ScreenTitle title={`Hola, ${firstName}`} subtitle={`${profile?.specialty || 'Prestador'} · ${profile?.isVerified ? 'Verificado' : 'Pendiente de verificación'}`} />
@@ -93,6 +113,36 @@ export default function HomeScreen() {
         </View>
       </View>
 
+      {loyalty ? (
+        <Pressable onPress={() => router.push('/puntos')}>
+          <Card>
+            <View style={styles.rowBetween}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.pointsLabel}>Medicilio Puntos</Text>
+                <Text style={styles.pointsVal}>
+                  {formatPoints(loyalty.pointsBalance)}{' '}
+                  <Text style={styles.pointsUnit}>puntos</Text>
+                </Text>
+                <Text style={styles.meta}>
+                  {loyalty.nextMilestone
+                    ? `Próxima meta: ${formatPoints(loyalty.nextMilestone.pointsRequired)} · Te faltan ${formatPoints(loyalty.progress.remaining)}`
+                    : 'Todas las metas actuales alcanzadas'}
+                </Text>
+                <View style={styles.miniTrack}>
+                  <View
+                    style={[
+                      styles.miniFill,
+                      { width: `${Math.round(loyalty.progress.ratio * 100)}%` as `${number}%` },
+                    ]}
+                  />
+                </View>
+              </View>
+              <Pill label={loyalty.level.name} tone="sky" />
+            </View>
+          </Card>
+        </Pressable>
+      ) : null}
+
       <Pressable onPress={() => router.push('/(tabs)/agenda')}>
         <Card>
           <View style={styles.rowBetween}>
@@ -134,4 +184,21 @@ const styles = StyleSheet.create({
   },
   statN: { fontSize: 18, fontWeight: '800', color: colors.sky800 },
   statL: { fontSize: 11, color: colors.muted, marginTop: 2 },
+  pointsLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    color: colors.sky800,
+  },
+  pointsVal: { fontSize: 26, fontWeight: '800', color: colors.ink, marginTop: 4 },
+  pointsUnit: { fontSize: 14, fontWeight: '600', color: colors.muted },
+  miniTrack: {
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: colors.sky100,
+    overflow: 'hidden',
+    marginTop: 10,
+  },
+  miniFill: { height: '100%', borderRadius: 999, backgroundColor: colors.sky600 },
 });

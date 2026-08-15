@@ -5,6 +5,8 @@ import { useAuth } from '@/context/AuthContext';
 import { useDoctorRequests } from '@/context/DoctorRequestsContext';
 import { apiFetch } from '@/lib/api';
 import StatusBadge from '@/components/ui/StatusBadge';
+import MedicilioPuntosCard, { type LoyaltySummary } from '@/components/medico/MedicilioPuntosCard';
+import LoyaltyMilestoneModal from '@/components/medico/LoyaltyMilestoneModal';
 import {
   IN_PROGRESS_WARNING_AFTER_MINUTES,
   inProgressElapsedMinutes,
@@ -86,10 +88,11 @@ export default function DoctorDashboard() {
   const [startingId, setStartingId] = useState<string | null>(null);
   const [providerPos, setProviderPos] = useState<LatLng | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [loyalty, setLoyalty] = useState<LoyaltySummary | null>(null);
 
   const load = async () => {
     try {
-      const [p, s, loc] = await Promise.all([
+      const [p, s, loc, loyaltyRes] = await Promise.all([
         apiFetch<{ data: DoctorProfile }>('/doctor/me'),
         apiFetch<{ data: Service[] }>(`/services/doctor/me?_=${Date.now()}`),
         apiFetch<{
@@ -100,9 +103,11 @@ export default function DoctorDashboard() {
               | { kind: 'UNKNOWN' };
           };
         }>('/doctor/me/location/effective').catch(() => null as any),
+        apiFetch<{ data: LoyaltySummary }>('/doctor/loyalty').catch(() => null),
       ]);
       setProfile(p.data);
       setServices(s.data);
+      if (loyaltyRes?.data) setLoyalty(loyaltyRes.data);
       if (loc?.data?.effective?.kind === 'LIVE' || loc?.data?.effective?.kind === 'BASE') {
         setProviderPos({ lat: loc.data.effective.lat, lng: loc.data.effective.lng });
       } else {
@@ -243,6 +248,22 @@ export default function DoctorDashboard() {
     if (elapsed == null) return false;
     return elapsed >= IN_PROGRESS_WARNING_AFTER_MINUTES;
   }, [activeService, nowMs]);
+
+  const unseenMilestone = loyalty?.unseenMilestones[0] ?? null;
+
+  const ackMilestone = async () => {
+    if (!unseenMilestone) return;
+    try {
+      await apiFetch(`/doctor/loyalty/milestones/${unseenMilestone.id}/ack`, { method: 'POST' });
+    } catch {
+      // El modal no debe bloquear el dashboard si el ack falla; se reintentará al recargar.
+    }
+    setLoyalty((prev) =>
+      prev
+        ? { ...prev, unseenMilestones: prev.unseenMilestones.filter((m) => m.id !== unseenMilestone.id) }
+        : prev,
+    );
+  };
 
   const finishActive = async (serviceId: string) => {
     const ok = window.confirm('¿Confirmas que finalizaste la atención?');
@@ -533,7 +554,13 @@ export default function DoctorDashboard() {
         </div>
       </div>
 
-      <section className="order-4 rounded-2xl bg-white p-4 shadow-sm md:p-5">
+      {loyalty ? (
+        <div className="order-4">
+          <MedicilioPuntosCard summary={loyalty} />
+        </div>
+      ) : null}
+
+      <section className="order-5 rounded-2xl bg-white p-4 shadow-sm md:p-5">
         <h2 className="mb-3 text-base font-semibold text-gray-900 md:text-lg">Atenciones recientes</h2>
         {recent.length === 0 ? (
           <p className="text-sm text-gray-500">Aún no tienes atenciones registradas.</p>
@@ -616,6 +643,9 @@ export default function DoctorDashboard() {
           </>
         )}
       </section>
+      {unseenMilestone ? (
+        <LoyaltyMilestoneModal milestone={unseenMilestone} onClose={() => void ackMilestone()} />
+      ) : null}
     </div>
   );
 }

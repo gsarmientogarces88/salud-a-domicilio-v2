@@ -20,6 +20,7 @@ import patientNotificationsRoutes from './routes/patientNotifications.routes';
 import patientProfileRoutes from './routes/patientProfile.routes';
 import laboratoryRoutes from './routes/laboratory.routes';
 import publicRoutes from './routes/public.routes';
+import { adminLoyaltyRouter, doctorLoyaltyRouter } from './routes/loyalty.routes';
 
 const app = express();
 
@@ -55,7 +56,12 @@ app.use(
     origin(origin, callback) {
       if (!origin) return callback(null, true);
       if (origins.includes(origin)) return callback(null, true);
-      if (config.isDev && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+      if (
+        config.isDev &&
+        /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})(:\d+)?$/.test(
+          origin,
+        )
+      ) {
         return callback(null, true);
       }
       return callback(null, false);
@@ -79,7 +85,9 @@ app.use('/api/public', publicRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/services', servicesRoutes);
 app.use('/api/payments', paymentsRoutes);
+app.use('/api/admin/loyalty', adminLoyaltyRouter);
 app.use('/api/admin', adminRoutes);
+app.use('/api/doctor/loyalty', doctorLoyaltyRouter);
 app.use('/api/doctor', doctorRoutes);
 app.use('/api/scheduling', schedulingRoutes);
 app.use('/api/professionals', professionalsRoutes);

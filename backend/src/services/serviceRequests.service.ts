@@ -1,6 +1,7 @@
 import { Prisma, ServiceStatus } from '@prisma/client';
 import prisma from '../lib/prisma';
 import { config } from '../config';
+import { creditCompletedVisitSafe } from './loyalty.service';
 
 /** Prefijo en `notes` para cierres automáticos por tiempo en IN_PROGRESS (auditoría / soporte). */
 export const AUTO_COMPLETED_IN_PROGRESS_MARKER = '[AUTO_COMPLETED_TIMEOUT]';
@@ -325,7 +326,7 @@ export async function startRequest(serviceId: string, doctorId: string) {
 export async function completeRequest(serviceId: string, doctorId: string, notes?: string) {
   const dbg = config.debugServiceStateFlow;
 
-  return prisma.$transaction(async (tx) => {
+  const completed = await prisma.$transaction(async (tx) => {
     const sr = await tx.serviceRequest.findUnique({ where: { id: serviceId } });
     if (!sr) throw new Error('Solicitud no encontrada');
     if (sr.doctorId !== doctorId) throw new Error('No es tu solicitud');
@@ -379,6 +380,16 @@ export async function completeRequest(serviceId: string, doctorId: string, notes
 
     return completed;
   });
+
+  await creditCompletedVisitSafe(prisma, {
+    id: completed.id,
+    doctorId: completed.doctorId,
+    status: completed.status,
+    completedAt: completed.completedAt,
+    pacienteNombre: completed.pacienteNombre,
+  });
+
+  return completed;
 }
 
 /**
@@ -434,9 +445,21 @@ export async function autoCompleteStaleInProgressServices(): Promise<number> {
       if (upd.count === 0) return false;
 
       await promoteNextQueuedAfterComplete(tx, cur.doctorId, new Date());
-      return true;
+      return cur.id;
     });
-    if (did) closed += 1;
+    if (!did) continue;
+    closed += 1;
+    const completed = await prisma.serviceRequest.findUnique({
+      where: { id: did },
+      select: {
+        id: true,
+        doctorId: true,
+        status: true,
+        completedAt: true,
+        pacienteNombre: true,
+      },
+    });
+    if (completed) await creditCompletedVisitSafe(prisma, completed);
   }
 
   if (closed > 0 && config.isDev) {
