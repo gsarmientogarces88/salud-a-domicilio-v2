@@ -4,6 +4,14 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useDoctorRequests } from '@/context/DoctorRequestsContext';
+import BrandLogo from '@/components/brand/BrandLogo';
+
+const HOME_BY_ROLE: Record<string, string> = {
+  PATIENT: '/dashboard/patient/inicio',
+  DOCTOR: '/dashboard/doctor',
+  ADMIN: '/dashboard/admin',
+  LABORATORY: '/dashboard/laboratorio',
+};
 
 const LINKS: Record<string, { href: string; label: string; icon: string }[]> = {
   PATIENT: [
@@ -59,7 +67,7 @@ export default function Sidebar() {
 
   return (
     <aside
-      className={`relative flex w-56 flex-col p-6 ${
+      className={`relative flex w-60 flex-col p-6 ${
         isPatient
           ? 'bg-gradient-to-b from-sky-200 to-sky-100'
           : 'border-r bg-white'
@@ -73,9 +81,8 @@ export default function Sidebar() {
           }}
         />
       )}
-      <div className="relative z-10 mb-8 flex items-center gap-2">
-        <span className="text-3xl">🏠</span>
-        <span className="text-xl font-bold text-sky-800">SALUD EN CASA</span>
+      <div className="relative z-10 mb-8">
+        <BrandLogo href={HOME_BY_ROLE[user?.role || 'DOCTOR'] || '/dashboard/doctor'} size={36} />
       </div>
       <ul className="relative z-10 flex-1 space-y-1">
         {links.map((l) => {

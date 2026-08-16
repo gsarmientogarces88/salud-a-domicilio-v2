@@ -48,7 +48,7 @@ export default function BrandLogo({
             Medicilio
           </span>
           <span
-            className={`mt-0.5 block text-[9px] font-semibold uppercase tracking-[0.18em] ${
+            className={`mt-0.5 block whitespace-nowrap text-[9px] font-semibold uppercase tracking-[0.18em] ${
               onDark ? 'text-[#7DD3B0]' : 'text-[#3D9B7A]'
             }`}
           >
