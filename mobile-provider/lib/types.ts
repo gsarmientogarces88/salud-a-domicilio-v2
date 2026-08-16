@@ -16,7 +16,6 @@ export type DoctorProfile = {
   isVerified: boolean;
   isAvailable: boolean;
   verificationStatus: 'INCOMPLETE' | 'SUBMITTED' | 'APPROVED' | 'REJECTED';
-  coverageKm?: number | null;
   commune?: string | null;
   province?: string | null;
   user?: {

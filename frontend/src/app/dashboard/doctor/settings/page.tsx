@@ -21,7 +21,6 @@ export default function DoctorSettingsPage() {
 
   const [selectedSpecialties, setSelectedSpecialties] = useState<string[]>([]);
   const [selectedCredentials, setSelectedCredentials] = useState<string[]>([]);
-  const [coverageKm, setCoverageKm] = useState(5);
   const [standardFee, setStandardFee] = useState(40000);
   const [message, setMessage] = useState('');
 
@@ -49,9 +48,6 @@ export default function DoctorSettingsPage() {
       const p = profileRes.data;
       if (p) {
         setStandardFee(p.baseFee || 40000);
-        if (typeof p.coverageKm === 'number' && p.coverageKm > 0) {
-          setCoverageKm(p.coverageKm);
-        }
         const decoded = decodeDoctorSpecialty(p.specialty);
         setSelectedCredentials(decoded.credentials);
         setSelectedSpecialties(decoded.areas);
@@ -114,7 +110,6 @@ export default function DoctorSettingsPage() {
           body: JSON.stringify({
             specialty: encodeDoctorSpecialty(selectedCredentials, selectedSpecialties),
             baseFee: standardFee,
-            coverageKm,
             selectedSpecialties,
             selectedCredentials,
           }),
@@ -140,7 +135,7 @@ export default function DoctorSettingsPage() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Configuración profesional</h1>
         <p className="text-sm text-gray-600">
-          Define tus especialidades, cobertura y tarifas para la plataforma.
+          Define tus especialidades y tarifas para la plataforma.
         </p>
       </div>
 
@@ -202,23 +197,6 @@ export default function DoctorSettingsPage() {
                 );
               })}
             </div>
-          </div>
-
-          {/* Cobertura */}
-          <div className="max-w-sm">
-            <h2 className="mb-2 text-sm font-semibold text-gray-800">Cobertura</h2>
-            <label className="mb-1 block text-xs text-gray-600">Radio (km)</label>
-            <input
-              type="number"
-              min={1}
-              max={50}
-              value={coverageKm}
-              onChange={(e) => setCoverageKm(Number(e.target.value))}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              Distancia máxima desde tu ubicación para atender por georreferencia.
-            </p>
           </div>
 
           {/* Tarifas */}

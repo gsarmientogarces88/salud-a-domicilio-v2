@@ -81,7 +81,7 @@ export default function HomeScreen() {
         </View>
         <Text style={styles.availFoot}>
           {online
-            ? `Recibiendo solicitudes en radio ${profile?.coverageKm || 5} km`
+            ? 'Recibiendo solicitudes de urgencia'
             : 'No recibirás nuevas urgencias hasta reconectarte'}
         </Text>
       </LinearGradient>
